@@ -23,6 +23,7 @@ private:
     Stack history;         // linked-list based stack of room ids
     LinkedList inventory;  // linked list of carried Items
     bool visited[ROOM_COUNT];
+    float posX, posY;      // position within the current room (room-local coords)
 
 public:
     Player();
@@ -32,6 +33,12 @@ public:
     bool goBack(int& outRoomId);  // pop stack -> return true and set outRoomId if possible
     int getCurrentRoom() const;
     bool hasVisited(int roomId) const;
+
+    // --- In-room position (spatial exploration, not a taught data structure) ---
+    float getX() const;
+    float getY() const;
+    void moveBy(float dx, float dy, float maxW, float maxH);
+    void setPosition(float x, float y);
 
     // --- Health / Fear ---
     int getHealth() const;

@@ -7,6 +7,8 @@ Player::Player() {
     for (int i = 0; i < ROOM_COUNT; i++) {
         visited[i] = false;
     }
+    posX = 570.f;
+    posY = 290.f;
     enterRoom(ENTRANCE_HALL); // pushes onto the history stack, marks visited
 }
 
@@ -14,6 +16,25 @@ void Player::enterRoom(int roomId) {
     currentRoomId = roomId;
     history.push(roomId); // Stack usage: record every room we step into
     visited[roomId] = true;
+    posX = 570.f; // spawn near the bottom-center of the new room
+    posY = 290.f;
+}
+
+float Player::getX() const { return posX; }
+float Player::getY() const { return posY; }
+
+void Player::moveBy(float dx, float dy, float maxW, float maxH) {
+    posX += dx;
+    posY += dy;
+    if (posX < 20.f) posX = 20.f;
+    if (posY < 20.f) posY = 20.f;
+    if (posX > maxW - 20.f) posX = maxW - 20.f;
+    if (posY > maxH - 20.f) posY = maxH - 20.f;
+}
+
+void Player::setPosition(float x, float y) {
+    posX = x;
+    posY = y;
 }
 
 bool Player::goBack(int& outRoomId) {
@@ -25,6 +46,8 @@ bool Player::goBack(int& outRoomId) {
     history.pop();               // discard current room
     int previousRoom = history.peek(); // new top = room we came from
     currentRoomId = previousRoom;
+    posX = 570.f; // re-spawn near the bottom-center of the room we returned to
+    posY = 290.f;
     outRoomId = previousRoom;
     return true;
 }

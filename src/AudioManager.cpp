@@ -100,19 +100,36 @@ sf::SoundBuffer AudioManager::makeDoor() {
     return makeNoiseBurst(0.5, 0.6, 0.85);
 }
 
+sf::SoundBuffer AudioManager::loadOrFallback(const std::string& filename, const sf::SoundBuffer& fallback) {
+    sf::SoundBuffer buf;
+    if (buf.loadFromFile("assets/Sounds/" + filename)) return buf;
+    if (buf.loadFromFile("../assets/Sounds/" + filename)) return buf;
+    return fallback; // file missing/undecodable - keep the game working with the generated sound
+}
+
 AudioManager::AudioManager()
-    : ambientDroneBuffer(makeTone(60.0, 3.0, 0.25, false)),
-      stingerBuffer(makeNoiseBurst(0.6, 0.9, 0.2)),
-      whisperBuffer(makeNoiseBurst(0.8, 0.35, 0.9)),
+    : ambientDroneBuffer(loadOrFallback("universfield-scary-music-box-165983.mp3", makeTone(60.0, 3.0, 0.25, false))),
+      stingerBuffer(loadOrFallback("judgecruz1-remusic-scary-loud-screaming-279745.mp3", makeNoiseBurst(0.6, 0.9, 0.2))),
+      whisperBuffer(loadOrFallback("freesound_community-scary-breath-82777.mp3", makeNoiseBurst(0.8, 0.35, 0.9))),
+      trapBuffer(loadOrFallback("hgoliya08-scary-sound-effect-298866.mp3", makeNoiseBurst(0.5, 0.6, 0.85))),
+      eventBuffer(loadOrFallback("dragon-studio-scary-bells-359875.mp3", makeTone(900.0, 0.06, 0.5, false))),
+      screamBuffer(loadOrFallback("freesound_community-scream-90747.mp3", makeNoiseBurst(0.6, 0.9, 0.2))),
+      menuMusicBuffer(loadOrFallback("freesound_community-scary-piano-music-36174.mp3", makeTone(60.0, 3.0, 0.25, false))),
+      endingMusicBuffer(loadOrFallback("matthewvakaliuk73627-music-box-scary-290198.mp3", makeTone(60.0, 3.0, 0.25, false))),
       heartbeatBuffer(makeHeartbeat()),
       clickBuffer(makeClick()),
       doorBuffer(makeDoor()),
       ambientSound(ambientDroneBuffer),
+      menuMusicSound(menuMusicBuffer),
       sfxSound(clickBuffer),
-      stingerSound(stingerBuffer)
+      stingerSound(stingerBuffer),
+      screamSound(screamBuffer),
+      endingSound(endingMusicBuffer)
 {
     ambientSound.setLooping(true);
-    ambientSound.setVolume(35.f);
+    ambientSound.setVolume(45.f);
+    menuMusicSound.setLooping(true);
+    menuMusicSound.setVolume(35.f);
 }
 
 void AudioManager::playAmbientDrone() {
@@ -125,16 +142,50 @@ void AudioManager::stopAmbient() {
     ambientSound.stop();
 }
 
+void AudioManager::playMenuMusic() {
+    if (menuMusicSound.getStatus() != sf::Sound::Status::Playing) {
+        menuMusicSound.play();
+    }
+}
+
+void AudioManager::stopMenuMusic() {
+    menuMusicSound.stop();
+}
+
 void AudioManager::playJumpscareStinger() {
     stingerSound.setBuffer(stingerBuffer);
     stingerSound.setVolume(100.f);
     stingerSound.play();
 }
 
+void AudioManager::playScream() {
+    screamSound.setBuffer(screamBuffer);
+    screamSound.setVolume(90.f);
+    screamSound.play();
+}
+
 void AudioManager::playWhisper() {
     sfxSound.setBuffer(whisperBuffer);
-    sfxSound.setVolume(60.f);
+    sfxSound.setVolume(65.f);
     sfxSound.play();
+}
+
+void AudioManager::playTrapHit() {
+    sfxSound.setBuffer(trapBuffer);
+    sfxSound.setVolume(80.f);
+    sfxSound.play();
+}
+
+void AudioManager::playEventStinger() {
+    sfxSound.setBuffer(eventBuffer);
+    sfxSound.setVolume(55.f);
+    sfxSound.play();
+}
+
+void AudioManager::playEndingMusic() {
+    endingSound.setBuffer(endingMusicBuffer);
+    endingSound.setVolume(60.f);
+    endingSound.play();
 }
 
 void AudioManager::playHeartbeat() {

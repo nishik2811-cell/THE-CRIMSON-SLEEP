@@ -36,9 +36,16 @@ forever.
 
 - Explore **13 rooms**: Entrance Hall, Library, Living Room, Kitchen, Bedroom, Bathroom, Study,
   Basement, Attic, Garden, Hidden Tunnel, Ritual Room, Secret Room.
-- Collect **7 items/clues**: Rusty Key, Basement Key, Torch, Old Photograph, Diary Page, Ritual
-  Symbol, Strange Coin.
-- Solve a linear but interconnected puzzle chain to unlock doors and progress.
+- Walk around freely inside each room and physically approach whatever catches your eye — keys,
+  diaries, drawers, cabinets, mirrors, clocks, bookshelves, a stuck chest, a cracked wall — each
+  is a real object sitting in the world, not a menu entry.
+- Collect **11 items/clues** (7 core puzzle items plus 4 optional flavor/side-quest items):
+  Rusty Key, Basement Key, Torch, Old Photograph, Diary Page, Ritual Symbol, Strange Coin, Broken
+  Handle, Metal Rod, Makeshift Lever (auto-crafted), Torn Note.
+- Solve a linear but interconnected puzzle chain to unlock doors and progress — plus a small
+  optional item-combination side-quest that doesn't gate the main path.
+- Not everything you can interact with matters: some drawers and cabinets are just empty, some
+  give a scare instead of a reward. You have to figure out what's worth investigating.
 - Manage **Health** (0-100) and **Fear** (0-100). Health hits 0 → you die. Fear hits 100 → you
   lose your mind. Either way, it's game over.
 - Face randomly-triggered **haunted events** (lights flicker, whispers, footsteps...) and
@@ -50,7 +57,20 @@ forever.
 
 ## Features
 
-- Full keyboard-driven gameplay loop: movement, interaction, inventory, hints, pausing.
+- **Free spatial movement** inside every room (continuous WASD/arrow-key movement, not a room
+  menu) with a real interaction radius: walk up to something and a contextual `[E] ...` prompt
+  appears above it; walk away and it disappears.
+- Every meaningful object is **visually distinct** — keys look like keys, a diary looks like a
+  diary, doors look like doors (with a padlock icon when locked) — with a subtle pulsing glow
+  that marks *something* is interactable without ever giving away whether it's useful or a red
+  herring.
+- **Environmental interactions that change state**: drawers/cabinets visibly open and close,
+  a bookshelf's hidden book only appears after you've read the right clue, a cracked wall reveals
+  a hidden passage when searched, a stuck chest needs a crafted tool.
+- **Item combination**: picking up both halves of a broken tool automatically crafts a usable
+  item (no separate "combine" menu needed).
+- Toast notifications for pickups and a "NEW CLUE" banner for story discoveries, both
+  non-blocking — the game never pauses to show you text.
 - Procedurally generated horror sound effects (ambient drone, jumpscare stinger, whispers,
   heartbeat, door creaks) — no downloaded audio assets required.
 - A jumpscare screen effect (flash + screen shake + stinger sound) tied directly to the
@@ -70,13 +90,13 @@ Every data structure below is **manually implemented** (no `std::vector`, `std::
 
 | Data Structure | File(s) | Real gameplay role |
 |---|---|---|
-| **Graph (Adjacency List)** | `Graph.h` / `Graph.cpp` | Represents the entire house. Each room is a node; each doorway is an edge stored in a linked list hanging off `adjacencyHead[roomId]`. Some edges start **locked** (e.g. Kitchen → Basement). All player movement (`Game::confirmMove`) walks this structure — you physically cannot move to a room that isn't connected and unlocked. |
+| **Graph (Adjacency List)** | `Graph.h` / `Graph.cpp` | Represents the entire house. Each room is a node; each doorway is an edge stored in a linked list hanging off `adjacencyHead[roomId]`. Some edges start **locked** (e.g. Kitchen → Basement). Every door you walk up to and open (`Game::interact`) checks `houseGraph.isPassable(...)` — you physically cannot walk into a room that isn't connected and unlocked, no matter where you stand. |
 | **Stack (linked list)** | `Stack.h` / `Stack.cpp` | Stores the player's room-visit history. Every room entered is **pushed**. Pressing `B` (Go Back) **pops** the current room and returns you to the previous one — a real, working undo-movement feature, not a log. |
-| **Queue (linked list)** | `Queue.h` / `Queue.cpp` | Holds haunted environmental events (lights flicker, door slams, whispers...) in the exact order they occur. `Game::update()` **dequeues** and resolves the oldest pending event every few seconds — strict FIFO. |
+| **Queue (linked list)** | `Queue.h` / `Queue.cpp` | Holds haunted environmental events (lights flicker, door slams, whispers, a startled drawer...) in the exact order they occur. `Game::update()` **dequeues** and resolves the oldest pending event every few seconds — strict FIFO. |
 | **Priority Queue (array-based max-heap)** | `PriorityQueue.h` / `PriorityQueue.cpp` | Holds active threats (Dark Room, Trap, Ghost Nearby, Ghost Attack), each with a numeric danger priority. `extractMax()` always resolves the single most dangerous threat first — even if a Ghost Attack was queued *after* a harmless Dark Room event, the attack still resolves first. |
-| **Linked List (singly linked)** | `LinkedList.h` / `LinkedList.cpp` | The player's inventory. Items are added to the front on pickup and removed by name when consumed (e.g. using the Rusty Key on a locked door actually deletes it from the list). |
+| **Linked List (singly linked)** | `LinkedList.h` / `LinkedList.cpp` | The player's inventory. Items are added to the front on pickup and removed by name when consumed (e.g. using the Rusty Key on a locked door actually deletes it from the list; combining Broken Handle + Metal Rod removes both and adds the crafted Makeshift Lever). |
 | **Binary Search Tree** | `BST.h` / `BST.cpp` | A searchable database of every item/clue, keyed by id. Used for real puzzle gates: picking up the Basement Key checks `clueDB.search(DIARY_PAGE_ID)->discovered` first — if you haven't read the Diary Page, the key means nothing to you and you can't take it. |
-| **Array** | `Room.h` / `Room.cpp`, `Game.h` (`itemMeta`, `roomItemId`) | Static, fixed-size metadata: room names/descriptions/danger levels, and item metadata. This data never grows/shrinks at runtime, so a plain C-style array is the honest choice — not a linked structure. |
+| **Array** | `Room.h` / `Room.cpp` (room metadata), `Game.h` (`itemMeta`, `roomObjects[ROOM_COUNT][MAX_OBJECTS_PER_ROOM]`) | Static room metadata never changes at runtime, so it's a plain array. `roomObjects` is a fixed-size array-of-arrays holding every interactable/decorative `WorldObject` per room — its `active`/`opened` fields *do* mutate live as you play (pick things up, open drawers), which is exactly what makes it a real gameplay array rather than a static table. |
 
 Because `Stack`, `Queue`, `LinkedList`, `BST`, and `Graph` all own their nodes through raw
 pointers, their copy constructor and copy-assignment operator are explicitly `= delete`d
@@ -91,11 +111,10 @@ causing a double-free at runtime.
   (`H` key): finds the shortest currently-passable route from your room to whatever your next
   objective is (get diary, unlock basement, find the ritual symbol, etc.) and tells you the next
   room to walk into.
-- **Depth-First Search (DFS)** — `Graph::dfsExplore()` / `dfsCanReach()`. Powers the "search the
-  Basement" feature (`F` key): explores every room reachable from the Basement — including
-  currently locked doors, since this represents *knowledge* of the layout, not physical movement
-  — and reveals the Hidden Tunnel passage as a result. Also used to check secret-area
-  reachability for the debug panel.
+- **Depth-First Search (DFS)** — `Graph::dfsExplore()` / `dfsCanReach()`. Powers the Basement's
+  **Cracked Wall** object: walk up to it and press `E`, and it explores every room reachable from
+  the Basement — including currently locked doors, since this represents *knowledge* of the
+  layout, not physical movement — then reveals the Hidden Tunnel passage as a result.
 
 Both are implemented from scratch (manual visited arrays, manual parent-pointer path
 reconstruction for BFS, a small fixed-size circular queue local to `Graph.cpp`, and recursive
@@ -107,17 +126,17 @@ DFS) — no `<algorithm>` graph utilities.
 
 | Key | Action |
 |---|---|
-| `↑ / W` or `← / A` | Select previous door |
-| `↓ / S` or `→ / D` | Select next door |
-| `Enter` / `Space` | Move through the selected door (Graph movement) |
+| `↑ / W`, `↓ / S`, `← / A`, `→ / D` | Walk around the room (continuous movement) |
+| `E` | Interact with whatever is nearest to you — pick up, open, examine, unlock, enter |
 | `B` | **Go Back** to the previous room (Stack) |
-| `E` | Interact — pick up items, unlock doors, use an exit |
-| `F` | Inspect a held clue, or search the room for secrets (BST + DFS) |
+| `F` | Read a clue item you're already carrying (BST) |
 | `H` | Request a hint toward your next goal (BFS) |
 | `I` | Toggle Inventory panel (Linked List) |
 | `TAB` | Toggle the Data Structures debug panel |
 | `ESC` | Pause / Resume |
 
+Interaction is entirely proximity-based: a `[E] Pick up Rusty Key`-style prompt only appears
+above an object once you've walked close enough to it, and disappears again if you walk away.
 Controls are also shown in-game (Main Menu → `C`) and in a bottom strip during play.
 
 ---
@@ -146,7 +165,8 @@ The Crimson Sleep/
 │   ├── Item.h                        # Item POD struct
 │   ├── BST.h                          # Binary search tree (clue database)
 │   ├── Room.h                          # Room ids + static room metadata array
-│   ├── Player.h                         # Player state (owns Stack + LinkedList)
+│   ├── WorldObject.h                    # In-room interactable/decorative object struct
+│   ├── Player.h                         # Player state (position, Stack, LinkedList)
 │   ├── Game.h                            # Core game logic (owns everything above)
 │   └── AudioManager.h                     # Procedural SFML sound effects
 ├── src/                      # Implementations
@@ -212,26 +232,32 @@ from anywhere.
 
 ## Example Gameplay Flow
 
-1. Start in the **Entrance Hall**. Doors to Library, Living Room, and Garden are open.
-2. Go to the **Library**, pick up the **Diary Page** (`E`), then read it (`F`) — this sets a
-   flag in the BST that later gates the Basement Key.
-3. Go to the **Living Room**, pick up the **Rusty Key**.
-4. Back in the Library, `E` unlocks the **Study** door using the Rusty Key.
-5. In the **Study**, `E` picks up the **Basement Key** — this only works because the Diary Page
-   was already read.
-6. Reach the **Kitchen** (via Living Room), pick up the **Torch**, then `E` unlocks the
-   **Basement**.
-7. In the **Basement**, pick up the **Ritual Symbol**, then `F` to search — this runs a DFS from
-   the Basement and reveals the **Hidden Tunnel**.
-8. In the Hidden Tunnel, `E` unlocks the way to the **Ritual Room** using the Ritual Symbol.
+1. Start in the **Entrance Hall**. Walk up to the doorways along the back wall to see Library,
+   Living Room, and Garden are open; the Front Door sits behind your spawn point.
+2. Walk into the **Library**. Approach the paper icon on the desk and press `E` to pick up the
+   **Diary Page**, then press `F` to read it — this sets a flag in the BST that later gates the
+   Basement Key. Try the bookshelf too (nothing happens yet).
+3. Walk to the **Living Room** door and through it, then approach the **Rusty Key** and press `E`.
+4. Back in the Library, walk up to the now-visibly-locked **Study door** (padlock icon) and press
+   `E` — it unlocks using the Rusty Key.
+5. In the **Study**, approach the key on the desk and press `E` for the **Basement Key** — this
+   only works because the Diary Page was already read.
+6. Reach the **Kitchen** (via Living Room), pick up the **Torch**, then interact with the locked
+   **Basement door** to unlock it.
+7. In the **Basement**, pick up the **Ritual Symbol**, then walk up to the **Cracked Wall** and
+   press `E` — this runs a DFS from the Basement and reveals the **Hidden Tunnel**.
+8. In the Hidden Tunnel, interact with the **Ritual Room door** to unlock it using the Ritual
+   Symbol.
 9. Separately, visit the **Attic** for the **Old Photograph** (read it with `F`) and the
-   **Garden** for the **Strange Coin**.
-10. Back in the Ritual Room, `E` unlocks the **Secret Room** (needs the coin *and* having read
-    the photograph).
-11. Entering the Secret Room reveals the house's hidden truth and unlocks a shortcut back to the
-    Garden.
-12. **Choose your ending:** interact with the front door in the Entrance Hall, or take the
-    secret shortcut out through the Garden.
+   **Garden** for the **Strange Coin**. While you're in the Attic, grab the **Metal Rod** too —
+   if you also picked up the **Broken Handle** in the Bedroom, they auto-combine into a
+   **Makeshift Lever**, which can pry open the Attic's Stuck Chest for a bonus clue.
+10. Back in the Ritual Room, interact with the **Secret Room door** (needs the coin *and* having
+    read the photograph).
+11. Entering the Secret Room reveals the house's hidden truth and unlocks a shortcut door back to
+    the Garden.
+12. **Choose your ending:** interact with the Front Door in the Entrance Hall, or take the
+    Foggy Path shortcut out through the Garden.
 
 Throughout all of this, haunted events and threats fire semi-randomly based on each room's
 danger level — press `TAB` at any time to see exactly what the Queue and Priority Queue are
