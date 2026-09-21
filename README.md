@@ -274,15 +274,4 @@ This is intended to be opened during a live demonstration so the examiner can se
 structures being read and mutated as you play, not just trust that they exist somewhere in the
 code.
 
----
 
-## Team
-
-| Name | Roll Number | Role |
-|---|---|---|
-| _TBD_ | _TBD_ | _TBD_ |
-
-*This project was built as a Data Structures Laboratory submission. Its purpose is to
-demonstrate genuine, working implementations of a Graph, Stack, Queue, Priority Queue, Linked
-List, Binary Search Tree, and Array — plus BFS and DFS — inside a real, playable application
-rather than in isolated test snippets.*
