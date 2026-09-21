@@ -4,6 +4,10 @@ project(TheCrimsonSleep CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Always export compile_commands.json so editors (VS Code, clangd, etc.)
+# can resolve #include paths correctly without manual configuration.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # SFML 3 ships CMake config files, so find_package works directly once
 # libsfml-dev (or an equivalent SFML 3 install) is present on the system.
 find_package(SFML 3 COMPONENTS Graphics Window System Audio REQUIRED)
