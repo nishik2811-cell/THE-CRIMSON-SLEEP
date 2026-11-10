@@ -72,7 +72,8 @@ void Player::movement(sf::RenderWindow* window) {
 	scale_x = (4.f / 3 * window->getSize().y / window->getSize().x);
 	if (scale_x > 1.f) scale_x = 1.f;
 	view.setViewport(sf::FloatRect({ (1 - scale_x) / 2, 0.f }, { scale_x, 1.f }));
-	view.setCenter(characterImage.getPosition());
+	float worldPerPx = view.getSize().x / (scale_x * window->getSize().x);
+	view.setCenter(characterImage.getPosition() + sf::Vector2f(camShift * worldPerPx, 0.f));
 	window->setView(view);
 	setFrame();
 	// Blink while invulnerable after being hurt.

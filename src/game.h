@@ -69,7 +69,10 @@ public:
 	void devJumpscare() { jumpscare = 1.3f; }
 	void devFlareCooldown(float s) { flareCooldown = s; }
 	void devWrite(const char* w) { std::string s = w; if (!placeWallWriting(s)) { s = "GET OUT"; if (!placeWallWriting(s)) return; } wallText = s; wallT = 5.f; }
-	void drawConsole(sf::RenderWindow* w);   // live data structures, in the separate console window
+	void drawConsole(sf::RenderWindow* w, float x0, float pw);   // live data structures, a panel on the right of the game window
+	// How many pixels of the window the console panel covers right now:
+	// the HUD squeezes left and the camera keeps the hero centred in what's left.
+	void setConsoleWidth(float px) { consoleW = px; player.camShift = px / 2; }
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
 private:
@@ -90,6 +93,8 @@ private:
 	PriorityQueue<Threat> threats;        // PRIORITY QUEUE of active threats
 
 	int room = ENTRANCE_HALL;
+	float consoleW = 0;                   // width of the console panel over the game
+	int lastLookup = -1;                  // last item searched for in the BST (shown as a path)
 	sf::Vector2i entryTile;
 	float roomTime = 0;
 	bool roomVisited[ROOM_COUNT] = {};
