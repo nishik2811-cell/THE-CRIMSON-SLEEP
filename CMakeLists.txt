@@ -3,13 +3,13 @@ project(TheCrimsonSleep CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# SFML 2.5 / 2.6 (Graphics, Window, System, Audio)
-find_package(SFML 2.5 COMPONENTS graphics window system audio REQUIRED)
+# SFML 3 (Graphics, Window, System, Audio)
+find_package(SFML 3 COMPONENTS Graphics Window System Audio REQUIRED)
 
 file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 add_executable(crimson_sleep ${SOURCES})
 target_include_directories(crimson_sleep PRIVATE "${CMAKE_SOURCE_DIR}/src")
-target_link_libraries(crimson_sleep PRIVATE sfml-graphics sfml-window sfml-system sfml-audio)
+target_link_libraries(crimson_sleep PRIVATE SFML::Graphics SFML::Window SFML::System SFML::Audio)
 
 add_executable(ds_tests tests/ds_tests.cpp)
 target_include_directories(ds_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")

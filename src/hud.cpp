@@ -7,23 +7,23 @@ namespace {
 const sf::Color CRIMSON(176, 30, 58), BLOOD(120, 6, 18), BONE(232, 220, 200), ASH(150, 140, 136), INK(8, 2, 4);
 
 sf::Text label(const sf::Font& f, const std::string& s, unsigned size, sf::Color c, float x, float y) {
-	sf::Text t(s, f, size);
+	sf::Text t(f, s, size);
 	t.setFillColor(c);
-	t.setPosition(std::floor(x), std::floor(y));
+	t.setPosition({ (float)(std::floor(x)), (float)(std::floor(y)) });
 	return t;
 }
-void panel(sf::RenderWindow* w, float x, float y, float wd, float h, sf::Uint8 alpha = 215) {
+void panel(sf::RenderWindow* w, float x, float y, float wd, float h, std::uint8_t alpha = 215) {
 	sf::RectangleShape r(sf::Vector2f(wd, h));
-	r.setPosition(x, y);
+	r.setPosition({ (float)(x), (float)(y) });
 	r.setFillColor(sf::Color(10, 2, 4, alpha));
 	r.setOutlineColor(BLOOD);
 	r.setOutlineThickness(2);
 	w->draw(r);
 }
 void bar(sf::RenderWindow* w, const sf::Font& f, const char* name, float x, float y, float v, sf::Color c) {
-	sf::RectangleShape back(sf::Vector2f(180, 12)); back.setPosition(x + 70, y + 6);
+	sf::RectangleShape back(sf::Vector2f(180, 12)); back.setPosition({ (float)(x + 70), (float)(y + 6) });
 	back.setFillColor(sf::Color(30, 8, 12, 220)); back.setOutlineColor(sf::Color(70, 14, 22)); back.setOutlineThickness(1);
-	sf::RectangleShape fill(sf::Vector2f(180 * (v < 0 ? 0 : v > 100 ? 1 : v / 100.f), 12)); fill.setPosition(x + 70, y + 6); fill.setFillColor(c);
+	sf::RectangleShape fill(sf::Vector2f(180 * (v < 0 ? 0 : v > 100 ? 1 : v / 100.f), 12)); fill.setPosition({ (float)(x + 70), (float)(y + 6) }); fill.setFillColor(c);
 	w->draw(back); w->draw(fill);
 	w->draw(label(f, name, 18, BONE, x, y));
 }
@@ -36,9 +36,9 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 		int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
 		float pulse = 0.5f + 0.5f * std::sin(t * 4 - i * 0.5f);
 		sf::CircleShape d(3.f + pulse);
-		d.setOrigin(d.getRadius(), d.getRadius());
-		d.setPosition(c * 32 + 16.f, r * 32 + 16.f);
-		d.setFillColor(sf::Color(200, 20, 40, (sf::Uint8)(110 + 120 * pulse)));
+		d.setOrigin({ (float)(d.getRadius()), (float)(d.getRadius()) });
+		d.setPosition({ (float)(c * 32 + 16.f), (float)(r * 32 + 16.f) });
+		d.setFillColor(sf::Color(200, 20, 40, (std::uint8_t)(110 + 120 * pulse)));
 		w->draw(d);
 	}
 	// After two minutes the objective itself starts to pulse.
@@ -46,23 +46,23 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 	if (objectiveTime >= 120 && room == targetRoom && targetTile >= 0 && current_map->find(targetTile, &tc, &tr)) {
 		float s = 0.5f + 0.5f * std::sin(t * 5);
 		sf::RectangleShape m(sf::Vector2f(32, 32));
-		m.setPosition(tc * 32.f, tr * 32.f);
-		m.setFillColor(sf::Color(220, 20, 50, (sf::Uint8)(40 + 60 * s)));
-		m.setOutlineColor(sf::Color(255, 60, 80, (sf::Uint8)(140 + 100 * s)));
+		m.setPosition({ (float)(tc * 32.f), (float)(tr * 32.f) });
+		m.setFillColor(sf::Color(220, 20, 50, (std::uint8_t)(40 + 60 * s)));
+		m.setOutlineColor(sf::Color(255, 60, 80, (std::uint8_t)(140 + 100 * s)));
 		m.setOutlineThickness(2);
 		w->draw(m);
 	}
 	// Words written in blood on the wall (they drip as they fade).
 	if (wallT > 0) {
-		sf::Text tx(wallText, fontTitle, 34);
+		sf::Text tx(fontTitle, wallText, 34);
 		float a = wallT > 6 ? (7 - wallT) : wallT / 6;
-		tx.setFillColor(sf::Color(150, 0, 16, (sf::Uint8)(230 * a)));
+		tx.setFillColor(sf::Color(150, 0, 16, (std::uint8_t)(230 * a)));
 		tx.setPosition(wallPos);
 		w->draw(tx);
 		for (int i = 0; i < 6; ++i) {
 			sf::RectangleShape drip(sf::Vector2f(2, 6 + (7 - wallT) * (4 + i % 3) * 3));
-			drip.setPosition(wallPos.x + 10 + i * 18, wallPos.y + 34);
-			drip.setFillColor(sf::Color(120, 0, 12, (sf::Uint8)(200 * a)));
+			drip.setPosition({ (float)(wallPos.x + 10 + i * 18), (float)(wallPos.y + 34) });
+			drip.setFillColor(sf::Color(120, 0, 12, (std::uint8_t)(200 * a)));
 			w->draw(drip);
 		}
 	}
@@ -78,14 +78,14 @@ void Game::drawHud(sf::RenderWindow* w) {
 	for (int i = 0; i < 6; ++i) {
 		float inset = i * 14.f;
 		sf::RectangleShape v(sf::Vector2f(W - 2 * inset, H - 2 * inset));
-		v.setPosition(inset, inset);
+		v.setPosition({ (float)(inset), (float)(inset) });
 		v.setFillColor(sf::Color::Transparent);
-		v.setOutlineColor(sf::Color(110, 0, 10, (sf::Uint8)(f * (60 - i * 9))));
+		v.setOutlineColor(sf::Color(110, 0, 10, (std::uint8_t)(f * (60 - i * 9))));
 		v.setOutlineThickness(14);
 		w->draw(v);
 	}
-	if (hurtFlash > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(160, 0, 10, (sf::Uint8)(120 * hurtFlash))); w->draw(r); }
-	if (flare > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(255, 210, 190, (sf::Uint8)(150 * flare))); w->draw(r); }
+	if (hurtFlash > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(160, 0, 10, (std::uint8_t)(120 * hurtFlash))); w->draw(r); }
+	if (flare > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(255, 210, 190, (std::uint8_t)(150 * flare))); w->draw(r); }
 
 	// Status panel.
 	panel(w, 12, 12, 270, 96);
@@ -96,29 +96,29 @@ void Game::drawHud(sf::RenderWindow* w) {
 	w->draw(label(fontSerif, player.has(LANTERN) ? buf : "No light", 17, flareCooldown > 0 ? ASH : BONE, 22, 72));
 
 	// Room name.
-	sf::Text rn(ROOMS[room].name, fontTitle, 30);
+	sf::Text rn(fontTitle, ROOMS[room].name, 30);
 	rn.setFillColor(CRIMSON);
-	rn.setPosition(W - rn.getLocalBounds().width - 24, 10);
+	rn.setPosition({ (float)(W - rn.getLocalBounds().size.x - 24), (float)(10) });
 	w->draw(rn);
 
 	// Top threat from the Priority Queue.
 	if (topThreat.kind != TH_CALM && topThreat.label[0]) {
-		sf::Text th(topThreat.label, fontSerif, 22);
+		sf::Text th(fontSerif, topThreat.label, 22);
 		float pulse = topThreat.priority >= 75 ? 0.6f + 0.4f * std::sin(t * 10) : 1.f;
-		th.setFillColor(sf::Color(230, 40, 60, (sf::Uint8)(255 * pulse)));
-		th.setPosition(std::floor((W - th.getLocalBounds().width) / 2), 120);
+		th.setFillColor(sf::Color(230, 40, 60, (std::uint8_t)(255 * pulse)));
+		th.setPosition({ (float)(std::floor((W - th.getLocalBounds().size.x) / 2)), (float)(120) });
 		w->draw(th);
 	}
 	if (eventCaptionT > 0) {
-		sf::Text ec(eventCaption, fontItalic, 22);
-		ec.setFillColor(sf::Color(200, 170, 165, (sf::Uint8)(255 * (eventCaptionT > 1 ? 1 : eventCaptionT))));
-		ec.setPosition(std::floor((W - ec.getLocalBounds().width) / 2), 150);
+		sf::Text ec(fontItalic, eventCaption, 22);
+		ec.setFillColor(sf::Color(200, 170, 165, (std::uint8_t)(255 * (eventCaptionT > 1 ? 1 : eventCaptionT))));
+		ec.setPosition({ (float)(std::floor((W - ec.getLocalBounds().size.x) / 2)), (float)(150) });
 		w->draw(ec);
 	}
 	if (toastT > 0) {
-		sf::Text tt(toast, fontSerif, 22);
-		tt.setFillColor(sf::Color(240, 200, 120, (sf::Uint8)(255 * (toastT > 1 ? 1 : toastT))));
-		tt.setPosition(std::floor((W - tt.getLocalBounds().width) / 2), 86);
+		sf::Text tt(fontSerif, toast, 22);
+		tt.setFillColor(sf::Color(240, 200, 120, (std::uint8_t)(255 * (toastT > 1 ? 1 : toastT))));
+		tt.setPosition({ (float)(std::floor((W - tt.getLocalBounds().size.x) / 2)), (float)(86) });
 		w->draw(tt);
 	}
 
@@ -133,13 +133,13 @@ void Game::drawHud(sf::RenderWindow* w) {
 
 	// Story text box.
 	if (!dialogue.empty()) {
-		sf::Text dt(dialogue, fontSerif, 22);
+		sf::Text dt(fontSerif, dialogue, 22);
 		dt.setFillColor(BONE);
-		float bw = dt.getLocalBounds().width + 40, bh = dt.getLocalBounds().height + 44;
+		float bw = dt.getLocalBounds().size.x + 40, bh = dt.getLocalBounds().size.y + 44;
 		if (bw < 420) bw = 420;
 		float x = (W - bw) / 2, y = H - 110 - bh;
 		panel(w, x, y, bw, bh, 225);
-		dt.setPosition(x + 20, y + 14);
+		dt.setPosition({ (float)(x + 20), (float)(y + 14) });
 		w->draw(dt);
 		w->draw(label(fontItalic, "Space", 16, ASH, x + bw - 52, y + bh - 22));
 	}
@@ -157,13 +157,13 @@ void Game::drawHud(sf::RenderWindow* w) {
 		float sx = W / jumpTex.getSize().x * punch, sy = H / jumpTex.getSize().y * punch;
 		float jit = age < 0.6f ? 18.f : 8.f;
 		sf::Vector2f c(W / 2 + (std::rand() % 21 - 10) * jit / 10, H / 2 + (std::rand() % 21 - 10) * jit / 10);
-		sf::Uint8 a = (sf::Uint8)(255 * (jumpscare > 0.35f ? 1 : jumpscare / 0.35f));
-		jumpSprite.setScale(sx, sy);
-		jumpSprite.setPosition(c.x - 7, c.y);
-		jumpSprite.setColor(sf::Color(255, 0, 0, (sf::Uint8)(a * 0.3f)));
+		std::uint8_t a = (std::uint8_t)(255 * (jumpscare > 0.35f ? 1 : jumpscare / 0.35f));
+		jumpSprite.setScale({ (float)(sx), (float)(sy) });
+		jumpSprite.setPosition({ (float)(c.x - 7), (float)(c.y) });
+		jumpSprite.setColor(sf::Color(255, 0, 0, (std::uint8_t)(a * 0.3f)));
 		w->draw(jumpSprite, sf::BlendAdd);
-		jumpSprite.setPosition(c.x + 7, c.y + 2);
-		jumpSprite.setColor(sf::Color(0, 120, 120, (sf::Uint8)(a * 0.2f)));
+		jumpSprite.setPosition({ (float)(c.x + 7), (float)(c.y + 2) });
+		jumpSprite.setColor(sf::Color(0, 120, 120, (std::uint8_t)(a * 0.2f)));
 		w->draw(jumpSprite, sf::BlendAdd);
 		jumpSprite.setPosition(c);
 		jumpSprite.setColor(sf::Color(255, 255, 255, a));
@@ -171,8 +171,8 @@ void Game::drawHud(sf::RenderWindow* w) {
 		// static lines
 		for (int i = 0; i < 40; ++i) {
 			sf::RectangleShape ln(sf::Vector2f(W, (float)(1 + std::rand() % 3)));
-			ln.setPosition(0, (float)(std::rand() % 768));
-			ln.setFillColor(sf::Color(255, 200, 200, (sf::Uint8)((std::rand() % 50) * a / 255)));
+			ln.setPosition({ (float)(0), (float)((float)(std::rand() % 768)) });
+			ln.setFillColor(sf::Color(255, 200, 200, (std::uint8_t)((std::rand() % 50) * a / 255)));
 			w->draw(ln);
 		}
 		if (age < 0.09f || (age > 0.2f && age < 0.25f)) {
@@ -293,8 +293,8 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 			if (e->to == OUTSIDE || e->to < r || e->hidden || !known(e->to)) continue;
 			sf::Color col = e->locked ? sf::Color(110, 10, 24) : sf::Color(150, 120, 112);
 			if (onRoute[r] && onRoute[e->to]) col = sf::Color(255, 120, 130);
-			sf::Vertex ln[2] = { sf::Vertex(centre(r), col), sf::Vertex(centre(e->to), col) };
-			w->draw(ln, 2, sf::Lines);
+			sf::Vertex ln[2] = { sf::Vertex{centre(r), col}, sf::Vertex{centre(e->to), col} };
+			w->draw(ln, 2, sf::PrimitiveType::Lines);
 		}
 	}
 	// nodes
@@ -302,17 +302,17 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 	for (int r = 1; r < ROOM_COUNT; ++r) {
 		if (!known(r)) continue;
 		sf::RectangleShape box(sf::Vector2f(bw, bh));
-		box.setPosition(ox + POS[r].x * cw, oy + POS[r].y * ch + 2);
+		box.setPosition({ (float)(ox + POS[r].x * cw), (float)(oy + POS[r].y * ch + 2) });
 		bool here = r == room;
 		float pulse = 0.6f + 0.4f * std::sin(t * 5);
-		box.setFillColor(here ? sf::Color((sf::Uint8)(150 * pulse), 10, 30) : roomVisited[r] ? sf::Color(40, 10, 16) : sf::Color(16, 6, 8));
+		box.setFillColor(here ? sf::Color((std::uint8_t)(150 * pulse), 10, 30) : roomVisited[r] ? sf::Color(40, 10, 16) : sf::Color(16, 6, 8));
 		box.setOutlineColor(onRoute[r] ? sf::Color(255, 120, 130) : r == targetRoom && objectiveTime >= 60 ? sf::Color(255, 200, 120) : sf::Color(90, 20, 30));
 		box.setOutlineThickness(1);
 		w->draw(box);
-		sf::Text tx(roomVisited[r] ? SHORT[r] : "?", fontMono, 10);
+		sf::Text tx(fontMono, roomVisited[r] ? SHORT[r] : "?", 10);
 		tx.setFillColor(here ? sf::Color::White : roomVisited[r] ? BONE : ASH);
 		sf::FloatRect b = tx.getLocalBounds();
-		tx.setPosition(std::floor(box.getPosition().x + (bw - b.width) / 2 - b.left), std::floor(box.getPosition().y + 4));
+		tx.setPosition({ (float)(std::floor(box.getPosition().x + (bw - b.size.x) / 2 - b.position.x)), (float)(std::floor(box.getPosition().y + 4)) });
 		w->draw(tx);
 	}
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include <SFML/Audio.hpp>
+#include <optional>
 
 enum Sfx { SFX_JUMPSCARE, SFX_SCREAM, SFX_BREATH, SFX_BELLS, SFX_STINGER, SFX_WHISPER, SFX_SLAM, SFX_HEARTBEAT, SFX_COUNT };
 enum Track { TRACK_NONE, TRACK_TITLE, TRACK_GAME, TRACK_ENDING };
@@ -8,7 +9,7 @@ class Audio {
 	sf::Music title, ambient, drone, ending;
 	sf::SoundBuffer buffers[SFX_COUNT];
 	static const int CHANNELS = 8;
-	sf::Sound channels[CHANNELS];
+	std::optional<sf::Sound> channels[CHANNELS];
 	int nextChannel = 0;
 	Track current = TRACK_NONE;
 public:

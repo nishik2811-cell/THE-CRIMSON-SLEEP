@@ -1,6 +1,6 @@
 # The Crimson Sleep
 
-*A 2D pixelated horror escape, written in C++17 with SFML. Every core mechanic runs on a hand-written data structure.*
+*A 2D pixelated horror escape, written in C++17 with SFML 3. Every core mechanic runs on a hand-written data structure.*
 
 > some dreams don't let you wake up
 
@@ -12,17 +12,20 @@ The game extends **[Mansion Mystery](https://github.com/saurabh1907/2d-rpg-game-
 
 ## Build & run
 
+Requires **SFML 3** (Graphics, Window, System, Audio).
+
 ### Linux (Ubuntu / Debian)
 ```bash
-sudo apt-get install -y g++ make libsfml-dev
+sudo apt-get install -y g++ make libsfml-dev   # must be SFML 3.x
 make            # builds ./crimson_sleep
+# SFML 3 installed somewhere custom?  make SFML_DIR=/path/to/sfml3
 make run        # run it (must be started from this folder: it loads ./assets)
 make test       # unit tests for every data structure (no window needed)
 ```
 
 ### Windows
 * **MSYS2 / MinGW:** `pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-sfml make`, then `make` in the MSYS2 MinGW shell.
-* **Visual Studio + CMake:** install SFML 2.5/2.6, then:
+* **Visual Studio + CMake:** install SFML 3, then:
   ```powershell
   cmake -B build -DSFML_DIR="C:/SFML/lib/cmake/SFML"
   cmake --build build --config Release
@@ -30,7 +33,7 @@ make test       # unit tests for every data structure (no window needed)
   CMake copies `assets/` next to the executable.
 
 ### macOS
-`brew install sfml@2`, then `make` (point `CXXFLAGS`/`LIBS` at Homebrew's include and lib dirs if needed).
+`brew install sfml`, then `make SFML_DIR=$(brew --prefix sfml)` (point `CXXFLAGS`/`LIBS` at Homebrew's include and lib dirs if needed).
 
 ---
 
@@ -133,6 +136,7 @@ tools/          Python scripts that regenerate the art, maps and backdrop
 ### Regenerating assets (Python 3 + Pillow + NumPy)
 ```bash
 python3 tools/make_art.py          # crimson tileset/floor + pixel-art ghosts
+python3 tools/adjust_hero.py       # hero recolour (blue coat, brown hair) from the original sprite
 python3 tools/make_maps.py         # Hidden Tunnel + Ossuary maps
 python3 tools/make_backdrop.py     # fallback blood-moon title backdrop
 python3 tools/make_logo.py logo.png              # title logo -> transparent crimson

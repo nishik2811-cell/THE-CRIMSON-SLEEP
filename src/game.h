@@ -58,6 +58,7 @@ public:
 	void devStartAt(int room);
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
+	void devNoTips() { for (int i = 0; i < TIP_COUNT; ++i) tipSeen[i] = true; dialogue = ""; }
 	void devJumpscare() { jumpscare = 1.3f; }
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
@@ -111,7 +112,7 @@ private:
 	int journalPage = -1;
 	std::string toast; float toastT = 0;
 	sf::Font fontTitle, fontSerif, fontItalic, fontMono;
-	sf::Texture jumpTex; sf::Sprite jumpSprite;
+	sf::Texture jumpTex; sf::Sprite jumpSprite{ jumpTex };
 	RunStats runStats;
 
 	// flow

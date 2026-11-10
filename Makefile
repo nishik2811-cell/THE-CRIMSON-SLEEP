@@ -1,7 +1,12 @@
 # The Crimson Sleep - build with:  make        run with:  make run
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -O2 -Wall -Wextra -Wno-unused-parameter
-LIBS      = -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system
+SFML_DIR ?=
+ifneq ($(SFML_DIR),)
+  CXXFLAGS += -I$(SFML_DIR)/include
+  LIBS_DIR  = -L$(SFML_DIR)/lib -Wl,-rpath,$(SFML_DIR)/lib
+endif
+LIBS      = $(LIBS_DIR) -lsfml-graphics -lsfml-window -lsfml-audio -lsfml-system
 
 SRC  = $(wildcard src/*.cpp)
 OBJ  = $(SRC:src/%.cpp=build/%.o)

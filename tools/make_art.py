@@ -33,8 +33,8 @@ rgb *= (0.92 - 0.25 * (l / 255.0))                       # darken bright areas m
 a[..., :3] = rgb
 save(a, 'texture.png')
 
-# Patrolling ghosts and the Devil: drained, blood-lit.
-for name, tint in [('enemy_easy.png', (1.0, 0.45, 0.45)), ('enemy_medium.png', (1.0, 0.45, 0.48)), ('enemy_boss.png', (1.1, 0.35, 0.3))]:
+# The Devil: drained, blood-lit.
+for name, tint in [('enemy_boss.png', (1.1, 0.35, 0.3))]:
     a = load(name); l = lum(a)[..., None] * 255
     a[..., :3] = (a[..., :3] * 0.4 + l * 0.6) * np.array(tint)
     save(a, name)

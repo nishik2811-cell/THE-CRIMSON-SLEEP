@@ -13,7 +13,7 @@ class Bride {
 public:
 	enum State { GONE, FADE_IN, HUNT, FADE_OUT };
 	sf::Texture tex;
-	sf::Sprite sprite;
+	sf::Sprite sprite{ tex };
 	sf::Vector2f pos;
 	State state = GONE;
 	float timer = 0, alpha = 0, frameT = 0, wobble = 0;
@@ -33,7 +33,7 @@ public:
 class Crawler {
 public:
 	sf::Texture tex;
-	sf::Sprite sprite;
+	sf::Sprite sprite{ tex };
 	Collision col;
 	sf::Vector2f pos, home;
 	bool active = false;
@@ -52,7 +52,7 @@ public:
 class Apparition {
 public:
 	sf::Texture tex;
-	sf::Sprite sprite;
+	sf::Sprite sprite{ tex };
 	float life = 0;
 	Apparition();
 	void spawn(sf::Vector2f at, int kind);

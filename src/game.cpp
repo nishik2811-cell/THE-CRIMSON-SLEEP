@@ -42,18 +42,17 @@ const TipInfo TIPS[TIP_COUNT] = {
 
 // ------------------------------------------------------------------ setup
 Game::Game(Audio& a) : audio(a) {
-	tileset.loadFromFile(asset("graphics/texture.png"));
+	(void)tileset.loadFromFile(asset("graphics/texture.png"));
 	for (int r = 1; r < ROOM_COUNT; ++r) maps[r].initializeMap(ROOMS[r].mapFile, tileset);
 	buildHouse(house);
 	buildItemDatabase(itemDB);
-	fontTitle.loadFromFile(asset("fonts/GrenzeGotisch.ttf"));
-	fontSerif.loadFromFile(asset("fonts/CormorantGaramond.ttf"));
-	fontItalic.loadFromFile(asset("fonts/CormorantGaramond-Italic.ttf"));
-	fontMono.loadFromFile(asset("fonts/DejaVuSans.ttf"));
-	jumpTex.loadFromFile(asset("graphics/jumpscare.png"));
-	jumpSprite.setTexture(jumpTex);
-	jumpSprite.setOrigin(jumpTex.getSize().x / 2.f, jumpTex.getSize().y / 2.f);
-	npc.setPosition(546, 236);
+	(void)fontTitle.openFromFile(asset("fonts/GrenzeGotisch.ttf"));
+	(void)fontSerif.openFromFile(asset("fonts/CormorantGaramond.ttf"));
+	(void)fontItalic.openFromFile(asset("fonts/CormorantGaramond-Italic.ttf"));
+	(void)fontMono.openFromFile(asset("fonts/DejaVuSans.ttf"));
+	if (jumpTex.loadFromFile(asset("graphics/jumpscare.png"))) jumpSprite.setTexture(jumpTex, true);
+	jumpSprite.setOrigin({ (float)(jumpTex.getSize().x / 2.f), (float)(jumpTex.getSize().y / 2.f) });
+	npc.setPosition({ (float)(546), (float)(236) });
 	npc.initialize();
 	enterRoom(ENTRANCE_HALL, -1, true);
 	say("You wake on the cold floor of the Entrance Hall.\n"
@@ -102,7 +101,7 @@ sf::Vector2i Game::spawnNearDoor(int inRoom, int fromRoom) {
 	return sf::Vector2i(ROOMS[inRoom].spawnX, ROOMS[inRoom].spawnY);
 }
 
-void Game::placePlayer(sf::Vector2i t) { player.setPosition(t.x * 32 + 4, t.y * 32 + 4); }
+void Game::placePlayer(sf::Vector2i t) { player.setPosition({ (float)(t.x * 32 + 4), (float)(t.y * 32 + 4) }); }
 
 void Game::enterRoom(int to, int from, bool pushHistory) {
 	room = to;
@@ -137,16 +136,16 @@ void Game::spawnEnemies() {
 	easyCount = mediumCount = 0; bossActive = false;
 	if (room == NURSERY) {
 		sf::Vector2i e[3] = { {196, 452}, {196, 324}, {292, 228} }, m[3] = { {292, 228}, {676, 164}, {516, 128} };
-		for (int i = 0; i < 3; ++i) { ghostEasy[i].setPosition(e[i].x, e[i].y); ghostEasy[i].initialize(); ghostMedium[i].setPosition(m[i].x, m[i].y); ghostMedium[i].initialize(); }
+		for (int i = 0; i < 3; ++i) { ghostEasy[i].setPosition({ (float)(e[i].x), (float)(e[i].y) }); ghostEasy[i].initialize(); ghostMedium[i].setPosition({ (float)(m[i].x), (float)(m[i].y) }); ghostMedium[i].initialize(); }
 		easyCount = mediumCount = 3;
 	}
 	else if (room == CHAPEL) {
 		sf::Vector2i e[3] = { {356, 388}, {324, 516}, {420, 260} }, m[2] = { {740, 132}, {388, 132} };
-		for (int i = 0; i < 3; ++i) { ghostEasy[i].setPosition(e[i].x, e[i].y); ghostEasy[i].initialize(); }
-		for (int i = 0; i < 2; ++i) { ghostMedium[i].setPosition(m[i].x, m[i].y); ghostMedium[i].initialize(); }
+		for (int i = 0; i < 3; ++i) { ghostEasy[i].setPosition({ (float)(e[i].x), (float)(e[i].y) }); ghostEasy[i].initialize(); }
+		for (int i = 0; i < 2; ++i) { ghostMedium[i].setPosition({ (float)(m[i].x), (float)(m[i].y) }); ghostMedium[i].initialize(); }
 		easyCount = 3; mediumCount = 2;
 	}
-	else if (room == CRIMSON_CRYPT) { boss.setPosition(838, 228); bossActive = true; }
+	else if (room == CRIMSON_CRYPT) { boss.setPosition({ (float)(838), (float)(228) }); bossActive = true; }
 
 	bride.reset(ROOMS[room].wraith, frand(10, 18));
 	bride.pacified = player.has(CRIMSON_LOCKET);
@@ -191,7 +190,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	// Camera shake.
 	if (shake > 0) {
 		sf::View v = player.view;
-		v.move(frand(-4, 4) * shake, frand(-4, 4) * shake);
+		v.move({ (float)(frand(-4, 4) * shake), (float)(frand(-4, 4) * shake) });
 		window->setView(v);
 	}
 
@@ -218,10 +217,10 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	child.draw(window);
 
 	// --- player + lantern darkness ---
-	if (shake > 0) player.view.move(0, 0);
+	if (shake > 0) player.view.move({ (float)(0), (float)(0) });
 	player.movement(window);
 	if (shake > 0) {
-		sf::View v = player.view; v.move(frand(-4, 4) * shake, frand(-4, 4) * shake); window->setView(v);
+		sf::View v = player.view; v.move({ (float)(frand(-4, 4) * shake), (float)(frand(-4, 4) * shake) }); window->setView(v);
 	}
 
 	// --- horrors that glow through the dark ---
@@ -234,14 +233,14 @@ void Game::update(sf::RenderWindow* window, float dt) {
 
 	if (!overlay) {
 		// Story / interaction.
-		if (key_hit(sf::Keyboard::Space)) dialogue = "";
-		if (key_hit(sf::Keyboard::Return) || key_hit(sf::Keyboard::E)) interact();
-		if (key_hit(sf::Keyboard::B)) goBack();
-		if (key_hit(sf::Keyboard::F)) flareLantern();
-		if (key_hit(sf::Keyboard::H)) { if (objectiveTime < 61) objectiveTime = 61; }
-		if (key_hit(sf::Keyboard::I)) showInventory = !showInventory;
-		if (key_hit(sf::Keyboard::Tab)) showDebug = !showDebug;
-		if (key_hit(sf::Keyboard::J)) journalPage = 0;
+		if (key_hit(sf::Keyboard::Key::Space)) dialogue = "";
+		if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E)) interact();
+		if (key_hit(sf::Keyboard::Key::B)) goBack();
+		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
+		if (key_hit(sf::Keyboard::Key::H)) { if (objectiveTime < 61) objectiveTime = 61; }
+		if (key_hit(sf::Keyboard::Key::I)) showInventory = !showInventory;
+		if (key_hit(sf::Keyboard::Key::Tab)) showDebug = !showDebug;
+		if (key_hit(sf::Keyboard::Key::J)) journalPage = 0;
 
 		updateHazards();
 		updateDig(dt);
@@ -253,12 +252,12 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		}
 	}
 	else {
-		if (key_hit(sf::Keyboard::Return) || key_hit(sf::Keyboard::Space) || key_hit(sf::Keyboard::Escape) || key_hit(sf::Keyboard::J)) {
+		if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Space) || key_hit(sf::Keyboard::Key::Escape) || key_hit(sf::Keyboard::Key::J)) {
 			if (tipOpen >= 0) tipOpen = -1;
 			else journalPage = -1;
 		}
-		if (journalPage >= 0 && (key_hit(sf::Keyboard::Right) || key_hit(sf::Keyboard::D))) journalPage = (journalPage + 1) % TIP_COUNT;
-		if (journalPage >= 0 && (key_hit(sf::Keyboard::Left) || key_hit(sf::Keyboard::A))) journalPage = (journalPage + TIP_COUNT - 1) % TIP_COUNT;
+		if (journalPage >= 0 && (key_hit(sf::Keyboard::Key::Right) || key_hit(sf::Keyboard::Key::D))) journalPage = (journalPage + 1) % TIP_COUNT;
+		if (journalPage >= 0 && (key_hit(sf::Keyboard::Key::Left) || key_hit(sf::Keyboard::Key::A))) journalPage = (journalPage + TIP_COUNT - 1) % TIP_COUNT;
 	}
 
 	drawHud(window);

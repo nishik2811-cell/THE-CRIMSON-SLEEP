@@ -3,7 +3,7 @@
 #include "ds/TileGrid.h"
 
 class Map_loader {
-	sf::Sprite sprite;
+	const sf::Texture* tileset = nullptr;
 	sf::Clock animClock;
 public:
 	static const int anime_startIndex = 21;

@@ -1,23 +1,30 @@
 #include "audio.h"
 #include "globals.h"
 
+static void openLoop(sf::Music& m, const char* file, float volume) {
+	if (m.openFromFile(asset(std::string("audio/") + file))) {
+		m.setLooping(true);
+		m.setVolume(volume);
+	}
+}
+
 Audio::Audio() {
-	title.openFromFile(asset("audio/title_piano.ogg"));     title.setLoop(true);   title.setVolume(70);
-	ambient.openFromFile(asset("audio/ambient_musicbox.ogg")); ambient.setLoop(true); ambient.setVolume(32);
-	drone.openFromFile(asset("audio/drone.ogg"));           drone.setLoop(true);   drone.setVolume(45);
-	ending.openFromFile(asset("audio/ending_musicbox.ogg"));  ending.setLoop(true);  ending.setVolume(70);
+	openLoop(title, "title_piano.ogg", 70);
+	openLoop(ambient, "ambient_musicbox.ogg", 32);
+	openLoop(drone, "drone.ogg", 45);
+	openLoop(ending, "ending_musicbox.ogg", 70);
 	const char* files[SFX_COUNT] = { "jumpscare.ogg", "scream.ogg", "breath.ogg", "bells.ogg", "stinger.ogg", "whisper.ogg", "slam.ogg", "heartbeat.ogg" };
-	for (int i = 0; i < SFX_COUNT; ++i) buffers[i].loadFromFile(asset(std::string("audio/") + files[i]));
+	for (int i = 0; i < SFX_COUNT; ++i) (void)buffers[i].loadFromFile(asset(std::string("audio/") + files[i]));
 }
 
 void Audio::play(Sfx s, float volume, float pitch) {
-	sf::Sound& ch = channels[nextChannel];
+	std::optional<sf::Sound>& ch = channels[nextChannel];
 	nextChannel = (nextChannel + 1) % CHANNELS;
-	ch.stop();
-	ch.setBuffer(buffers[s]);
-	ch.setVolume(volume);
-	ch.setPitch(pitch);
-	ch.play();
+	if (ch) ch->stop();
+	ch.emplace(buffers[s]);
+	ch->setVolume(volume);
+	ch->setPitch(pitch);
+	ch->play();
 }
 
 void Audio::music(Track t) {
@@ -32,8 +39,8 @@ void Audio::music(Track t) {
 void Audio::pauseAll(bool paused) {
 	sf::Music* all[] = { &title, &ambient, &drone, &ending };
 	for (sf::Music* m : all) {
-		if (paused && m->getStatus() == sf::Music::Playing) m->pause();
-		else if (!paused && m->getStatus() == sf::Music::Paused) m->play();
+		if (paused && m->getStatus() == sf::SoundSource::Status::Playing) m->pause();
+		else if (!paused && m->getStatus() == sf::SoundSource::Status::Paused) m->play();
 	}
 }
 

@@ -24,7 +24,7 @@ private:
 	float slideT = 0, t = 0, endT = 0;
 	sf::Font fontTitle, fontSerif, fontItalic;
 	sf::Texture bgTex, logoTex, floorTex;
-	sf::Sprite bg, logo;
+	sf::Sprite bg{ bgTex }, logo{ logoTex };
 	bool hasLogo = false;
 	struct Mote { float x, y, vx, vy, r, a; };
 	Mote motes[70];

@@ -2,13 +2,15 @@
 #include "map_parser.h"
 #include <cstdlib>
 
-void Map_loader::initializeMap(const std::string& mapFile, sf::Texture& tileset) {
+void Map_loader::initializeMap(const std::string& mapFile, sf::Texture& tex) {
 	Map_parser parser;
 	parser.parseMap(mapFile, map);
-	sprite.setTexture(tileset);
+	tileset = &tex;
 }
 
 void Map_loader::drawMap(sf::RenderWindow* window) {
+	if (!tileset) return;
+	sf::Sprite sprite(*tileset);
 	// Animated hazards (spikes / fire, ids >= 21) flicker between frames.
 	bool step = animClock.getElapsedTime().asMilliseconds() > 120;
 	if (step) animClock.restart();
@@ -20,8 +22,8 @@ void Map_loader::drawMap(sf::RenderWindow* window) {
 				t.y = (t.y + 1) % 4;
 				if (t.y == 0) t.y = 1;
 			}
-			sprite.setPosition((float)(j * 32), (float)(i * 32));
-			sprite.setTextureRect(sf::IntRect(t.x * 32, t.y * 32, 32, 32));
+			sprite.setPosition({ (float)(j * 32), (float)(i * 32) });
+			sprite.setTextureRect(sf::IntRect({ t.x * 32, t.y * 32 }, { 32, 32 }));
 			window->draw(sprite);
 		}
 	}

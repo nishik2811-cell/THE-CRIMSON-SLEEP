@@ -26,6 +26,8 @@ extern std::string dialogue;    // story text box (Space dismisses)
 
 // Edge-triggered key presses collected from the event loop this frame.
 bool key_hit(sf::Keyboard::Key k);
+bool key_any();
+using Key = sf::Keyboard::Key;
 void key_reset();
 void key_record(sf::Keyboard::Key k);
 

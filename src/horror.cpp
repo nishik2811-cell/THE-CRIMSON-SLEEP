@@ -8,9 +8,8 @@ static float len(sf::Vector2f v) { return std::sqrt(v.x * v.x + v.y * v.y); }
 
 // ------------------------------- Bride --------------------------------
 Bride::Bride() {
-	tex.loadFromFile(asset("graphics/wraith.png"));
-	sprite.setTexture(tex);
-	sprite.setOrigin(12, 40);
+	if (tex.loadFromFile(asset("graphics/wraith.png"))) sprite.setTexture(tex, true);
+	sprite.setOrigin({ 12.f, 40.f });
 }
 void Bride::reset(bool allowed, float firstDelay) {
 	active = allowed; state = GONE; timer = firstDelay; alpha = 0;
@@ -29,8 +28,10 @@ void Bride::update(float dt, sf::Vector2f player, bool playerMoving) {
 			// Manifest somewhere around the player, just outside the light.
 			float a = frand(0, 6.283f);
 			pos = target + sf::Vector2f(std::cos(a), std::sin(a)) * frand(170, 230);
-			if (pos.x < 40) pos.x = 40; if (pos.x > 984) pos.x = 984;
-			if (pos.y < 60) pos.y = 60; if (pos.y > 740) pos.y = 740;
+			if (pos.x < 40) pos.x = 40;
+			if (pos.x > 984) pos.x = 984;
+			if (pos.y < 60) pos.y = 60;
+			if (pos.y > 740) pos.y = 740;
 			state = FADE_IN; alpha = 0;
 		}
 		break;
@@ -58,18 +59,17 @@ void Bride::update(float dt, sf::Vector2f player, bool playerMoving) {
 void Bride::draw(sf::RenderWindow* w) {
 	if (!active || state == GONE) return;
 	int f = (int)(frameT * 5) % 4;
-	sprite.setTextureRect(sf::IntRect(f * 24, 0, 24, 48));
-	sprite.setPosition(pos.x, pos.y + std::sin(wobble * 3) * 2);
-	sf::Uint8 a = (sf::Uint8)(alpha < 0 ? 0 : alpha > 255 ? 255 : alpha);
+	sprite.setTextureRect(sf::IntRect({ f * 24, 0 }, { 24, 48 }));
+	sprite.setPosition({ pos.x, pos.y + std::sin(wobble * 3) * 2 });
+	std::uint8_t a = (std::uint8_t)(alpha < 0 ? 0 : alpha > 255 ? 255 : alpha);
 	sprite.setColor(sf::Color(255, 235, 235, a));
 	w->draw(sprite);
 }
 
 // ------------------------------ Crawler -------------------------------
 Crawler::Crawler() {
-	tex.loadFromFile(asset("graphics/hollow_child.png"));
-	sprite.setTexture(tex);
-	sprite.setOrigin(0, 24);
+	if (tex.loadFromFile(asset("graphics/hollow_child.png"))) sprite.setTexture(tex, true);
+	sprite.setOrigin({ 0.f, 24.f });
 }
 void Crawler::reset(bool allowed, sf::Vector2f spawn) { active = allowed; pos = home = spawn; stun = 0; }
 float Crawler::distanceTo(sf::Vector2f p) const { return len(p - pos); }
@@ -99,7 +99,7 @@ void Crawler::update(float dt, sf::Vector2f p, int facing) {
 }
 void Crawler::draw(sf::RenderWindow* w) {
 	if (!active) return;
-	sprite.setTextureRect(sf::IntRect(frame * 24, 0, 24, 48));
+	sprite.setTextureRect(sf::IntRect({ frame * 24, 0 }, { 24, 48 }));
 	sprite.setPosition(pos);
 	sprite.setColor(stun > 0 ? sf::Color(255, 120, 120, 200) : sf::Color::White);
 	w->draw(sprite);
@@ -107,12 +107,11 @@ void Crawler::draw(sf::RenderWindow* w) {
 
 // ----------------------------- Apparition -----------------------------
 Apparition::Apparition() {
-	tex.loadFromFile(asset("graphics/apparitions.png"));
-	sprite.setTexture(tex);
-	sprite.setOrigin(12, 24);
+	if (tex.loadFromFile(asset("graphics/apparitions.png"))) sprite.setTexture(tex, true);
+	sprite.setOrigin({ 12.f, 24.f });
 }
 void Apparition::spawn(sf::Vector2f at, int kind) {
-	sprite.setTextureRect(sf::IntRect((kind % 2) * 24, 0, 24, 48));
+	sprite.setTextureRect(sf::IntRect({ (kind % 2) * 24, 0 }, { 24, 48 }));
 	sprite.setPosition(at);
 	life = 1.6f;
 }
@@ -125,6 +124,6 @@ void Apparition::update(float dt, sf::Vector2f p) {
 void Apparition::draw(sf::RenderWindow* w) {
 	if (life <= 0) return;
 	float a = life > 1.2f ? (1.6f - life) / 0.4f : life / 1.2f;
-	sprite.setColor(sf::Color(255, 255, 255, (sf::Uint8)(220 * a)));
+	sprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(220 * a)));
 	w->draw(sprite);
 }

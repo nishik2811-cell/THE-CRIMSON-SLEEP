@@ -4,17 +4,16 @@
 #include <cstdlib>
 
 Enemy_boss::Enemy_boss(){
-	cTexture.loadFromFile(asset("graphics/enemy_boss.png"));
-	characterImage.setTexture(cTexture);
+	loadSprite(asset("graphics/enemy_boss.png"));
 	characterSpeed = .5;
-	characterImage.setOrigin(0, 24);
+
 	source = sf::Vector2i(0, Down);
 }
 void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 	net_x = player->characterImage.getPosition().x - characterImage.getPosition().x;
 	net_y = player->characterImage.getPosition().y - characterImage.getPosition().y;
 	
-	if (abs(net_x) < abs(net_y)){
+	if (std::abs(net_x) < std::abs(net_y)){
 		if (net_x > 0){
 			source.y = Right;
 		}
@@ -31,17 +30,17 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 		}
 		if (!col.isCollisionMap(characterImage.getPosition(), source.y)|| colSpecialTile()){
 			if (net_x > 0){
-				characterImage.move(characterSpeed, 0);
+				characterImage.move({ (float)(characterSpeed), (float)(0) });
 			}
 			else if (net_x < 0){
-				characterImage.move(-characterSpeed, 0);
+				characterImage.move({ (float)(-characterSpeed), (float)(0) });
 			}
 			else{
 				if (net_y > 0){
-					characterImage.move(0, characterSpeed);
+					characterImage.move({ (float)(0), (float)(characterSpeed) });
 				}
 				else{
-					characterImage.move(0, -characterSpeed);
+					characterImage.move({ (float)(0), (float)(-characterSpeed) });
 				}
 			}
 		}
@@ -57,10 +56,10 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 			}
 			if (!col.isCollisionMap(characterImage.getPosition(), source.y) || colSpecialTile()){
 				if (net_y > 0){
-					characterImage.move(0, characterSpeed);
+					characterImage.move({ (float)(0), (float)(characterSpeed) });
 				}
 				else {
-					characterImage.move(0, -characterSpeed);
+					characterImage.move({ (float)(0), (float)(-characterSpeed) });
 				}
 			}
 		}
@@ -83,17 +82,17 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 		}
 		if (!col.isCollisionMap(characterImage.getPosition(), source.y) || colSpecialTile()){
 			if (net_y > 0){
-				characterImage.move(0, characterSpeed);
+				characterImage.move({ (float)(0), (float)(characterSpeed) });
 			}
 			else if (net_y < 0){
-				characterImage.move(0, -characterSpeed);
+				characterImage.move({ (float)(0), (float)(-characterSpeed) });
 			}
 			else{
 				if (net_x > 0){
-					characterImage.move(characterSpeed, 0);
+					characterImage.move({ (float)(characterSpeed), (float)(0) });
 				}
 				else {
-					characterImage.move(-characterSpeed, 0);
+					characterImage.move({ (float)(-characterSpeed), (float)(0) });
 				}
 			}
 		}
@@ -109,10 +108,10 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 			}
 			if (!col.isCollisionMap(characterImage.getPosition(), source.y) || colSpecialTile()){
 				if (net_x > 0){
-					characterImage.move(characterSpeed, 0);
+					characterImage.move({ (float)(characterSpeed), (float)(0) });
 				}
 				else {
-					characterImage.move(-characterSpeed, 0);
+					characterImage.move({ (float)(-characterSpeed), (float)(0) });
 				}
 			}
 		}
@@ -122,14 +121,14 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 		if (frameCounter > switchFrame){
 			frameCounter = 0;
 			source.x++;
-			if (source.x * 24 >= cTexture.getSize().x)
+			if (source.x * 24 >= (int)cTexture.getSize().x)
 				source.x = 0;
 		}
-		characterImage.setTextureRect(sf::IntRect(source.x * 24, source.y * 48, 24, 48));
-		(*window).draw(characterImage);
+		setFrame();
+		window->draw(characterImage);
 		if (game_state == 1){
-			if (abs(net_x) < 150 && abs(net_y) < 150){
-				if (!player->beep_sound.getStatus()){
+			if (std::abs(net_x) < 150 && std::abs(net_y) < 150){
+				if (player->beep_sound.getStatus() != sf::SoundSource::Status::Playing){
 					//player->beep_sound.setPlayingOffset(sf::seconds(3.0f));
 					player->beep_sound.play();
 				}
