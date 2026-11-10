@@ -6,7 +6,7 @@
 
 You wake on the floor of a mansion that has been "sleeping in crimson" since **June 26, 1953**, the night ten people were murdered there. Find the keys, read the clues and survive the dead. Then decide how the nightmare ends.
 
-The game extends **[Mansion Mystery](https://github.com/saurabh1907/2d-rpg-game-cpp)** by Saurabh Kumar Prasad, an SFML 2D RPG horror game. It keeps that game's tile maps, characters and puzzles, and adds a crimson re-theme, a boot page and title screen, new ghosts, a health and fear system, a hint system, a mini-map, two new rooms, four endings, and the data-structure core described in the project synopsis.
+The game features custom tile maps, retro horror sprites, puzzles, a crimson atmosphere, a boot page and title screen, custom ghosts and stalker entities, a health and fear system, a blood trail hint system, a mini-map, two secret rooms, and four distinct endings.
 
 ---
 
@@ -156,7 +156,7 @@ CS_ROOM=3 CS_HINT=1 CS_FRAMES=40 CS_SHOT=hint.png ./crimson_sleep
 
 ## Credits
 
-* Base game, tiles and characters: *Mansion Mystery* by Saurabh Kumar Prasad.
+* Pixel art & sprites: Retro horror pixel sprites, custom walk/attack animations, and dark atmosphere.
 * Music (chosen by the team): *Title* (title screen), *Dream* (exploring), *Creep* (dangerous rooms), *Chase* (when something is hunting you), *Wrong* (death screen and the trapped ending), *Apartments* (endings). `crack.wav` is used for cracking floorboards and digging.
 * Sound effects from Pixabay: *scream* and *scary breath* (freesound_community), *scary loud screaming* (judgecruz1 / remusic), *scary bells* (Dragon Studio), *scary sound effect* (hgoliya08). The heartbeat, whisper and door slam are synthesised in-house.
 * Fonts: Grenze Gotisch and Cormorant Garamond (SIL Open Font License, `assets/fonts/OFL.txt`), DejaVu Sans.

@@ -1,5 +1,5 @@
 // The Crimson Sleep - a 2D pixelated horror escape (SFML 3).
-// Extended from "Mansion Mystery" (SFML) by Saurabh Kumar Prasad.
+// The Crimson Sleep (SFML 2D Horror RPG)
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <cstdlib>

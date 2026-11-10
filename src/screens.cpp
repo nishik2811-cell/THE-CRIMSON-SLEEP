@@ -329,7 +329,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		// Credits roll.
 		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Retro Horror Adventure",
 			"", "",
-			"Built upon 'Mansion Mystery' by Saurabh Kumar Prasad", "Music and sounds: Pixabay artists (see README)", "", "Thank you for playing.", "Sleep well." };
+			"Music and sounds: Pixabay artists (see README)", "", "", "Thank you for playing.", "Sleep well." };
 		float cy = 768 - (tail - 3) * 34;
 		if (tail > 3) for (int i = 0; i < 10; ++i) {
 			float y = cy + i * 34;
