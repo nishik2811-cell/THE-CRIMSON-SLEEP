@@ -136,6 +136,7 @@ tools/          Python scripts that regenerate the art, maps and backdrop
 ### Regenerating assets (Python 3 + Pillow + NumPy)
 ```bash
 python3 tools/make_art.py          # crimson tileset/floor + pixel-art ghosts
+python3 tools/make_dead_alfred.py  # Alfred after the house takes him
 python3 tools/adjust_hero.py       # hero recolour (blue coat, brown hair) from the original sprite
 python3 tools/make_maps.py         # Hidden Tunnel + Ossuary maps
 python3 tools/make_backdrop.py     # fallback blood-moon title backdrop

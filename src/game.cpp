@@ -51,6 +51,8 @@ Game::Game(Audio& a) : audio(a) {
 	(void)fontItalic.openFromFile(asset("fonts/CormorantGaramond-Italic.ttf"));
 	(void)fontMono.openFromFile(asset("fonts/DejaVuSans.ttf"));
 	if (jumpTex.loadFromFile(asset("graphics/jumpscare.png"))) jumpSprite.setTexture(jumpTex, true);
+	if (alfredDeadTex.loadFromFile(asset("graphics/servent_dead.png"))) alfredDeadSprite.setTexture(alfredDeadTex, true);
+	alfredDeadSprite.setOrigin({ 0.f, 24.f });
 	jumpSprite.setOrigin({ (float)(jumpTex.getSize().x / 2.f), (float)(jumpTex.getSize().y / 2.f) });
 	npc.setPosition({ (float)(546), (float)(236) });
 	npc.initialize();
@@ -199,9 +201,8 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	drawWorldOverlays(window);   // hint trail, target marker, blood writing
 
 	// --- characters drawn under the darkness ---
-	if (room == ENTRANCE_HALL && npc.characterImage.getPosition().y < 644) {
-		if (overlay) window->draw(npc.characterImage); else npc.movement(&player, window);
-	}
+	bool talkedToAlfred = updateAlfred(dt, window, overlay);
+	drawDeadAlfred(window, dt, overlay);
 	for (int i = 0; i < easyCount; ++i) {
 		if (overlay || ghostStun > 0) { ghostEasy[i].characterImage.setColor(ghostStun > 0 ? sf::Color(255, 140, 140) : sf::Color::White); window->draw(ghostEasy[i].characterImage); }
 		else { ghostEasy[i].characterImage.setColor(sf::Color::White); ghostEasy[i].movement(&player, window); }
@@ -235,7 +236,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	if (!overlay) {
 		// Story / interaction.
 		if (key_hit(sf::Keyboard::Key::Space)) dialogue = "";
-		if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E)) interact();
+		if (!talkedToAlfred && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E))) interact();
 		if (key_hit(sf::Keyboard::Key::B)) goBack();
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
 		if (key_hit(sf::Keyboard::Key::H)) { if (objectiveTime < 61) objectiveTime = 61; }
@@ -673,4 +674,90 @@ void Game::computeTrail() {
 		}
 	}
 	for (int c = goal; c >= 0 && trailLen < GRID_W * GRID_H; c = parent[c]) trail[trailLen++] = c;
+}
+
+// ------------------------------------------------------------- Alfred
+// Returns true if this frame's E press was used to start talking to him.
+bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
+	bool talked = false;
+	if (!overlay) {
+		if (room == ENTRANCE_HALL && npc.state == Npc::standing && npc.near(&player) &&
+			(key_hit(sf::Keyboard::Key::E) || key_hit(sf::Keyboard::Key::Enter))) {
+			npc.state = Npc::counting;
+			alfredT = 0;
+			talked = true;
+			say("Alfred:\n\tYou came... thank God.\n\tThe house has slept in crimson since 1953.\n\tYou are our only hope.");
+		}
+		if (alfredT >= 0) {
+			float before = alfredT;
+			alfredT += dt;
+			auto crossed = [&](float t) { return before < t && alfredT >= t; };
+			if (crossed(5.f)) {
+				// He hands you the lantern himself.
+				if (!collected(LANTERN)) {
+					pickUp(LANTERN, "", false);
+					int c, r;
+					if (maps[ENTRANCE_HALL].map.find(11, &c, &r)) maps[ENTRANCE_HALL].map.set(c, r, sf::Vector2i(-1, -1));
+				}
+				say("Alfred:\n\tTake my lantern. The lines were cut.\n\tPress F to flare it - the dead hate the light.");
+			}
+			if (crossed(11.f))
+				say("Alfred:\n\tE to open doors, drawers and chests.\n\tB takes you back the way you came.\n\tIf you are lost, press H - the house remembers the way.");
+			if (crossed(18.f)) {
+				say("Alfred:\n\tIt's getting dark. I... I should go.");
+				npc.state = Npc::moving;
+				alfredT = -1;
+			}
+		}
+		// Once he has walked out of the hall, the house takes him.
+		if (!alfredLeft && npc.state == Npc::moving && npc.characterImage.getPosition().y >= 644) {
+			alfredLeft = true;
+			alfredScreamT = 25.f;
+		}
+		if (alfredScreamT > 0) {
+			alfredScreamT -= dt;
+			if (alfredScreamT <= 0) {
+				audio.play(SFX_SCREAM, 55, 0.75f);
+				eventCaption = "A man screams somewhere in the house... Alfred?";
+				eventCaptionT = 5.f;
+				player.fear += 8;
+				alfredDead = 1;
+			}
+		}
+	}
+	if (room == ENTRANCE_HALL && npc.characterImage.getPosition().y < 644) {
+		if (overlay) window->draw(npc.characterImage); else npc.movement(&player, window);
+	}
+	return talked;
+}
+
+// Dead Alfred waits in the Library, back turned, in the dark.  Get close
+// and he turns around.
+void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
+	if (room != LIBRARY || alfredDead == 0 || alfredDead == 3) return;
+	const sf::Vector2f pos(9 * 32 + 4.f, 11 * 32 + 4.f);
+	alfredDeadSprite.setPosition(pos);
+	if (alfredDead == 1) {
+		alfredDeadSprite.setTextureRect(sf::IntRect({ 0, 3 * 48 }, { 24, 48 }));   // back turned
+		alfredDeadSprite.setColor(sf::Color::White);
+		sf::Vector2f d = pp() - pos;
+		if (!overlay && std::sqrt(d.x * d.x + d.y * d.y) < 60.f) {
+			alfredDead = 2; alfredDeadT = 0;
+			audio.play(SFX_STINGER, 100, 0.7f);
+			shake = 1.f; hurtFlash = 0.5f;
+			player.fear += 12;
+			eventCaption = "Alfred turns around. His eyes are gone.";
+			eventCaptionT = 5.f;
+		}
+	}
+	else if (alfredDead == 2) {
+		if (!overlay) alfredDeadT += dt;
+		int frame = (int)(alfredDeadT * 8) % 3;
+		alfredDeadSprite.setTextureRect(sf::IntRect({ frame * 24, 0 }, { 24, 48 }));   // facing you
+		float a = alfredDeadT < 1.4f ? 1.f : std::max(0.f, 1.f - (alfredDeadT - 1.4f) / 0.6f);
+		bool flick = alfredDeadT > 1.0f && std::rand() % 3 == 0;
+		alfredDeadSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(flick ? 60 : 255 * a)));
+		if (alfredDeadT > 2.0f) alfredDead = 3;
+	}
+	window->draw(alfredDeadSprite);
 }

@@ -10,5 +10,6 @@ public:
 	int state = standing;
 	sf::Clock clock1;
 	void initialize();
+	bool near(Character* player) const;
 	void movement(Character*, sf::RenderWindow*) override;
 };

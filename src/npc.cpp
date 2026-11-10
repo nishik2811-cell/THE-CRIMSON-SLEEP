@@ -1,48 +1,36 @@
 #include "npc.h"
 #include "globals.h"
-Npc::Npc(){
+#include <cmath>
+
+Npc::Npc() {
 	loadSprite(asset("graphics/servent.png"));
-
 }
-void Npc::movement(Character* player, sf::RenderWindow* window){
 
-	if (isCollisionCharacter(player) && state == standing){
-		if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E)){
-			clock1.restart();
-			state = counting;
-			dialogue = "Alfred:\n\tYou came... good.\n\tThe house sleeps in crimson since 1953.\n\tYou are our only hope to stop the Devil.\n\tBe careful !!";
-		}
-	}
-	if (state == counting){
-		if (clock1.getElapsedTime().asSeconds() > 6.0f)
-			dialogue = "Alfred:\n\tTake the lantern. The lines were cut.\n\tThe dark here... it watches.";
-		if (clock1.getElapsedTime().asSeconds() > 10){
-			dialogue = "Alfred:\n\tIts getting dark. I should leave.\n\n\n\n\n\n\t\t\t\t\t*Press spacebar to dismiss*";
-			state = moving;
-		}
-	}
-	if (state == moving){
-		if (characterImage.getPosition().x > 480 && characterImage.getPosition().y < 600){
+bool Npc::near(Character* player) const {
+	sf::Vector2f d = player->characterImage.getPosition() - characterImage.getPosition();
+	return std::sqrt(d.x * d.x + d.y * d.y) < 40.f;
+}
+
+// Talking is handled by Game (it hands over the lantern); the NPC itself
+// only stands, waits while talking, then walks out of the hall.
+void Npc::movement(Character*, sf::RenderWindow* window) {
+	if (state == moving) {
+		if (characterImage.getPosition().x > 480 && characterImage.getPosition().y < 600) {
 			source.y = Left;
-			characterImage.move({ (float)(-velocity), (float)(0) });
+			characterImage.move({ -velocity, 0.f });
 		}
-		else if (characterImage.getPosition().y < 645){
+		else if (characterImage.getPosition().y < 645) {
 			source.y = Down;
-			characterImage.move({ (float)(0), (float)(velocity) });
+			characterImage.move({ 0.f, velocity });
 		}
-		frameCounter += frameSpeed * clock.restart().asSeconds();
-		if (frameCounter > switchFrame){
-			frameCounter = 0;
-			source.x++;
-			if (source.x * 24 >= (int)cTexture.getSize().x)
-				source.x = 0;
-		}
+		animate();
 	}
 	setFrame();
 	window->draw(characterImage);
 }
-void Npc::initialize(){
-	characterSpeed = 0.50;
+
+void Npc::initialize() {
+	characterSpeed = 0.50f;
 	velocity = characterSpeed;
 	source = sf::Vector2i(0, Down);
 }

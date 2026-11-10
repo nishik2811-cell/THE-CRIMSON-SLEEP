@@ -41,6 +41,9 @@ int main() {
 		if (env("CS_BRIDE")) game->devSpawnBride();
 		if (env("CS_JUMP")) game->devJumpscare();
 		if (env("CS_NOTIPS")) game->devNoTips();
+		if (env("CS_ALFRED")) game->devAlfredDead();
+		if (env("CS_PX")) game->devPlace((float)std::atof(env("CS_PX")), (float)std::atof(env("CS_PY")));
+		if (env("CS_TALK")) game->devAlfredTalk((float)std::atof(env("CS_TALK")));
 		if (env("CS_OPEN")) game->devOpen(std::atoi(env("CS_OPEN")));
 	}
 	if (const char* st = env("CS_STATE")) {

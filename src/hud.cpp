@@ -95,6 +95,16 @@ void Game::drawHud(sf::RenderWindow* w) {
 	std::snprintf(buf, sizeof buf, flareCooldown > 0 ? "Flare  %.0fs" : "Flare  ready (F)", flareCooldown);
 	w->draw(label(fontSerif, player.has(LANTERN) ? buf : "No light", 17, flareCooldown > 0 ? ASH : BONE, 22, 72));
 
+	// "[E] Talk" over Alfred's head when you're next to him.
+	if (room == ENTRANCE_HALL && npc.state == Npc::standing && npc.near(&player)) {
+		sf::Vector2i px = w->mapCoordsToPixel(npc.characterImage.getPosition() + sf::Vector2f(12.f, -30.f), player.view);
+		sf::Vector2f sp = w->mapPixelToCoords(px, w->getDefaultView());
+		sf::Text tt(fontSerif, "[E] Talk to Alfred", 20);
+		tt.setFillColor(BONE);
+		tt.setOutlineColor(sf::Color(0, 0, 0)); tt.setOutlineThickness(2);
+		tt.setPosition({ std::floor(sp.x - tt.getLocalBounds().size.x / 2), std::floor(sp.y) });
+		w->draw(tt);
+	}
 	// Room name.
 	sf::Text rn(fontTitle, ROOMS[room].name, 30);
 	rn.setFillColor(CRIMSON);

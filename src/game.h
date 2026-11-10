@@ -59,6 +59,9 @@ public:
 	void devStartAt(int room);
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
+	void devPlace(float x, float y) { player.setPosition((int)x, (int)y); }
+	void devAlfredTalk(float t) { npc.state = Npc::counting; alfredT = t; }
+	void devAlfredDead() { alfredDead = 1; alfredLeft = true; }
 	void devNoTips() { for (int i = 0; i < TIP_COUNT; ++i) tipSeen[i] = true; dialogue = ""; }
 	void devJumpscare() { jumpscare = 1.3f; }
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
@@ -93,6 +96,15 @@ private:
 	Threat topThreat{ 0, TH_CALM, "" };
 	float heartbeatT = 0;
 	float chaseHold = 0;      // chase music keeps playing this long after the threat
+	// Alfred the butler: talks, hands over the lantern, leaves... and comes back wrong.
+	float alfredT = -1;       // seconds into his talk (-1 = not talking)
+	bool alfredLeft = false;
+	float alfredScreamT = -1; // countdown to his scream after he leaves
+	int alfredDead = 0;       // 0 not yet, 1 waiting in the Library, 2 turning, 3 gone
+	float alfredDeadT = 0;
+	sf::Texture alfredDeadTex; sf::Sprite alfredDeadSprite{ alfredDeadTex };
+	bool updateAlfred(float dt, sf::RenderWindow* window, bool overlay);
+	void drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay);
 	// events / scares
 	std::string eventCaption; float eventCaptionT = 0;
 	std::string wallText; sf::Vector2f wallPos; float wallT = 0;
