@@ -23,7 +23,7 @@ const ItemInfo ITEMS[ITEM_COUNT] = {
 	{ "Brass Key",           "Opens the Nursery of Whispers (from the Library).",   false },
 	{ "Chapel Key",          "Opens the Chapel of Ash (from the Grand Corridor).",  false },
 	{ "Iron Key",            "Opens the Ritual Antechamber (Grand Corridor).",      false },
-	{ "Blessed Sword",       "Lets you enter the Crimson Crypt and face the Devil.", false },
+	{ "Blessed Sword",       "Lets you enter the Crimson Crypt and face Jason.",    false },
 	{ "Petrol Can",          "Burn it all down... and hope.",                        false },
 	{ "Mattock",             "Stand still on the cracked ground to dig.",            false },
 	{ "Diary",               "Dead souls wander the mansion. Something holds them.", true },

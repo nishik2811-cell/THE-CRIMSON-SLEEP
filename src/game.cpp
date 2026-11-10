@@ -7,28 +7,28 @@ static float frand(float a, float b) { return a + (b - a) * (std::rand() / (floa
 static float dist(sf::Vector2f a, sf::Vector2f b) { float x = a.x - b.x, y = a.y - b.y; return std::sqrt(x * x + y * y); }
 
 const TipInfo TIPS[TIP_COUNT] = {
-	{ "Restless Spirits",
-	  "They walk the same path, over and over, the way they did in 1953.\n"
-	  "- Watch a patrol once before you cross it.\n"
+	{ "Pennywise & Freddy (Spirits)",
+	  "Pennywise and Freddy walk their hunting routes over and over.\n"
+	  "- Watch their patrol once before you cross.\n"
 	  "- A lantern FLARE (F) freezes them for a few seconds.\n"
-	  "- A touch costs blood and courage - not your life." },
-	{ "The Weeping Bride",
+	  "- Contact drains your blood and spikes your fear." },
+	{ "Samara (The Cursed Maiden)",
 	  "She drifts through walls, hunting by the sound of your steps.\n"
 	  "- STAND STILL and she loses your trail.\n"
 	  "- FLARE your lantern (F) when she is close to banish her.\n"
 	  "- Her locket lies somewhere below the chapel. Return it to her\n"
 	  "  and she will never harm you again." },
-	{ "The Hollow Child",
-	  "It crawls faster than you can run - but only when unseen.\n"
-	  "- FACE it and it cannot move.\n"
-	  "- Walk backwards toward the door, eyes on the child.\n"
-	  "- A FLARE (F) drives it back into the dark." },
-	{ "The Devil",
-	  "He cannot be fought - only ended.\n"
-	  "- The EMF meter beeps when he is close: keep your distance.\n"
+	{ "Carrie (The Blood Oracle)",
+	  "Drenched in prom blood, her telekinesis strikes when unseen.\n"
+	  "- FACE HER directly and she cannot move.\n"
+	  "- Walk backwards toward the door with eyes locked on Carrie.\n"
+	  "- A FLARE (F) disrupts her psychic grip and drives her back." },
+	{ "Jason (The Lake Slasher)",
+	  "He cannot be reasoned with - only ended.\n"
+	  "- The EMF meter beeps when Jason is close: keep your distance.\n"
 	  "- Dig at the cracked heart of the crypt with a mattock\n"
 	  "  (stand still on it). Mattocks break - there is a spare.\n"
-	  "- Strike the corpse with the Blessed Sword. A flare stuns him." },
+	  "- Strike his cursed grave with the Blessed Sword. A flare stuns him." },
 	{ "Spikes, Fire and Graves",
 	  "The house itself wants you.\n"
 	  "- Spikes and flames rise and fall - time your steps.\n"
@@ -127,7 +127,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	switch (room) {
 	case GRAND_CORRIDOR: if (!roomVisited[LIBRARY]) say("A long corridor. Portraits with scratched-out eyes.\nAlfred was right to be afraid."); break;
 	case NURSERY: say("A music box plays by itself.\nI must not come in contact with whatever lives here."); break;
-	case CRIMSON_CRYPT: say("The Devil is somewhere around.\nThe EMF meter beeps when he comes close.\nDig out his corpse at the crypt's heart and destroy it."); break;
+	case CRIMSON_CRYPT: say("Jason is somewhere around.\nThe EMF meter beeps when he comes close.\nDig out his cursed grave at the crypt's heart and destroy it."); break;
 	case HIDDEN_TUNNEL: say("Wet stone. Scratch marks. Someone was walled in here."); break;
 	case OSSUARY: say("Bones, stacked like firewood.\nAt the far end, a skeleton in a wedding dress."); break;
 	default: break;
@@ -250,7 +250,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		updateThreats(dt);
 		updateHints(dt);
 		if (bossActive) for (int i = 0; i < 1; ++i) {
-			if (bossStun <= 0 && boss.isCollisionCharacter(&player)) { die("The Devil took you.", TIP_DEVIL); return; }
+			if (bossStun <= 0 && boss.isCollisionCharacter(&player)) { die("Jason cut you down.", TIP_DEVIL); return; }
 		}
 	}
 	else {
@@ -324,7 +324,7 @@ void Game::interact() {
 	case 10: // book
 		if (room == LIBRARY && !collected(DIARY)) pickUp(DIARY, "Diary:\n\tThere are dead souls wandering in the Mansion.\n\tSome force stops them from leaving.\n\tShe still wears her wedding dress...", false);
 		else if (room == COLLAPSED_BEDROOM) say("A note: 'The chest opens for those who dare the floor.'");
-		else if (room == ANTECHAMBER) say("All attempts to save the house have failed.\nThe Devil is strongest in the next room!\n\nI could take the petrol and burn it all down...\nOr take the Blessed Sword and FIGHT THE DEVIL.");
+		else if (room == ANTECHAMBER) say("All attempts to save the house have failed.\nJason is strongest in the crypt!\n\nI could take the petrol and burn it all down...\nOr take the Blessed Sword and FACE JASON.");
 		else say("The pages are glued together with something dark.");
 		break;
 	case 11: pickUp(LANTERN, "Lantern picked up.\nIts flame burns a sickly red.\n(F: flare it to drive spirits back)", true); break;
@@ -435,7 +435,7 @@ void Game::flareLantern() {
 	}
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
-	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("The Devil recoils from the light!"); }
+	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("Jason recoils from the flare's light!"); }
 	(void)c;
 }
 
@@ -529,16 +529,16 @@ void Game::updateThreats(float dt) {
 	// Insert every active danger with its priority...
 	if (bride.active && bride.visible() && !bride.pacified) {
 		float d = bride.distanceTo(p);
-		if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "THE WEEPING BRIDE HAS YOU" });
-		else if (d < 240) threats.insert(Threat{ 75, TH_BRIDE_NEAR, "The Weeping Bride drifts toward you - stand still, or FLARE (F)" });
+		if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "SAMARA HAS YOU" });
+		else if (d < 240) threats.insert(Threat{ 75, TH_BRIDE_NEAR, "Samara drifts toward you - stand still, or FLARE (F)" });
 	}
-	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "The Devil is close - the EMF meter screams" });
+	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "Jason is close - the EMF meter screams" });
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 170) {
-		threats.insert(Threat{ child.frozen ? 50 : 80, TH_CHILD, child.frozen ? "The Hollow Child is frozen while you watch it" : "Something crawls behind you - TURN AND FACE IT" });
+		threats.insert(Threat{ child.frozen ? 50 : 80, TH_CHILD, child.frozen ? "Carrie is frozen while you watch her" : "Carrie stalks behind you in blood - TURN AND FACE HER" });
 		openTip(TIP_CHILD);
 	}
-	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "A restless spirit walks its old path" });
-	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "A restless spirit walks its old path" });
+	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "Pennywise prowls his hunting path" });
+	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "Freddy Krueger stalks his route" });
 	if (ROOMS[room].dark && !player.has(LANTERN)) threats.insert(Threat{ 20, TH_DARK, "It is too dark here" });
 	threats.insert(Threat{ 0, TH_CALM, "" });
 
@@ -568,15 +568,15 @@ void Game::updateThreats(float dt) {
 		jumpscare = 1.3f;
 		audio.play(SFX_JUMPSCARE, 100);
 		bride.banish(frand(25, 35));
-		hurt(30, 30, "The Weeping Bride's face fills your vision.", TIP_BRIDE, false);
+		hurt(30, 30, "Samara's cursed face fills your vision.", TIP_BRIDE, false);
 	}
 	// Contact with patrol spirits / crawler.
-	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 20, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
-	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 20, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
+	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 20, "Pennywise strikes! Fear chokes your breath.", TIP_SPIRITS, true);
+	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 20, "Freddy's razor claws slice through you!", TIP_SPIRITS, true);
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 18) {
 		audio.play(SFX_SCREAM, 90, 1.4f);
 		child.stun = 3; child.pos = child.home;
-		hurt(25, 20, "Tiny teeth sink into your ankle!", TIP_CHILD, false);
+		hurt(25, 20, "Carrie's telekinetic wrath violently slams you!", TIP_CHILD, false);
 	}
 
 	if (player.fear < 0) player.fear = 0;
@@ -623,7 +623,7 @@ void Game::updateHints(float dt) {
 	}
 	if (key == 100) {
 		targetRoom = CRIMSON_CRYPT;
-		if (digCount >= 4) { key = 20; targetTile = 12; what = "Strike the Devil's corpse with the Blessed Sword."; }
+		if (digCount >= 4) { key = 20; targetTile = 12; what = "Strike Jason's cursed remains with the Blessed Sword."; }
 		else if (!player.is_mattock) { key = 21 + digCount; targetTile = 15; what = "Find a mattock in the crypt to dig with."; }
 		else { key = 30 + digCount; targetTile = 13; what = "Stand still on the cracked ground at the crypt's heart and dig."; }
 	}
