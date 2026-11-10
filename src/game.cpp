@@ -122,7 +122,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	if (!roomVisited[room]) { roomVisited[room] = true; runStats.roomsSeen++; }
 	roomTime = 0; digT = 0; trailLen = 0;
 	spawnEnemies();
-	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room]);
+	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room], ROOMS[room].danger >= 7);
 
 	// Schedule this visit's haunted events (FIFO, in chronological order).
 	events.clear();

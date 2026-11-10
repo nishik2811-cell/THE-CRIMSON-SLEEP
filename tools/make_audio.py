@@ -9,7 +9,7 @@ ROOT = os.path.join(os.path.dirname(__file__), '..')
 RAW = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'raw-assets', 'Audio')
 OUT = os.path.join(ROOT, 'assets', 'audio')
 
-MUSIC = ['title_music', 'chase_music', 'memory_music', 'ending_morning', 'ending_waking', 'rank_music']
+MUSIC = ['title_music', 'rank_music']
 AMBIENCE = ['amb_house', 'amb_gallery', 'amb_library', 'amb_crawl', 'amb_crimson', 'amb_drowned',
             'drone_tension', 'drone_dread', 'wind_loop', 'drip_loop', 'rumble_loop', 'water_loop']
 SFX = ['step_wood_%d' % i for i in range(1, 7)] + ['step_carpet_%d' % i for i in range(1, 5)] + \
@@ -22,7 +22,9 @@ SFX = ['step_wood_%d' % i for i in range(1, 7)] + ['step_carpet_%d' % i for i in
        'heart_slow', 'heart_fast', 'hurt', 'gasp', 'death',
        'want_appear', 'want_1', 'want_2', 'want_3', 'voice_1', 'voice_2', 'voice_3', 'voice_4', 'drowned_lunge',
        'memory_chime', 'throw', 'ui_move', 'ui_click']
-KEEP_OLD = {'scream.ogg', 'jumpscare.ogg', 'beep.wav'}   # no new equivalent
+KEEP_OLD = {'scream.ogg', 'jumpscare.ogg', 'beep.wav',   # no new equivalent
+            # music picked separately by the team (theme per area, chase, death, true ending)
+            'theme_calm.ogg', 'theme_dread.ogg', 'chase.ogg', 'music_wrong.ogg', 'ending_true.ogg'}
 
 def convert(name, loud, mono=False):
     src = next((p for p in glob.glob(os.path.join(RAW, name + '.*')) if not p.endswith('.json')), None)

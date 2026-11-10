@@ -41,13 +41,14 @@ Audio::Audio() {
 	}
 	struct { Track t; const char* file; float vol; bool loop; } list[] = {
 		{ TRACK_TITLE,       "title_music.ogg",    80, true },
-		{ TRACK_CHASE,       "chase_music.ogg",    85, true },
-		{ TRACK_DEATH,       "ending_waking.ogg",  80, true },
-		{ TRACK_END_TRUE,    "ending_morning.ogg", 85, true },
-		{ TRACK_END_OTHER,   "memory_music.ogg",   85, true },
-		{ TRACK_END_TRAPPED, "ending_waking.ogg",  85, true },
+		{ TRACK_CHASE,       "chase.ogg",          85, true },
+		{ TRACK_DEATH,       "music_wrong.ogg",    80, true },
+		{ TRACK_END_TRUE,    "ending_true.ogg",    85, true },
+		{ TRACK_END_OTHER,   "rank_music.ogg",     85, true },
+		{ TRACK_END_TRAPPED, "music_wrong.ogg",    85, true },
 	};
-	if (theme.openFromFile(asset("audio/rank_music.ogg"))) { theme.setLooping(true); theme.setVolume(60); }
+	if (themeCalm.openFromFile(asset("audio/theme_calm.ogg"))) { themeCalm.setLooping(true); themeCalm.setVolume(60); }
+	if (themeDread.openFromFile(asset("audio/theme_dread.ogg"))) { themeDread.setLooping(true); themeDread.setVolume(60); }
 	for (auto& e : list) {
 		if (tracks[e.t].openFromFile(asset(std::string("audio/") + e.file))) { tracks[e.t].setLooping(e.loop); tracks[e.t].setVolume(e.vol); }
 		trackVolume[e.t] = e.vol;
@@ -66,15 +67,18 @@ void Audio::play(Sfx s, float volume, float pitch) {
 }
 
 void Audio::startRoom() {
-	if (theme.getStatus() != sf::SoundSource::Status::Playing) theme.play();
-	theme.setVolume(60 * (1.f - 0.4f * tension));
+	sf::Music& other = dreadRoom ? themeCalm : themeDread;
+	if (other.getStatus() == sf::SoundSource::Status::Playing) other.pause();
+	if (theme().getStatus() != sf::SoundSource::Status::Playing) theme().play();
+	theme().setVolume(60 * (1.f - 0.4f * tension));
 	roomAmb.setVolume(40 * (1.f - 0.4f * tension));
 	if (roomAmb.getStatus() != sf::SoundSource::Status::Playing) roomAmb.play();
 	if (!layerName.empty() && roomLayer.getStatus() != sf::SoundSource::Status::Playing) roomLayer.play();
 }
-void Audio::stopRoom() { theme.pause(); roomAmb.pause(); roomLayer.pause(); }
+void Audio::stopRoom() { themeCalm.pause(); themeDread.pause(); roomAmb.pause(); roomLayer.pause(); }
 
-void Audio::setRoom(const char* amb, const char* layer) {
+void Audio::setRoom(const char* amb, const char* layer, bool dangerous) {
+	dreadRoom = dangerous;
 	if (ambName != amb) {
 		ambName = amb;
 		roomAmb.stop();
@@ -95,7 +99,7 @@ void Audio::music(Track t) {
 	current = t;
 	if (t == TRACK_GAME) startRoom();
 	else if (t != TRACK_NONE) { tracks[t].setVolume(trackVolume[t]); tracks[t].play(); }
-	if (t == TRACK_TITLE) { theme.stop(); roomAmb.stop(); roomLayer.stop(); ambName.clear(); layerName.clear(); }
+	if (t == TRACK_TITLE) { themeCalm.stop(); themeDread.stop(); roomAmb.stop(); roomLayer.stop(); ambName.clear(); layerName.clear(); }
 }
 
 void Audio::pauseAll(bool paused) {
@@ -108,5 +112,5 @@ void Audio::pauseAll(bool paused) {
 
 void Audio::setTension(float f) {
 	tension = f;
-	if (current == TRACK_GAME) { theme.setVolume(60 * (1.f - 0.4f * f)); roomAmb.setVolume(40 * (1.f - 0.4f * f)); }
+	if (current == TRACK_GAME) { theme().setVolume(60 * (1.f - 0.4f * f)); roomAmb.setVolume(40 * (1.f - 0.4f * f)); }
 }
