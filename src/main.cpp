@@ -54,6 +54,26 @@ static void drawMuteButton(sf::RenderWindow& w, bool muted) {
 	w.setView(keep);
 }
 
+// Console button: a little "graph" icon left of the mute button, only during play.
+static sf::FloatRect consoleButton() { return sf::FloatRect({ 1024.f - 86.f, 768.f - 46.f }, { 34.f, 34.f }); }
+static void drawConsoleButton(sf::RenderWindow& w, bool open) {
+	sf::View keep = w.getView();
+	w.setView(w.getDefaultView());
+	sf::FloatRect r = consoleButton();
+	bool hover = r.contains(w.mapPixelToCoords(sf::Mouse::getPosition(w)));
+	sf::RectangleShape bg(r.size); bg.setPosition(r.position);
+	bg.setFillColor(open ? sf::Color(70, 10, 22, 230) : sf::Color(10, 2, 4, hover ? 220 : 150));
+	bg.setOutlineColor(sf::Color(120, 6, 18)); bg.setOutlineThickness(1);
+	w.draw(bg);
+	sf::Color ink = open ? sf::Color(255, 210, 200) : sf::Color(236, 224, 204);
+	float x = r.position.x, y = r.position.y;
+	sf::Vector2f n[4] = { { x + 9, y + 10 }, { x + 25, y + 10 }, { x + 9, y + 25 }, { x + 25, y + 25 } };   // four nodes
+	sf::Vertex edges[8] = { { n[0], ink }, { n[1], ink }, { n[0], ink }, { n[2], ink }, { n[1], ink }, { n[3], ink }, { n[2], ink }, { n[1], ink } };
+	w.draw(edges, 8, sf::PrimitiveType::Lines);
+	for (auto& p : n) { sf::CircleShape c(3.f); c.setOrigin({ 3.f, 3.f }); c.setPosition(p); c.setFillColor(ink); w.draw(c); }
+	w.setView(keep);
+}
+
 static const char* env(const char* k) { const char* v = std::getenv(k); return v && *v ? v : nullptr; }
 
 int main() {
@@ -100,6 +120,23 @@ int main() {
 	}
 	float simDt = env("CS_DT") ? (float)std::atof(env("CS_DT")) : 0.f;
 
+	// Live data-structure console: a separate window toggled with TAB, so it
+	// never covers the game.  Focus is handed straight back to the game.
+	sf::RenderWindow console;
+	sf::Font consoleFont;
+	(void)consoleFont.openFromFile(asset("fonts/DejaVuSans.ttf"));
+	sf::Clock consoleToggled;
+	auto toggleConsole = [&]() {
+		if (console.isOpen()) { console.close(); return; }
+		console.create(sf::VideoMode({ 560u, window.getSize().y }), "The Crimson Sleep - Live Data Structures", sf::Style::Titlebar | sf::Style::Close);   // same height as the game
+		console.setFramerateLimit(30);
+		sf::Vector2i p = window.getPosition();
+		console.setPosition({ p.x + (int)window.getSize().x + 8, p.y });
+		window.requestFocus();
+		consoleToggled.restart();
+	};
+	if (env("CS_CONSOLE")) toggleConsole();
+
 	sf::Clock frameClock;
 	int frame = 0;
 	int prevState = env("CS_STATE") && !std::strcmp(env("CS_STATE"), "retry") ? -1 : game_state;
@@ -110,16 +147,39 @@ int main() {
 			if (event->is<sf::Event::Closed>()) window.close();
 			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
 				key_record(key->code);
+				if (key->code == sf::Keyboard::Key::Tab) toggleConsole();
 				if (key->code == sf::Keyboard::Key::M) audio.toggleMute();
 				if (key->code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
 			}
 			else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
 				sf::Vector2f p = window.mapPixelToCoords(mb->position, window.getDefaultView());
 				if (mb->button == sf::Mouse::Button::Left && muteButton().contains(p)) audio.toggleMute();
+				bool inGame = game_state == ST_PLAYING || game_state == ST_PAUSED;
+				if (mb->button == sf::Mouse::Button::Left && inGame && consoleButton().contains(p)) toggleConsole();
 			}
-			else if (event->is<sf::Event::FocusLost>() && game_state == ST_PLAYING && shotFrame < 0) game_state = ST_PAUSED;
+			else if (event->is<sf::Event::FocusLost>() && game_state == ST_PLAYING && shotFrame < 0 &&
+				!(console.isOpen() && (console.hasFocus() || consoleToggled.getElapsedTime().asSeconds() < 1.f))) game_state = ST_PAUSED;
 		}
 		if (!window.isOpen()) break;
+		if (console.isOpen()) {
+			while (const std::optional<sf::Event> ce = console.pollEvent()) {
+				if (ce->is<sf::Event::Closed>()) console.close();
+				else if (const auto* k = ce->getIf<sf::Event::KeyPressed>()) { if (k->code == sf::Keyboard::Key::Tab) console.close(); }
+			}
+			if (console.isOpen()) {
+				console.clear(sf::Color(8, 2, 4));
+				bool live = game && (game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY || game_state == ST_CONTROLS);
+				if (live) game->drawConsole(&console);
+				else {
+					console.setView(console.getDefaultView());
+					sf::Text msg(consoleFont, "Start a game to see the live\ndata structures here.\n\nTAB closes this window.", 16);
+					msg.setFillColor(sf::Color(200, 180, 172));
+					msg.setPosition({ 24.f, 24.f });
+					console.draw(msg);
+				}
+				console.display();
+			}
+		}
 		float dt = frameClock.restart().asSeconds();
 		if (dt > 0.1f) dt = 0.1f;
 		if (simDt > 0) dt = simDt;
@@ -178,11 +238,16 @@ int main() {
 		prevState = stateAtFrameStart;   // the state this frame ran, so "just died" is detected once
 		if (!window.isOpen()) break;
 		drawMuteButton(window, audio.isMuted());
+		if (game_state == ST_PLAYING || game_state == ST_PAUSED) drawConsoleButton(window, console.isOpen());
 		window.display();
 		if (++frame == shotFrame && shotPath) {
 			sf::Texture cap(window.getSize());
 			cap.update(window);
 			(void)cap.copyToImage().saveToFile(shotPath);
+			if (console.isOpen() && env("CS_SHOT2")) {
+				sf::Texture c2(console.getSize()); c2.update(console);
+				(void)c2.copyToImage().saveToFile(env("CS_SHOT2"));
+			}
 			if (game && env("CS_PRINTPOS")) std::fprintf(stderr, "POS %.1f %.1f HP %.0f\n", game->devPos().x, game->devPos().y, game->devHealth());
 			window.close();
 		}

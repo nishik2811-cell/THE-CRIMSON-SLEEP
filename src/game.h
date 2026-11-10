@@ -69,6 +69,7 @@ public:
 	void devJumpscare() { jumpscare = 1.3f; }
 	void devFlareCooldown(float s) { flareCooldown = s; }
 	void devWrite(const char* w) { std::string s = w; if (!placeWallWriting(s)) { s = "GET OUT"; if (!placeWallWriting(s)) return; } wallText = s; wallT = 5.f; }
+	void drawConsole(sf::RenderWindow* w);   // live data structures, in the separate console window
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
 private:

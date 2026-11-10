@@ -48,13 +48,15 @@ make test       # unit tests for every data structure (no window needed)
 | **H** | Ask for a hint now (BFS) |
 | I | Inventory (Linked List) |
 | J | Notes on the dead: ghost tips |
-| **TAB** | Live data-structure panel (for the viva / demo) |
+| **TAB** | Open / close the live data-structure console (a separate window - for the viva / demo) |
 | Space | Dismiss story text |
 | Esc | Pause |
 
 ---
 
 ## Data structures: where each one lives and what breaks without it
+
+Press **TAB** to open the live data-structure console: a separate window beside the game that shows each structure's contents updating in real time, and closes again with TAB.
 
 Every structure is written from scratch in `src/ds/`. No `std::vector`, `std::map`, `std::stack`, `std::queue`, `std::priority_queue` or `std::list` is used in the game logic.
 

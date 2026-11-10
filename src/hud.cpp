@@ -203,7 +203,6 @@ void Game::drawHud(sf::RenderWindow* w) {
 
 	drawMinimap(w);
 	if (showInventory) drawInventory(w);
-	if (showDebug) drawDebug(w);
 
 	// Jump scare: the face slams in full-screen - punch zoom, violent shake,
 	// red/cyan channel split, static, and a blood flash at the start.
@@ -392,4 +391,120 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 		tx.setPosition({ std::floor(b.position.x + (bw - tb.size.x) / 2 - tb.position.x), std::floor(b.position.y + 2) });
 		w->draw(tx);
 	}
+}
+
+// The live data-structure console (its own window, opened with TAB).
+// Written for a person reading it: each section says what the structure is
+// for in the game, what is in it right now in plain words, and - in grey -
+// which structure it is and how it works.
+void Game::drawConsole(sf::RenderWindow* w) {
+	w->setView(w->getDefaultView());
+	const float W = (float)w->getSize().x, H = (float)w->getSize().y;
+	sf::RectangleShape bg({ W, H }); bg.setFillColor(sf::Color(10, 3, 5)); w->draw(bg);
+	float y = 12;
+	auto text = [&](const std::string& str, const sf::Font& f, unsigned size, sf::Color c, float x) {
+		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); t.setFillColor(c); t.setPosition({ x, std::floor(y) }); w->draw(t);
+		y += size + 5;
+	};
+	auto head = [&](const std::string& title, const std::string& how) {
+		y += 3;
+		sf::RectangleShape rule({ W - 24, 1 }); rule.setPosition({ 12, y }); rule.setFillColor(sf::Color(90, 14, 26)); w->draw(rule);
+		y += 3;
+		text(title, fontSerif, 17, sf::Color(240, 90, 110), 14);
+		y -= 2;
+		text(how, fontItalic, 12, ASH, 16);
+	};
+	auto item = [&](const std::string& str, sf::Color c = BONE) { y -= 2; text(str, fontSerif, 15, c, 26); };
+	char b[200];
+
+	text("Live data structures", fontTitle, 24, CRIMSON, 14);
+	y -= 4;
+	text("What the game is holding right now  -  TAB or the console button closes this", fontItalic, 12, ASH, 16);
+
+	// GRAPH
+	head(std::string("Doors out of the ") + ROOMS[room].name, "Graph (adjacency list): rooms are nodes, doors are edges");
+	for (const Edge* e = house.neighbours(room); e; e = e->next) {
+		if (e->hidden) continue;
+		std::string to = e->to == OUTSIDE ? "the way out of the house" : ROOMS[e->to].name;
+		if (!e->locked) item("- " + to + "   (open)");
+		else item("- " + to + "   (locked - needs the " + ITEMS[e->requiredItem].name + ")", sf::Color(220, 150, 140));
+	}
+
+	// STACK
+	head("Where you've been  (B takes you back)", "Stack: each room you enter is pushed; Go Back pops it");
+	int hist[32]; int hn = player.history.toArray(hist, 32);
+	std::string trail;
+	for (int i = 0; i < hn && i < 5; ++i) { trail += ROOMS[hist[i]].name; if (i + 1 < hn && i < 4) trail += "  <  "; }
+	if (hn > 5) trail += "  ...";
+	item(trail.empty() ? "(nowhere yet)" : trail);
+	item(hn > 1 ? std::string("Going back leads to the ") + ROOMS[hist[1]].name : "There is nowhere to go back to yet.", ASH);
+
+	// QUEUE
+	head("Scares waiting to happen, in order", "Queue (first in, first out): the oldest one fires first");
+	const char* what[] = { "the lantern flickers", "a whisper", "a door slams", "a whisper behind you", "writing in blood", "a moan", "the floor cracks", "glass shatters" };
+	HauntEvent ev[16]; int en = events.toArray(ev, 16);
+	if (en == 0) item("Nothing more in this room... for now.", ASH);
+	for (int i = 0; i < en && i < 4; ++i) {
+		float in = ev[i].at - roomTime;
+		std::snprintf(b, sizeof b, "%d.  %s  in %.0f s", i + 1, what[ev[i].kind], in < 0 ? 0.f : in);
+		item(b);
+	}
+
+	// PRIORITY QUEUE
+	head("Dangers right now, worst first", "Priority queue (max-heap): the most dangerous threat is always on top");
+	bool any = false;
+	for (int i = 0; i < threats.size(); ++i) {
+		const Threat& t = threats.at(i);
+		if (t.kind == TH_CALM || !t.label[0]) continue;
+		any = true;
+		std::snprintf(b, sizeof b, "%s %s   (danger %d)", i == 0 ? ">" : "-", t.label, t.priority);
+		item(std::string(b).substr(0, 70), i == 0 ? sf::Color(255, 140, 140) : BONE);
+	}
+	if (!any) item("Nothing is threatening you right now.", ASH);
+
+	// LINKED LIST
+	head("What you're carrying", "Linked list: items are added when picked up and removed when used");
+	std::string inv;
+	player.inventory.forEach([&](const InventoryItem& it) { if (!inv.empty()) inv += ",  "; inv += ITEMS[it.id].name; });
+	item(inv.empty() ? "Your pockets are empty." : inv);
+
+	// BST
+	std::snprintf(b, sizeof b, "Binary search tree: every item and clue sorted by number (height %d)", itemDB.height());
+	head("Everything you can find in the house", b);
+	int found = 0, total = 0; std::string got, clues;
+	itemDB.inOrder([&](int, const ItemRecord& r) {
+		++total;
+		if (r.collected) { ++found; if (!got.empty()) got += ", "; got += ITEMS[r.id].name; }
+		if (ITEMS[r.id].isClue && r.discovered) { if (!clues.empty()) clues += ", "; clues += ITEMS[r.id].name; }
+	});
+	std::snprintf(b, sizeof b, "Found %d of %d", found, total);
+	item(b);
+	if (!got.empty()) item("Found: " + got.substr(0, 60) + (got.size() > 60 ? "..." : ""), ASH);
+	item(clues.empty() ? "No clues read yet." : "Clues read: " + clues, ASH);
+
+	// BFS
+	head("Shortest way to your goal", "Breadth-first search over the house graph (and over the room's tiles)");
+	if (hintText.empty()) item("No hint yet - press H, or wait 30 seconds.", ASH);
+	else if (lastRouteLen <= 1) { std::snprintf(b, sizeof b, "You're in the right room: follow %d steps of blood.", trailLen); item(b); }
+	else {
+		std::string r;
+		for (int i = 0; i < lastRouteLen; ++i) { r += ROOMS[lastRoute[i]].name; if (i + 1 < lastRouteLen) r += "  >  "; }
+		item(r);
+	}
+
+	// DFS
+	head("Searching for hidden rooms", "Depth-first search: explores every path, even through secret doors");
+	if (lastDfsLen == 0) item("Not used yet - it runs when you read the Hymn Page in the Chapel.", ASH);
+	else {
+		std::string r;
+		for (int i = 0; i < lastDfsLen; ++i) { r += ROOMS[lastDfs[i]].name; if (i + 1 < lastDfsLen) r += ", "; }
+		item("Explored: " + r.substr(0, 64) + (r.size() > 64 ? "..." : ""));
+	}
+
+	// ARRAY
+	head(std::string("About the ") + ROOMS[room].name, "Array: fixed facts about each room, looked up by room number");
+	std::snprintf(b, sizeof b, "Danger %d / 10.  %s.  %s", ROOMS[room].danger, ROOMS[room].dark ? "Dark without a lantern" : "Lit",
+		ROOMS[room].wraith ? "A ghost can drift in here." : "No drifting ghosts here.");
+	item(b);
+	(void)H;
 }

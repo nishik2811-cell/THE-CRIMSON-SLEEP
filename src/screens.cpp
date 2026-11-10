@@ -202,7 +202,7 @@ int Screens::controls(sf::RenderWindow* w, float dt) {
 		"B                          go back one room\n"
 		"H                          ask the house for a hint\n"
 		"I / J                    inventory / notes on the dead\n"
-		"TAB                      data-structure panel\n"
+		"TAB                      live data-structure console\n"
 		"Space / Esc           dismiss text / pause";
 	sf::Text k(fontSerif, keys, 23); k.setFillColor(BONE); k.setPosition({ (float)(110), (float)(160) }); w->draw(k);
 	const char* tips =

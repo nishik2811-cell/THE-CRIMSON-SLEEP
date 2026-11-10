@@ -257,7 +257,6 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
 		if (key_hit(sf::Keyboard::Key::H)) { if (objectiveTime < 31) objectiveTime = 31; }
 		if (key_hit(sf::Keyboard::Key::I)) showInventory = !showInventory;
-		if (key_hit(sf::Keyboard::Key::Tab)) showDebug = !showDebug;
 		if (key_hit(sf::Keyboard::Key::J)) journalPage = 0;
 
 		updateHazards();
@@ -698,7 +697,7 @@ void Game::updateHints(float dt) {
 				for (int i = 0; i < lastRouteLen; ++i) { route += ROOMS[lastRoute[i]].name; if (i + 1 < lastRouteLen) route += " > "; }
 			}
 		}
-		else route = "  Follow the trail of blood.";
+		else { route = "  Follow the trail of blood."; lastRoute[0] = room; lastRouteLen = 1; }   // already in the right room
 		hintText = "HINT: " + what + route;
 		// The trail is worked out once and then stays put; it is only redone
 		// when you leave the room or wander well away from it.
