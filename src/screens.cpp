@@ -37,7 +37,6 @@ Screens::Screens() {
 
 void Screens::startBoot() {
 	slides.clear();
-	slides.enqueue(Slide{ "a Data Structures Laboratory project", "", 3.0f, false });
 	slides.enqueue(Slide{ "This dream contains blood, jump scares and flashing lights.", "Headphones on. Lights off.", 3.5f, false });
 	slides.enqueue(Slide{ "", "", 4.0f, true });
 	slideT = 0;
@@ -328,8 +327,8 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		if (e != END_TRUE) centered(w, fontItalic, "Hint: return Samara's locket before facing Jason...", 20, sf::Color(200, 150, 150, (std::uint8_t)(200 * a)), 440);
 
 		// Credits roll.
-		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Data Structures Laboratory project",
-			"Graph - Stack - Queue - Priority Queue - Linked List - BST - BFS / DFS - Array", "",
+		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Retro Horror Adventure",
+			"", "",
 			"Built upon 'Mansion Mystery' by Saurabh Kumar Prasad", "Music and sounds: Pixabay artists (see README)", "", "Thank you for playing.", "Sleep well." };
 		float cy = 768 - (tail - 3) * 34;
 		if (tail > 3) for (int i = 0; i < 10; ++i) {
