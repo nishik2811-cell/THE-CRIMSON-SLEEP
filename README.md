@@ -161,4 +161,4 @@ CS_ROOM=3 CS_HINT=1 CS_FRAMES=40 CS_SHOT=hint.png ./crimson_sleep
 * Pixel art & sprites: Retro horror pixel sprites, custom walk/attack animations, and dark atmosphere.
 * Music (chosen by the team): *Title Music* (title screen), *Ambient Horror* by Alex Morgan (calm rooms), a music-box lullaby (the Nursery), a music box on the pause menu, *Creep* (dangerous rooms), *Chase* (when something hunts you), *Wrong* (death screen and the trapped ending), *Apartments* (true ending), *Moonlit Lullaby for the Lost* (escape and secret endings). Room ambiences and sound effects come from the team's sound library (`raw-assets/Audio`, converted by `tools/make_audio.py`).
 * Sound effects from Pixabay: *scream* and *scary breath* (freesound_community), *scary loud screaming* (judgecruz1 / remusic), *scary bells* (Dragon Studio), *scary sound effect* (hgoliya08). The heartbeat, whisper and door slam are synthesised in-house.
-* Fonts: Grenze Gotisch and Cormorant Garamond (SIL Open Font License, `assets/fonts/OFL.txt`), DejaVu Sans.
+* Fonts: Grenze Gotisch, Cormorant Garamond and Nosifer (blood writing) - all SIL Open Font License, `assets/fonts/OFL.txt` - and DejaVu Sans.

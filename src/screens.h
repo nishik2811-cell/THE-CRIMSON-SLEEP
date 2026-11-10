@@ -16,6 +16,7 @@ public:
 	int retry(sf::RenderWindow* w, float dt, const Game& g);
 	int ending(sf::RenderWindow* w, float dt, const RunStats& s);
 	void resetEnding() { endT = 0; }
+	void startDeath() { deathT = 0; }
 	int menuIndex = 0;
 
 private:
@@ -23,6 +24,9 @@ private:
 	Queue<Slide> slides;                                  // boot sequence (FIFO)
 	float slideT = 0, t = 0, endT = 0;
 	sf::Font fontTitle, fontSerif, fontItalic;
+	sf::Texture jumpTex;
+	sf::Sprite jump{ jumpTex };
+	float deathT = 10.f;   // time since you died (the jump scare plays first)
 	sf::Texture bgTex, logoTex, floorTex;
 	sf::Sprite bg{ bgTex }, logo{ logoTex };
 	bool hasLogo = false;

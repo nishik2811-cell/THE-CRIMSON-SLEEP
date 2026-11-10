@@ -66,21 +66,29 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 	}
 	// Words written in blood on the wall (they drip as they fade).
 	if (wallT > 0) {
-		// smeared onto the wall face, with blood running down the wall
-		sf::Text tx(fontTitle, wallText, WALL_TEXT_SIZE);
+		// Scrawled onto the wall face letter by letter: each letter tilts,
+		// bobs and changes size a little (seeded by its place, so it holds
+		// still), with a darker smear underneath - written by a hand, not typed.
 		float a = wallT > 6 ? (7 - wallT) : wallT / 6;
-		tx.setFillColor(sf::Color(150, 0, 16, (std::uint8_t)(235 * a)));
-		tx.setPosition({ std::floor(wallPos.x), std::floor(wallPos.y - tx.getLocalBounds().position.y + 2) });
-		w->draw(tx);
-		float wdt = tx.getLocalBounds().size.x;
-		int drips = std::max(2, (int)(wdt / 16));
-		float grow = std::min(1.f, (7 - wallT) / 3.f);         // runs lengthen, then stop
-		for (int i = 0; i < drips; ++i) {
-			float len = (3 + (i * 7 % 5) * 2) * grow;
-			sf::RectangleShape drip(sf::Vector2f(2, len));
-			drip.setPosition({ std::floor(wallPos.x + 4 + i * (wdt - 8) / std::max(1, drips - 1)), std::floor(wallPos.y + 22) });
-			drip.setFillColor(sf::Color(120, 0, 12, (std::uint8_t)(200 * a)));
-			w->draw(drip);
+		float x = std::floor(wallPos.x);
+		unsigned seed = (unsigned)(wallPos.x * 13 + wallPos.y * 7);
+		for (size_t k = 0; k < wallText.size(); ++k) {
+			unsigned h = seed * 2654435761u + (unsigned)k * 40503u;
+			float tilt = (float)((int)(h % 25) - 12);                    // -12 .. 12 degrees
+			float bob = (float)((int)((h >> 5) % 5) - 2);                 // -2 .. 2 px
+			unsigned size = WALL_TEXT_SIZE + (unsigned)((h >> 9) % 4) - 1;  // a bit uneven
+			sf::Text letter(fontBlood, std::string(1, wallText[k]), size);
+			sf::FloatRect lb = letter.getLocalBounds();
+			letter.setOrigin({ lb.position.x + lb.size.x / 2, lb.position.y + lb.size.y / 2 });
+			letter.setRotation(sf::degrees(tilt));
+			sf::Vector2f c(x + lb.size.x / 2, std::floor(wallPos.y + 11 + bob));
+			letter.setPosition(c + sf::Vector2f(1.f, 1.5f));               // smear
+			letter.setFillColor(sf::Color(70, 0, 8, (std::uint8_t)(170 * a)));
+			w->draw(letter);
+			letter.setPosition(c);
+			letter.setFillColor(sf::Color(160, 4, 20, (std::uint8_t)(240 * a)));
+			w->draw(letter);
+			x += fontBlood.getGlyph((unsigned char)wallText[k], WALL_TEXT_SIZE, false).advance + (wallText[k] == ' ' ? 7.f : 1.f);
 		}
 	}
 }

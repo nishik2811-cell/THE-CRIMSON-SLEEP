@@ -101,7 +101,9 @@ int main() {
 
 	sf::Clock frameClock;
 	int frame = 0;
+	int prevState = env("CS_STATE") && !std::strcmp(env("CS_STATE"), "retry") ? -1 : game_state;
 	while (window.isOpen()) {
+		int stateAtFrameStart = game_state;
 		key_reset();
 		while (const std::optional<sf::Event> event = window.pollEvent()) {
 			if (event->is<sf::Event::Closed>()) window.close();
@@ -159,6 +161,7 @@ int main() {
 			if (game_state == ST_CONTROLS) controlsReturn = ST_PAUSED;
 			break;
 		case ST_RETRY:
+			if (prevState != ST_RETRY) { screens.startDeath(); audio.play(SFX_JUMPSCARE, 100); }
 			audio.music(TRACK_DEATH);
 			game_state = screens.retry(&window, dt, *game);
 			if (game_state == ST_PLAYING) game->retryRoom();
@@ -171,6 +174,7 @@ int main() {
 			game_state = ST_TITLE;
 			break;
 		}
+		prevState = stateAtFrameStart;   // the state this frame ran, so "just died" is detected once
 		if (!window.isOpen()) break;
 		drawMuteButton(window, audio.isMuted());
 		window.display();

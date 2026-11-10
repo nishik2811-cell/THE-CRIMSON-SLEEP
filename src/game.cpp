@@ -57,6 +57,7 @@ Game::Game(Audio& a) : audio(a) {
 	(void)fontSerif.openFromFile(asset("fonts/CormorantGaramond.ttf"));
 	(void)fontItalic.openFromFile(asset("fonts/CormorantGaramond-Italic.ttf"));
 	(void)fontMono.openFromFile(asset("fonts/DejaVuSans.ttf"));
+	(void)fontBlood.openFromFile(asset("fonts/Nosifer.ttf"));   // dripping letters for the blood writing
 	if (jumpTex.loadFromFile(asset("graphics/jumpscare.png"))) jumpSprite.setTexture(jumpTex, true);
 	if (decalTex.loadFromFile(asset("graphics/blood_decals.png"))) decalSprite.setTexture(decalTex, true);
 	if (alfredDeadTex.loadFromFile(asset("graphics/servent_dead.png"))) alfredDeadSprite.setTexture(alfredDeadTex, true);
@@ -543,7 +544,11 @@ void Game::updateEvents(float dt) {
 		case EV_BLOODWRITE: {
 			const char* words[] = { "GET OUT", "SHE IS STILL HERE", "1953", "SLEEP", "BEHIND YOU" };
 			std::string word = words[std::rand() % 5];
-			if (placeWallWriting(word)) {
+			// if the phrase is too long for any wall nearby, scrawl something shorter
+			const char* shorter[] = { "GET OUT", "SLEEP", "1953" };
+			bool placed = placeWallWriting(word);
+			for (int k = 0; !placed && k < 3; ++k) { word = shorter[k]; placed = placeWallWriting(word); }
+			if (placed) {
 				wallText = word; wallT = 7.f;
 				eventCaption = "Something is written on the wall - in blood.";
 			}
@@ -873,8 +878,7 @@ void Game::alfredGiveLantern() {
 // Finds a stretch of wall face (tile 3,3) near the player that is long enough
 // for the words, and centres the writing on it.  False if there is none.
 bool Game::placeWallWriting(const std::string& word) {
-	sf::Text probe(fontTitle, word, WALL_TEXT_SIZE);
-	float need = probe.getLocalBounds().size.x + 8.f;
+	float need = scrawlWidth(word) + 10.f;
 	sf::Vector2f me = pp() + sf::Vector2f(12.f, 12.f);
 	float best = 1e9f; bool found = false;
 	for (int r = 0; r < GRID_H; ++r) {
@@ -891,8 +895,15 @@ bool Game::placeWallWriting(const std::string& word) {
 			float y = r * 32.f;
 			float dx = x + need / 2 - me.x, dy = y + 16 - me.y;
 			float d = std::sqrt(dx * dx + dy * dy) + frand(0, 40);   // a little variety
-			if (d < 300 && d < best) { best = d; found = true; wallPos = { x + 4.f, y + 4.f }; }
+			if (d < 230 && d < best) { best = d; found = true; wallPos = { x + 4.f, y + 4.f }; }   // close enough to be on screen
 		}
 	}
 	return found;
+}
+
+// Width of a word written in the blood font, letter by letter (as it is drawn).
+float Game::scrawlWidth(const std::string& word) const {
+	float x = 0;
+	for (char ch : word) x += fontBlood.getGlyph((unsigned char)ch, WALL_TEXT_SIZE, false).advance + (ch == ' ' ? 7.f : 1.f);
+	return x;
 }

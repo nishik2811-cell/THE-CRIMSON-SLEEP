@@ -20,6 +20,7 @@ void quad(sf::RenderWindow* w, float x0, float y0, float x1, float y1, sf::Color
 }
 
 Screens::Screens() {
+	if (jumpTex.loadFromFile(asset("graphics/jumpscare.png"))) { jump.setTexture(jumpTex, true); jump.setOrigin({ jumpTex.getSize().x / 2.f, jumpTex.getSize().y / 2.f }); }
 	(void)fontTitle.openFromFile(asset("fonts/GrenzeGotisch.ttf"));
 	(void)fontSerif.openFromFile(asset("fonts/CormorantGaramond.ttf"));
 	(void)fontItalic.openFromFile(asset("fonts/CormorantGaramond-Italic.ttf"));
@@ -234,7 +235,32 @@ int Screens::pause(sf::RenderWindow* w, float dt) {
 
 int Screens::retry(sf::RenderWindow* w, float dt, const Game& g) {
 	t += dt;
+	deathT += dt;
 	w->setView(w->getDefaultView());
+	const float SCARE = 1.4f;
+	if (deathT < SCARE) {
+		// The face slams in: punch zoom, violent shake, red/cyan split, static, blood flash.
+		sf::RectangleShape blk(sf::Vector2f(1024, 768)); blk.setFillColor(sf::Color::Black); w->draw(blk);
+		float age = deathT;
+		float punch = age < 0.12f ? 0.55f + age / 0.12f * 0.6f : 1.15f + 0.05f * std::sin(age * 40);
+		float sx = 1024.f / jumpTex.getSize().x * punch, sy = 768.f / jumpTex.getSize().y * punch;
+		float jit = age < 0.6f ? 18.f : 8.f;
+		sf::Vector2f c(512 + (std::rand() % 21 - 10) * jit / 10, 384 + (std::rand() % 21 - 10) * jit / 10);
+		std::uint8_t al = (std::uint8_t)(255 * (age < SCARE - 0.3f ? 1 : (SCARE - age) / 0.3f));
+		jump.setScale({ sx, sy });
+		jump.setPosition({ c.x - 7, c.y }); jump.setColor(sf::Color(255, 0, 0, (std::uint8_t)(al * 0.3f))); w->draw(jump, sf::BlendAdd);
+		jump.setPosition({ c.x + 7, c.y + 2 }); jump.setColor(sf::Color(0, 120, 120, (std::uint8_t)(al * 0.2f))); w->draw(jump, sf::BlendAdd);
+		jump.setPosition(c); jump.setColor(sf::Color(255, 255, 255, al)); w->draw(jump);
+		for (int i = 0; i < 40; ++i) {
+			sf::RectangleShape ln(sf::Vector2f(1024, (float)(1 + std::rand() % 3)));
+			ln.setPosition({ 0.f, (float)(std::rand() % 768) });
+			ln.setFillColor(sf::Color(255, 200, 200, (std::uint8_t)((std::rand() % 50) * al / 255)));
+			w->draw(ln);
+		}
+		if (age < 0.09f || (age > 0.2f && age < 0.25f)) { sf::RectangleShape f(sf::Vector2f(1024, 768)); f.setFillColor(sf::Color(200, 0, 20, 110)); w->draw(f); }
+		return ST_RETRY;                                    // no menu input during the scare
+	}
+	float fadeIn = std::min(1.f, (deathT - SCARE) / 0.6f);
 	sf::RectangleShape r(sf::Vector2f(1024, 768)); r.setFillColor(sf::Color(18, 0, 3)); w->draw(r);
 	drawMotes(w, dt, sf::Color(150, 10, 20), false);
 	bool mind = g.deathTip == TIP_FEAR;
@@ -248,6 +274,10 @@ int Screens::retry(sf::RenderWindow* w, float dt, const Game& g) {
 	centered(w, fontSerif, first, 22, sf::Color(220, 170, 170), 360);
 	const char* items[] = { "Dream again", "Leave to the title" };
 	int c = menu(w, items, 2, 512, 460, 36);
+	if (fadeIn < 1.f) {                                     // fade in from black after the scare
+		sf::RectangleShape veil(sf::Vector2f(1024, 768)); veil.setFillColor(sf::Color(0, 0, 0, (std::uint8_t)(255 * (1 - fadeIn)))); w->draw(veil);
+		return ST_RETRY;
+	}
 	if (c == 0) return ST_PLAYING;
 	if (c == 1) { menuIndex = 0; return ST_TITLE; }
 	return ST_RETRY;
