@@ -66,14 +66,19 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 	}
 	// Words written in blood on the wall (they drip as they fade).
 	if (wallT > 0) {
-		sf::Text tx(fontTitle, wallText, 34);
+		// smeared onto the wall face, with blood running down the wall
+		sf::Text tx(fontTitle, wallText, WALL_TEXT_SIZE);
 		float a = wallT > 6 ? (7 - wallT) : wallT / 6;
-		tx.setFillColor(sf::Color(150, 0, 16, (std::uint8_t)(230 * a)));
-		tx.setPosition(wallPos);
+		tx.setFillColor(sf::Color(150, 0, 16, (std::uint8_t)(235 * a)));
+		tx.setPosition({ std::floor(wallPos.x), std::floor(wallPos.y - tx.getLocalBounds().position.y + 2) });
 		w->draw(tx);
-		for (int i = 0; i < 6; ++i) {
-			sf::RectangleShape drip(sf::Vector2f(2, 6 + (7 - wallT) * (4 + i % 3) * 3));
-			drip.setPosition({ (float)(wallPos.x + 10 + i * 18), (float)(wallPos.y + 34) });
+		float wdt = tx.getLocalBounds().size.x;
+		int drips = std::max(2, (int)(wdt / 16));
+		float grow = std::min(1.f, (7 - wallT) / 3.f);         // runs lengthen, then stop
+		for (int i = 0; i < drips; ++i) {
+			float len = (3 + (i * 7 % 5) * 2) * grow;
+			sf::RectangleShape drip(sf::Vector2f(2, len));
+			drip.setPosition({ std::floor(wallPos.x + 4 + i * (wdt - 8) / std::max(1, drips - 1)), std::floor(wallPos.y + 22) });
 			drip.setFillColor(sf::Color(120, 0, 12, (std::uint8_t)(200 * a)));
 			w->draw(drip);
 		}

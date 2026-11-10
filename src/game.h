@@ -66,6 +66,7 @@ public:
 	void devAlfredDead() { alfredDead = 1; alfredLeft = true; }
 	void devNoTips() { for (int i = 0; i < TIP_COUNT; ++i) tipSeen[i] = true; dialogue = ""; }
 	void devJumpscare() { jumpscare = 1.3f; }
+	void devWrite(const char* w) { if (placeWallWriting(w)) { wallText = w; wallT = 5.f; } }
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
 private:
@@ -117,6 +118,8 @@ private:
 	// events / scares
 	std::string eventCaption; float eventCaptionT = 0;
 	std::string wallText; sf::Vector2f wallPos; float wallT = 0;
+	static const unsigned WALL_TEXT_SIZE = 20;   // fits inside one 32px wall tile
+	bool placeWallWriting(const std::string& word);
 	float shake = 0, jumpscare = 0, flare = 0, flareCooldown = 0, hurtFlash = 0;
 	// digging (crypt)
 	int digCount = 0; float digT = 0;

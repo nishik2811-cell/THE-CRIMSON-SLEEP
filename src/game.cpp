@@ -542,9 +542,13 @@ void Game::updateEvents(float dt) {
 		case EV_BREATH: audio.play(SFX_BREATH, 60); eventCaption = "Someone whispers your name, right behind you."; player.fear += 3; break;
 		case EV_BLOODWRITE: {
 			const char* words[] = { "GET OUT", "SHE IS STILL HERE", "1953", "SLEEP", "BEHIND YOU" };
-			wallText = words[std::rand() % 5]; wallT = 7.f;
-			wallPos = pp() + sf::Vector2f(frand(-90, 60), frand(-80, -40));
-			audio.play(SFX_STING, 60); eventCaption = "Something is written on the wall - in blood."; player.fear += 4;
+			std::string word = words[std::rand() % 5];
+			if (placeWallWriting(word)) {
+				wallText = word; wallT = 7.f;
+				eventCaption = "Something is written on the wall - in blood.";
+			}
+			else eventCaption = "You feel something being written on the walls...";
+			audio.play(SFX_STING, 60); player.fear += 4;
 			break;
 		}
 		case EV_CRACK: audio.play(SFX_CRACK, 80, 0.6f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 3; break;
@@ -864,4 +868,31 @@ void Game::alfredGiveLantern() {
 	pickUp(LANTERN, "", false);
 	int c, r;
 	if (maps[ENTRANCE_HALL].map.find(11, &c, &r)) maps[ENTRANCE_HALL].map.set(c, r, sf::Vector2i(-1, -1));
+}
+
+// Finds a stretch of wall face (tile 3,3) near the player that is long enough
+// for the words, and centres the writing on it.  False if there is none.
+bool Game::placeWallWriting(const std::string& word) {
+	sf::Text probe(fontTitle, word, WALL_TEXT_SIZE);
+	float need = probe.getLocalBounds().size.x + 8.f;
+	sf::Vector2f me = pp() + sf::Vector2f(12.f, 12.f);
+	float best = 1e9f; bool found = false;
+	for (int r = 0; r < GRID_H; ++r) {
+		int c = 0;
+		while (c < GRID_W) {
+			if (current_map->at(c, r) != sf::Vector2i(3, 3)) { ++c; continue; }
+			int start = c;
+			while (c < GRID_W && current_map->at(c, r) == sf::Vector2i(3, 3)) ++c;
+			float len = (c - start) * 32.f;
+			if (len < need) continue;
+			// slide the text along the run to the spot closest to the player
+			float x0 = start * 32.f, x1 = c * 32.f - need;
+			float x = std::max(x0, std::min(x1, me.x - need / 2));
+			float y = r * 32.f;
+			float dx = x + need / 2 - me.x, dy = y + 16 - me.y;
+			float d = std::sqrt(dx * dx + dy * dy) + frand(0, 40);   // a little variety
+			if (d < 300 && d < best) { best = d; found = true; wallPos = { x + 4.f, y + 4.f }; }
+		}
+	}
+	return found;
 }
