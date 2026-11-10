@@ -154,6 +154,7 @@ void Game::spawnEnemies() {
 		room == OSSUARY ? sf::Vector2f(250, 330) : sf::Vector2f(620, 560);
 	child.reset(crawl, spot);
 	ghostStun = bossStun = 0;
+	chaseHold = 0;
 }
 
 void Game::retryRoom() {
@@ -480,7 +481,7 @@ void Game::updateDig(float dt) {
 	digT += dt;
 	if (digT > 3.5f) {
 		digT = 0; digCount++;
-		audio.play(SFX_SLAM, 60, 0.7f); shake = 0.5f;
+		audio.play(SFX_CRACK, 100, 0.8f); shake = 0.5f;
 		changeFacingTile(sf::Vector2i(16, 0));
 		if (digCount == 2) { player.is_mattock = false; player.take(MATTOCK); say("The mattock broke! Find another tool to dig."); }
 		if (digCount >= 4) { changeFacingTile(sf::Vector2i(12, 1)); say("The Devil's corpse lies exposed.\nDestroy it with the Blessed Sword!"); }
@@ -513,6 +514,7 @@ void Game::updateEvents(float dt) {
 			audio.play(SFX_STINGER, 75, 0.8f); eventCaption = "Someone is standing at the edge of the light."; player.fear += 8;
 			break;
 		}
+		case EV_CRACK: audio.play(SFX_CRACK, 90, 0.9f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 5; break;
 		default: audio.play(SFX_BELLS, 55); eventCaption = "Distant bells toll for the dead of 1953."; player.fear += 3; break;
 		}
 		player.fear += 3 * danger;
@@ -541,6 +543,11 @@ void Game::updateThreats(float dt) {
 
 	// ...and react to the single most dangerous one (max-heap peek).
 	threats.peek(&topThreat);
+	// Chase music: something is actively hunting you.
+	bool hunted = topThreat.kind == TH_BRIDE_NEAR || topThreat.kind == TH_BRIDE_ATTACK || topThreat.kind == TH_DEVIL ||
+		(topThreat.kind == TH_CHILD && !child.frozen);
+	if (hunted) chaseHold = 4.f;
+	else if (chaseHold > 0) chaseHold -= dt;
 	float rate;
 	switch (topThreat.kind) {
 	case TH_BRIDE_ATTACK: rate = 0; break;

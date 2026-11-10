@@ -92,7 +92,7 @@ int main() {
 			game_state = ST_PLAYING;
 			break;
 		case ST_PLAYING:
-			audio.music(TRACK_GAME);
+			audio.music(game->musicTrack());
 			audio.pauseAll(false);
 			window.draw(floor);
 			game->update(&window, dt);
@@ -103,11 +103,12 @@ int main() {
 			if (game_state == ST_CONTROLS) controlsReturn = ST_PAUSED;
 			break;
 		case ST_RETRY:
+			audio.music(TRACK_DEATH);
 			game_state = screens.retry(&window, dt, *game);
 			if (game_state == ST_PLAYING) game->retryRoom();
 			break;
 		case ST_ENDING:
-			audio.music(TRACK_ENDING);
+			audio.music(ending_type == END_TRAPPED ? TRACK_DEATH : TRACK_ENDING);
 			game_state = screens.ending(&window, dt, game ? game->stats() : RunStats());
 			break;
 		default:

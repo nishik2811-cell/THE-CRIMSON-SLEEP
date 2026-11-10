@@ -234,7 +234,7 @@ void Game::drawDebug(sf::RenderWindow* w) {
 	line(s);
 	head("QUEUE  pending haunted events (FIFO)");
 	HauntEvent ev[16]; int en = events.toArray(ev, 16);
-	const char* names[] = { "flicker", "whisper", "door slam", "breath", "blood writing", "apparition", "bells" };
+	const char* names[] = { "flicker", "whisper", "door slam", "breath", "blood writing", "apparition", "bells", "crack" };
 	s = "  ";
 	for (int i = 0; i < en; ++i) { std::snprintf(b, sizeof b, "%s@%.0fs  ", names[ev[i].kind], ev[i].at); s += b; }
 	line(en ? s : "  (empty)");

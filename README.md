@@ -156,5 +156,6 @@ CS_ROOM=3 CS_HINT=1 CS_FRAMES=40 CS_SHOT=hint.png ./crimson_sleep
 ## Credits
 
 * Base game, tiles and characters: *Mansion Mystery* by Saurabh Kumar Prasad.
-* Music and sounds from Pixabay: *scary music box* (Universfield), *scary piano music*, *scream* and *scary breath* (freesound_community), *music box scary* (matthewvakaliuk73627), *scary loud screaming* (judgecruz1 / remusic), *scary bells* (Dragon Studio), *scary sound effect* (hgoliya08). The drone, heartbeat, whisper and door slam are synthesised in-house.
+* Music (chosen by the team): *Title* (title screen), *Dream* (exploring), *Creep* (dangerous rooms), *Chase* (when something is hunting you), *Wrong* (death screen and the trapped ending), *Apartments* (endings). `crack.wav` is used for cracking floorboards and digging.
+* Sound effects from Pixabay: *scream* and *scary breath* (freesound_community), *scary loud screaming* (judgecruz1 / remusic), *scary bells* (Dragon Studio), *scary sound effect* (hgoliya08). The heartbeat, whisper and door slam are synthesised in-house.
 * Fonts: Grenze Gotisch and Cormorant Garamond (SIL Open Font License, `assets/fonts/OFL.txt`), DejaVu Sans.
