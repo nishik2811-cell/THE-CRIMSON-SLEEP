@@ -167,7 +167,8 @@ void Game::drawHud(sf::RenderWindow* w) {
 		panel(w, x, y, bw, bh, 225);
 		dt.setPosition({ (float)(x + 20), (float)(y + 14) });
 		w->draw(dt);
-		w->draw(label(fontItalic, "Space", 16, ASH, x + bw - 52, y + bh - 22));
+		if (alfredT >= 0) w->draw(label(fontItalic, "Space: next  -  X: skip", 16, ASH, x + bw - 172, y + bh - 22));
+		else w->draw(label(fontItalic, "Space", 16, ASH, x + bw - 52, y + bh - 22));
 	}
 
 	drawMinimap(w);

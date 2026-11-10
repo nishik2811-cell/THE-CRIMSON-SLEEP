@@ -245,7 +245,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 
 	if (!overlay) {
 		// Story / interaction.
-		if (key_hit(sf::Keyboard::Key::Space)) dialogue = "";
+		if (key_hit(sf::Keyboard::Key::Space) && alfredT < 0) dialogue = "";   // during Alfred's talk Space = next line
 		if (!talkedToAlfred && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E))) interact();
 		if (key_hit(sf::Keyboard::Key::B)) goBack();
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
@@ -534,7 +534,7 @@ void Game::updateEvents(float dt) {
 		case EV_FLICKER: player.light.flicker = 1.f; eventCaption = "The lantern gutters..."; player.fear += 2; break;
 		case EV_WHISPER: audio.play(SFX_WHISPER, 85); eventCaption = "...stay... sleep with us..."; player.fear += 3; break;
 		case EV_SLAM: audio.play(SFX_SLAM, 90); shake = 1.f; eventCaption = "A door slams somewhere above."; player.fear += 3; break;
-		case EV_BREATH: audio.play(SFX_BREATH, 70); eventCaption = "Cold breath on the back of your neck."; player.fear += 3; break;
+		case EV_BREATH: audio.play(SFX_BREATH, 60); eventCaption = "Someone whispers your name, right behind you."; player.fear += 3; break;
 		case EV_BLOODWRITE: {
 			const char* words[] = { "GET OUT", "SHE IS STILL HERE", "1953", "SLEEP", "BEHIND YOU" };
 			wallText = words[std::rand() % 5]; wallT = 7.f;
@@ -714,20 +714,33 @@ bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
 			(key_hit(sf::Keyboard::Key::E) || key_hit(sf::Keyboard::Key::Enter))) {
 			npc.state = Npc::counting;
 			alfredT = 0;
+			alfredWalkT = 0;
+			player.lockInput = true;      // you walk over to him and stay for the talk
 			talked = true;
 			say("Alfred:\n\tYou came... thank God.\n\tThe house has slept in crimson since 1953.\n\tYou are our only hope.");
 		}
 		if (alfredT >= 0) {
+			// Walk the player over to Alfred and keep them beside him.
+			sf::Vector2f d = npc.characterImage.getPosition() - pp();
+			bool horiz = std::fabs(d.x) > std::fabs(d.y);
+			int toward = horiz ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
+			alfredWalkT += dt;
+			if (std::sqrt(d.x * d.x + d.y * d.y) > 28.f && alfredWalkT < 3.f) player.autoDir = toward;
+			else { player.autoDir = -1; player.source.y = toward; }   // stand still, facing him
+			// Space jumps to his next line, X skips the whole talk.
+			if (!talked && key_hit(sf::Keyboard::Key::Space)) {
+				const float marks[] = { 5.f, 11.f, 18.f };
+				for (float m : marks) if (alfredT < m) { alfredT = m - 0.0001f; break; }
+			}
+			if (!talked && key_hit(sf::Keyboard::Key::X)) {
+				alfredGiveLantern();
+				alfredT = 18.f - 0.0001f;
+			}
 			float before = alfredT;
 			alfredT += dt;
 			auto crossed = [&](float t) { return before < t && alfredT >= t; };
 			if (crossed(5.f)) {
-				// He hands you the lantern himself.
-				if (!collected(LANTERN)) {
-					pickUp(LANTERN, "", false);
-					int c, r;
-					if (maps[ENTRANCE_HALL].map.find(11, &c, &r)) maps[ENTRANCE_HALL].map.set(c, r, sf::Vector2i(-1, -1));
-				}
+				alfredGiveLantern();   // he hands you the lantern himself
 				say("Alfred:\n\tTake my lantern. The lines were cut.\n\tPress F to flare it - the dead hate the light.");
 			}
 			if (crossed(11.f))
@@ -736,6 +749,8 @@ bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
 				say("Alfred:\n\tIt's getting dark. I... I should go.");
 				npc.state = Npc::moving;
 				alfredT = -1;
+				player.lockInput = false;     // you're free to move again
+				player.autoDir = -1;
 			}
 		}
 		// Once he has walked out of the hall, the house takes him.
@@ -801,12 +816,12 @@ void Game::updateVoices(float dt) {
 	else stepT = 0;
 	// the Bride announces herself, then whispers as she hunts
 	if (bride.active) {
-		if (bride.state == Bride::FADE_IN && lastBrideState == Bride::GONE) audio.play(SFX_BRIDE_APPEAR, 80);
+		if (bride.state == Bride::FADE_IN && lastBrideState == Bride::GONE) audio.play(SFX_BRIDE_APPEAR, 70);
 		if (bride.state == Bride::HUNT && !bride.pacified) {
 			brideVoiceT -= dt;
 			if (brideVoiceT <= 0) {
 				float d = bride.distanceTo(pp());
-				audio.play(SFX_BRIDE, std::max(20.f, 85.f - d * 0.25f));
+				audio.play(SFX_BRIDE, std::max(20.f, 85.f - d * 0.25f), 1.45f);   // pitched up: a woman weeping
 				brideVoiceT = frand(5, 9);
 			}
 		}
@@ -832,4 +847,11 @@ int Game::trailDistance() const {
 		if (d < best) best = d;
 	}
 	return best;
+}
+
+void Game::alfredGiveLantern() {
+	if (collected(LANTERN)) return;
+	pickUp(LANTERN, "", false);
+	int c, r;
+	if (maps[ENTRANCE_HALL].map.find(11, &c, &r)) maps[ENTRANCE_HALL].map.set(c, r, sf::Vector2i(-1, -1));
 }

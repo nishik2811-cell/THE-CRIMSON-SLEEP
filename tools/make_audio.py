@@ -17,10 +17,10 @@ SFX = ['step_wood_%d' % i for i in range(1, 7)] + ['step_carpet_%d' % i for i in
       ['door_open_1', 'door_open_2', 'door_locked_1', 'door_locked_2', 'unlock', 'keys',
        'pickup_1', 'pickup_2', 'paper_1', 'paper_2', 'lever_1', 'lever_2',
        'whisper_1', 'whisper_2', 'whisper_3', 'slam_1', 'slam_2', 'slam_3', 'slam_4', 'slam_metal',
-       'hushed_breath', 'scared_breath', 'moan_1', 'moan_2', 'moan_3',
+       'moan_1', 'moan_2', 'moan_3',
        'glass_shatter_1', 'glass_shatter_2', 'glass_shatter_3', 'sting_1', 'sting_2',
        'heart_slow', 'heart_fast', 'hurt', 'gasp', 'death',
-       'want_appear', 'want_1', 'want_2', 'want_3', 'voice_1', 'voice_2', 'voice_3', 'voice_4', 'drowned_lunge',
+       'voice_1', 'voice_2', 'voice_3', 'voice_4', 'drowned_lunge',
        'memory_chime', 'throw', 'ui_move', 'ui_click']
 KEEP_OLD = {'scream.ogg', 'jumpscare.ogg', 'beep.wav',   # no new equivalent
             # music picked separately by the team (theme per area, chase, death, true ending)

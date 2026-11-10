@@ -62,7 +62,7 @@ public:
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
 	void devPlace(float x, float y) { player.setPosition((int)x, (int)y); }
-	void devAlfredTalk(float t) { npc.state = Npc::counting; alfredT = t; }
+	void devAlfredTalk(float t) { npc.state = Npc::counting; alfredT = t; alfredWalkT = 0; player.lockInput = true; }
 	void devAlfredDead() { alfredDead = 1; alfredLeft = true; }
 	void devNoTips() { for (int i = 0; i < TIP_COUNT; ++i) tipSeen[i] = true; dialogue = ""; }
 	void devJumpscare() { jumpscare = 1.3f; }
@@ -105,6 +105,8 @@ private:
 	float chaseHold = 0;      // chase music keeps playing this long after the threat
 	// Alfred the butler: talks, hands over the lantern, leaves... and comes back wrong.
 	float alfredT = -1;       // seconds into his talk (-1 = not talking)
+	float alfredWalkT = 0;    // how long we've been walking over to him (gives up after 3 s)
+	void alfredGiveLantern();
 	bool alfredLeft = false;
 	float alfredScreamT = -1; // countdown to his scream after he leaves
 	int alfredDead = 0;       // 0 not yet, 1 waiting in the Library, 2 turning, 3 gone

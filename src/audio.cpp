@@ -9,7 +9,7 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 	"sting_1.ogg sting_2.ogg",                               // SFX_STING
 	"whisper_1.ogg whisper_2.ogg whisper_3.ogg",             // SFX_WHISPER
 	"slam_1.ogg slam_2.ogg slam_3.ogg slam_4.ogg slam_metal.ogg",
-	"hushed_breath.ogg scared_breath.ogg",                   // SFX_BREATH
+	"whisper_1.ogg",                                         // SFX_BREATH (a soft whisper - no breathing)
 	"slam_1.ogg slam_2.ogg slam_3.ogg",                      // SFX_CRACK (played low)
 	"moan_1.ogg moan_2.ogg moan_3.ogg",                      // SFX_MOAN
 	"glass_shatter_1.ogg glass_shatter_2.ogg glass_shatter_3.ogg",
@@ -17,7 +17,7 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 	"hurt.ogg", "gasp.ogg", "death.ogg",
 	"door_open_1.ogg door_open_2.ogg", "door_locked_1.ogg door_locked_2.ogg", "unlock.ogg", "keys.ogg",
 	"pickup_1.ogg pickup_2.ogg", "paper_1.ogg paper_2.ogg", "lever_1.ogg lever_2.ogg", "memory_chime.ogg", "throw.ogg",
-	"want_appear.ogg", "want_1.ogg want_2.ogg want_3.ogg",   // the Bride
+	"sting_1.ogg sting_2.ogg", "moan_1.ogg moan_2.ogg moan_3.ogg",   // the Bride: appears / weeps (moans pitched up)
 	"voice_1.ogg voice_2.ogg voice_3.ogg voice_4.ogg", "drowned_lunge.ogg",   // the crawler
 	"step_carpet_1.ogg step_carpet_2.ogg step_carpet_3.ogg step_carpet_4.ogg",
 	"step_wood_1.ogg step_wood_2.ogg step_wood_3.ogg step_wood_4.ogg step_wood_5.ogg step_wood_6.ogg",

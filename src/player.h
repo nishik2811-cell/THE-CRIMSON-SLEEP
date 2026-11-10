@@ -36,5 +36,7 @@ public:
 	bool isMoving() const;
 	void tryMove(int dir);
 	bool sliding = false;
+	bool lockInput = false; // e.g. while talking to Alfred
+	int autoDir = -1;       // direction walked automatically while input is locked
 	int forcedDir = -1;     // test hook: hold this direction (CS_HOLD)   // being eased around a corner this frame
 };

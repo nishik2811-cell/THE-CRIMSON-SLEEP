@@ -52,6 +52,7 @@ void Player::tryMove(int dir) {
 }
 
 bool Player::isMoving() const {
+	if (lockInput) return !frozen && autoDir >= 0;
 	return !frozen && (down(Key::Down) || down(Key::Up) || down(Key::Left) || down(Key::Right) ||
 		down(Key::W) || down(Key::A) || down(Key::S) || down(Key::D));
 }
@@ -59,6 +60,7 @@ bool Player::isMoving() const {
 void Player::movement(sf::RenderWindow* window) {
 	sliding = false;
 	if (!frozen && forcedDir >= 0) tryMove(forcedDir);
+	else if (!frozen && lockInput) { if (autoDir >= 0) tryMove(autoDir); }
 	else if (!frozen) {
 		if (down(Key::Down) || down(Key::S)) tryMove(Down);
 		else if (down(Key::Left) || down(Key::A)) tryMove(Left);
