@@ -31,15 +31,17 @@ void bar(sf::RenderWindow* w, const sf::Font& f, const char* name, float x, floa
 
 void Game::drawWorldOverlays(sf::RenderWindow* w) {
 	float t = runStats.time;
-	// BFS hint trail: small blood drops from the player to the objective.
-	for (int i = 1; i < trailLen; i += 1) {
+	// BFS hint trail: the team's dripping blood drop on every other tile
+	// from you to the objective, nudged a little per tile so it looks spilled.
+	for (int i = 1; i < trailLen; i += 2) {
 		int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
-		float pulse = 0.5f + 0.5f * std::sin(t * 4 - i * 0.5f);
-		sf::CircleShape d(3.f + pulse);
-		d.setOrigin({ (float)(d.getRadius()), (float)(d.getRadius()) });
-		d.setPosition({ (float)(c * 32 + 16.f), (float)(r * 32 + 16.f) });
-		d.setFillColor(sf::Color(200, 20, 40, (std::uint8_t)(110 + 120 * pulse)));
-		w->draw(d);
+		int h = (c * 73856093) ^ (r * 19349663);
+		float jx = (float)(((h >> 6) & 7) - 3), jy = (float)(((h >> 9) & 7) - 3);
+		decalSprite.setTextureRect(sf::IntRect({ 16, 0 }, { 16, 16 }));   // the drip
+		decalSprite.setPosition({ c * 32 + 8.f + jx, r * 32 + 8.f + jy });
+		float fade = 0.6f + 0.4f * (float)i / (float)trailLen;          // fainter toward the goal
+		decalSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(255 * fade)));
+		w->draw(decalSprite);
 	}
 	// After a minute the objective itself starts to pulse.
 	int tc, tr;

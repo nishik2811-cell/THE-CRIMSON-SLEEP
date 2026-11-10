@@ -32,6 +32,8 @@ rgb *= np.array([1.0, 0.72, 0.72])                       # blood shift
 rgb *= (0.92 - 0.25 * (l / 255.0))                       # darken bright areas more
 a[..., :3] = rgb
 save(a, 'texture.png')
+import subprocess as _sp, sys as _sys
+_sp.run([_sys.executable, os.path.join(os.path.dirname(__file__), 'make_fire.py')], check=True)
 
 # The Devil: drained, blood-lit.
 for name, tint in [('enemy_boss.png', (1.1, 0.35, 0.3))]:

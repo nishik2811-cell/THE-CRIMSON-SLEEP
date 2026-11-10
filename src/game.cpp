@@ -51,6 +51,7 @@ Game::Game(Audio& a) : audio(a) {
 	(void)fontItalic.openFromFile(asset("fonts/CormorantGaramond-Italic.ttf"));
 	(void)fontMono.openFromFile(asset("fonts/DejaVuSans.ttf"));
 	if (jumpTex.loadFromFile(asset("graphics/jumpscare.png"))) jumpSprite.setTexture(jumpTex, true);
+	if (decalTex.loadFromFile(asset("graphics/blood_decals.png"))) decalSprite.setTexture(decalTex, true);
 	if (alfredDeadTex.loadFromFile(asset("graphics/servent_dead.png"))) alfredDeadSprite.setTexture(alfredDeadTex, true);
 	alfredDeadSprite.setOrigin({ 0.f, 24.f });
 	jumpSprite.setOrigin({ (float)(jumpTex.getSize().x / 2.f), (float)(jumpTex.getSize().y / 2.f) });
@@ -198,7 +199,6 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 
 	maps[room].drawMap(window);
-	drawWorldOverlays(window);   // hint trail, target marker, blood writing
 
 	// --- characters drawn under the darkness ---
 	bool talkedToAlfred = updateAlfred(dt, window, overlay);
@@ -232,6 +232,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 	bride.draw(window);
 	apparition.draw(window);
+	drawWorldOverlays(window);   // hint trail, target marker, blood writing - drawn over the darkness so they can be followed
 
 	if (!overlay) {
 		// Story / interaction.
@@ -293,7 +294,7 @@ void Game::interact() {
 			pickUp(NEWSPAPER, "A yellowed newspaper - June 26, 1953:\n\tA man killed ten innocent people, women and children,\n\tthen took his own life. His bride was never found.\n\tThe Mansion has never found peace.", false);
 		else if (std::rand() % 3 == 0) {
 			say("A cold hand closes around yours from inside the drawer!");
-			player.fear += 8; audio.play(SFX_STINGER, 80); shake = 0.6f;
+			player.fear += 5; audio.play(SFX_STINGER, 80); shake = 0.6f;
 		}
 		else say("The drawer is empty. Something scratched 'SLEEP' inside it.");
 		break;
@@ -421,7 +422,7 @@ void Game::flareLantern() {
 	if (!player.has(LANTERN)) { say("You have nothing to light."); return; }
 	if (flareCooldown > 0) { showToast("The lantern is still recovering..."); return; }
 	flareCooldown = 10.f; flare = 1.f;
-	player.fear -= 10;
+	player.fear -= 20;
 	audio.play(SFX_BELLS, 45, 1.6f);
 	sf::Vector2f c = pp() + sf::Vector2f(12, 12);
 	if (bride.visible() && bride.distanceTo(pp()) < 130) {
@@ -470,7 +471,7 @@ void Game::updateHazards() {
 	sf::Vector2i a = current_map->at(player.col.next_tile1.x, player.col.next_tile1.y);
 	sf::Vector2i b = current_map->at(player.col.next_tile2.x, player.col.next_tile2.y);
 	auto deadly = [](sf::Vector2i t) { return t.y == 1 && (t.x == 14 || t.x == 21 || t.x == 22); };
-	if (deadly(a) || deadly(b)) hurt(25, 10, "The house bites back - spikes, fire, an open grave.", TIP_HAZARDS, true);
+	if (deadly(a) || deadly(b)) hurt(25, 5, "The house bites back - spikes, fire, an open grave.", TIP_HAZARDS, true);
 }
 
 void Game::updateDig(float dt) {
@@ -498,27 +499,27 @@ void Game::updateEvents(float dt) {
 		events.dequeue();
 		float danger = ROOMS[room].danger / 10.f;
 		switch (ev.kind) {
-		case EV_FLICKER: player.light.flicker = 1.f; eventCaption = "The lantern gutters..."; player.fear += 4; break;
-		case EV_WHISPER: audio.play(SFX_WHISPER, 85); eventCaption = "...stay... sleep with us..."; player.fear += 5; break;
-		case EV_SLAM: audio.play(SFX_SLAM, 90); shake = 1.f; eventCaption = "A door slams somewhere above."; player.fear += 6; break;
-		case EV_BREATH: audio.play(SFX_BREATH, 70); eventCaption = "Cold breath on the back of your neck."; player.fear += 5; break;
+		case EV_FLICKER: player.light.flicker = 1.f; eventCaption = "The lantern gutters..."; player.fear += 2; break;
+		case EV_WHISPER: audio.play(SFX_WHISPER, 85); eventCaption = "...stay... sleep with us..."; player.fear += 3; break;
+		case EV_SLAM: audio.play(SFX_SLAM, 90); shake = 1.f; eventCaption = "A door slams somewhere above."; player.fear += 3; break;
+		case EV_BREATH: audio.play(SFX_BREATH, 70); eventCaption = "Cold breath on the back of your neck."; player.fear += 3; break;
 		case EV_BLOODWRITE: {
 			const char* words[] = { "GET OUT", "SHE IS STILL HERE", "1953", "SLEEP", "BEHIND YOU" };
 			wallText = words[std::rand() % 5]; wallT = 7.f;
 			wallPos = pp() + sf::Vector2f(frand(-90, 60), frand(-80, -40));
-			audio.play(SFX_STINGER, 60); eventCaption = "Something is written on the wall - in blood."; player.fear += 7;
+			audio.play(SFX_STINGER, 60); eventCaption = "Something is written on the wall - in blood."; player.fear += 4;
 			break;
 		}
 		case EV_APPARITION: {
 			float a = frand(0, 6.283f);
 			apparition.spawn(pp() + sf::Vector2f(std::cos(a), std::sin(a)) * 105.f, std::rand() % 2);
-			audio.play(SFX_STINGER, 75, 0.8f); eventCaption = "Someone is standing at the edge of the light."; player.fear += 8;
+			audio.play(SFX_STINGER, 75, 0.8f); eventCaption = "Someone is standing at the edge of the light."; player.fear += 4;
 			break;
 		}
-		case EV_CRACK: audio.play(SFX_CRACK, 90, 0.9f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 5; break;
-		default: audio.play(SFX_BELLS, 55); eventCaption = "Distant bells toll for the dead of 1953."; player.fear += 3; break;
+		case EV_CRACK: audio.play(SFX_CRACK, 90, 0.9f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 3; break;
+		default: audio.play(SFX_BELLS, 55); eventCaption = "Distant bells toll for the dead of 1953."; player.fear += 2; break;
 		}
-		player.fear += 3 * danger;
+		player.fear += 1 * danger;
 		eventCaptionT = 4.f;
 	}
 }
@@ -552,12 +553,12 @@ void Game::updateThreats(float dt) {
 	float rate;
 	switch (topThreat.kind) {
 	case TH_BRIDE_ATTACK: rate = 0; break;
-	case TH_DEVIL: rate = 8; break;
-	case TH_CHILD: rate = child.frozen ? 2 : 7; break;
-	case TH_BRIDE_NEAR: rate = 5; break;
-	case TH_GHOST: rate = 3; break;
-	case TH_DARK: rate = 2; break;
-	default: rate = (ROOMS[room].danger <= 3 ? -2.5f : -0.8f); break;
+	case TH_DEVIL: rate = 4; break;
+	case TH_CHILD: rate = child.frozen ? 1 : 3.5f; break;
+	case TH_BRIDE_NEAR: rate = 2.5f; break;
+	case TH_GHOST: rate = 1.5f; break;
+	case TH_DARK: rate = 1; break;
+	default: rate = (ROOMS[room].danger <= 3 ? -4.f : -2.f); break;   // calm down when nothing is near
 	}
 	player.fear += rate * dt;
 
@@ -568,15 +569,15 @@ void Game::updateThreats(float dt) {
 		jumpscare = 1.3f;
 		audio.play(SFX_JUMPSCARE, 100);
 		bride.banish(frand(25, 35));
-		hurt(30, 30, "Samara's cursed face fills your vision.", TIP_BRIDE, false);
+		hurt(30, 18, "Samara's cursed face fills your vision.", TIP_BRIDE, false);
 	}
 	// Contact with patrol spirits / crawler.
-	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 20, "Pennywise strikes! Fear chokes your breath.", TIP_SPIRITS, true);
-	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 20, "Freddy's razor claws slice through you!", TIP_SPIRITS, true);
+	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 10, "Pennywise strikes! Fear chokes your breath.", TIP_SPIRITS, true);
+	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 10, "Freddy's razor claws slice through you!", TIP_SPIRITS, true);
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 18) {
 		audio.play(SFX_SCREAM, 90, 1.4f);
 		child.stun = 3; child.pos = child.home;
-		hurt(25, 20, "Carrie's telekinetic wrath violently slams you!", TIP_CHILD, false);
+		hurt(25, 10, "Carrie's telekinetic wrath violently slams you!", TIP_CHILD, false);
 	}
 
 	if (player.fear < 0) player.fear = 0;
@@ -720,7 +721,7 @@ bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
 				audio.play(SFX_SCREAM, 55, 0.75f);
 				eventCaption = "A man screams somewhere in the house... Alfred?";
 				eventCaptionT = 5.f;
-				player.fear += 8;
+				player.fear += 5;
 				alfredDead = 1;
 			}
 		}
@@ -745,7 +746,7 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 			alfredDead = 2; alfredDeadT = 0;
 			audio.play(SFX_STINGER, 100, 0.7f);
 			shake = 1.f; hurtFlash = 0.5f;
-			player.fear += 12;
+			player.fear += 8;
 			eventCaption = "Alfred turns around. His eyes are gone.";
 			eventCaptionT = 5.f;
 		}

@@ -127,6 +127,7 @@ private:
 	std::string toast; float toastT = 0;
 	sf::Font fontTitle, fontSerif, fontItalic, fontMono;
 	sf::Texture jumpTex; sf::Sprite jumpSprite{ jumpTex };
+	sf::Texture decalTex; sf::Sprite decalSprite{ decalTex };   // blood decals (hint trail)
 	RunStats runStats;
 
 	// flow
