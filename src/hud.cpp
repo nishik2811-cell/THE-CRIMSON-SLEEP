@@ -393,118 +393,190 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 	}
 }
 
-// The live data-structure console (its own window, opened with TAB).
-// Written for a person reading it: each section says what the structure is
-// for in the game, what is in it right now in plain words, and - in grey -
-// which structure it is and how it works.
+// The live data-structure console (its own window, opened with TAB or the
+// console button).  One card per structure; each card DRAWS the structure
+// (boxes, arrows, bars) with real game data instead of describing it.
 void Game::drawConsole(sf::RenderWindow* w) {
 	w->setView(w->getDefaultView());
-	const float W = (float)w->getSize().x, H = (float)w->getSize().y;
-	sf::RectangleShape bg({ W, H }); bg.setFillColor(sf::Color(10, 3, 5)); w->draw(bg);
-	float y = 12;
-	auto text = [&](const std::string& str, const sf::Font& f, unsigned size, sf::Color c, float x) {
-		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); t.setFillColor(c); t.setPosition({ x, std::floor(y) }); w->draw(t);
-		y += size + 5;
+	const float W = (float)w->getSize().x;
+	const sf::Color BG(12, 4, 6), CARD(24, 8, 12), EDGE(70, 16, 26), TITLE(236, 120, 130), TAG(120, 100, 100);
+	const sf::Color OPEN(120, 200, 150), LOCK(230, 110, 110), CHIP(42, 14, 20), HI(110, 22, 36);
+	sf::RectangleShape bg({ W, (float)w->getSize().y }); bg.setFillColor(BG); w->draw(bg);
+
+	auto txt = [&](const std::string& str, const sf::Font& f, unsigned size, sf::Color c, float x, float y, bool centre = false) {
+		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); t.setFillColor(c);
+		sf::FloatRect b = t.getLocalBounds();
+		t.setPosition({ std::floor(centre ? x - b.size.x / 2 - b.position.x : x), std::floor(y) });
+		w->draw(t);
+		return b.size.x;
 	};
-	auto head = [&](const std::string& title, const std::string& how) {
-		y += 3;
-		sf::RectangleShape rule({ W - 24, 1 }); rule.setPosition({ 12, y }); rule.setFillColor(sf::Color(90, 14, 26)); w->draw(rule);
-		y += 3;
-		text(title, fontSerif, 17, sf::Color(240, 90, 110), 14);
-		y -= 2;
-		text(how, fontItalic, 12, ASH, 16);
+	auto width = [&](const std::string& str, const sf::Font& f, unsigned size) {
+		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); return t.getLocalBounds().size.x;
 	};
-	auto item = [&](const std::string& str, sf::Color c = BONE) { y -= 2; text(str, fontSerif, 15, c, 26); };
-	char b[200];
+	auto rect = [&](float x, float y, float wd, float h, sf::Color fill, sf::Color line = sf::Color::Transparent) {
+		sf::RectangleShape r({ wd, h }); r.setPosition({ x, y }); r.setFillColor(fill);
+		if (line.a) { r.setOutlineColor(line); r.setOutlineThickness(1); }
+		w->draw(r);
+	};
+	auto lineTo = [&](sf::Vector2f a, sf::Vector2f b, sf::Color c) { sf::Vertex v[2] = { { a, c }, { b, c } }; w->draw(v, 2, sf::PrimitiveType::Lines); };
+	auto arrow = [&](float x, float y, sf::Color c) {   // small right-pointing arrow
+		lineTo({ x, y }, { x + 10, y }, c); lineTo({ x + 10, y }, { x + 6, y - 3 }, c); lineTo({ x + 10, y }, { x + 6, y + 3 }, c);
+	};
+	// a chip: rounded-looking label box; returns its width
+	auto chip = [&](float x, float y, const std::string& str, sf::Color fill, sf::Color ink, sf::Color line = sf::Color::Transparent) {
+		float wd = width(str, fontSerif, 14) + 14;
+		rect(x, y, wd, 22, fill, line);
+		txt(str, fontSerif, 14, ink, x + 7, y + 2);
+		return wd;
+	};
+	float y = 10;
+	auto card = [&](float h, const std::string& title, const std::string& tag) {
+		rect(10, y, W - 20, h, CARD, EDGE);
+		txt(title, fontSerif, 16, TITLE, 20, y + 4);
+		float tw = width(tag, fontMono, 10);
+		rect(W - 24 - tw - 8, y + 8, tw + 8, 15, sf::Color(40, 16, 22));
+		txt(tag, fontMono, 10, TAG, W - 24 - tw - 4, y + 9);
+		float top = y + 28; y += h + 8; return top;
+	};
+	char b[160];
 
-	text("Live data structures", fontTitle, 24, CRIMSON, 14);
-	y -= 4;
-	text("What the game is holding right now  -  TAB or the console button closes this", fontItalic, 12, ASH, 16);
-
-	// GRAPH
-	head(std::string("Doors out of the ") + ROOMS[room].name, "Graph (adjacency list): rooms are nodes, doors are edges");
-	for (const Edge* e = house.neighbours(room); e; e = e->next) {
-		if (e->hidden) continue;
-		std::string to = e->to == OUTSIDE ? "the way out of the house" : ROOMS[e->to].name;
-		if (!e->locked) item("- " + to + "   (open)");
-		else item("- " + to + "   (locked - needs the " + ITEMS[e->requiredItem].name + ")", sf::Color(220, 150, 140));
+	// ---- header: the current room + its fixed facts (ARRAY)
+	txt(ROOMS[room].name, fontTitle, 26, CRIMSON, 14, y - 2);
+	txt("live data structures", fontItalic, 13, TAG, W - 14 - width("live data structures", fontItalic, 13), y + 8);
+	y += 34;
+	{
+		float x = 14;
+		std::snprintf(b, sizeof b, "danger %d/10", ROOMS[room].danger);
+		x += chip(x, y, b, CHIP, BONE) + 6;
+		x += chip(x, y, ROOMS[room].dark ? "dark" : "lit", CHIP, BONE) + 6;
+		x += chip(x, y, ROOMS[room].wraith ? "ghost can appear" : "no drifting ghost", CHIP, BONE) + 6;
+		txt("ARRAY  ROOMS[" + std::to_string(room) + "]", fontMono, 10, TAG, x + 4, y + 6);
+		y += 32;
 	}
 
-	// STACK
-	head("Where you've been  (B takes you back)", "Stack: each room you enter is pushed; Go Back pops it");
-	int hist[32]; int hn = player.history.toArray(hist, 32);
-	std::string trail;
-	for (int i = 0; i < hn && i < 5; ++i) { trail += ROOMS[hist[i]].name; if (i + 1 < hn && i < 4) trail += "  <  "; }
-	if (hn > 5) trail += "  ...";
-	item(trail.empty() ? "(nowhere yet)" : trail);
-	item(hn > 1 ? std::string("Going back leads to the ") + ROOMS[hist[1]].name : "There is nowhere to go back to yet.", ASH);
-
-	// QUEUE
-	head("Scares waiting to happen, in order", "Queue (first in, first out): the oldest one fires first");
-	const char* what[] = { "the lantern flickers", "a whisper", "a door slams", "a whisper behind you", "writing in blood", "a moan", "the floor cracks", "glass shatters" };
-	HauntEvent ev[16]; int en = events.toArray(ev, 16);
-	if (en == 0) item("Nothing more in this room... for now.", ASH);
-	for (int i = 0; i < en && i < 4; ++i) {
-		float in = ev[i].at - roomTime;
-		std::snprintf(b, sizeof b, "%d.  %s  in %.0f s", i + 1, what[ev[i].kind], in < 0 ? 0.f : in);
-		item(b);
+	// ---- GRAPH: this room and where its doors lead
+	{
+		float t = card(118, "Doors from here", "GRAPH");
+		float cx = W / 2;
+		float cw = width(ROOMS[room].name, fontSerif, 14) + 16;
+		rect(cx - cw / 2, t, cw, 24, HI, TITLE);
+		txt(ROOMS[room].name, fontSerif, 14, sf::Color::White, cx, t + 3, true);
+		const Edge* list[6]; int n = 0;
+		for (const Edge* e = house.neighbours(room); e && n < 6; e = e->next) if (!e->hidden) list[n++] = e;
+		float slot = (W - 40) / std::max(1, n);
+		for (int i = 0; i < n; ++i) {
+			const Edge* e = list[i];
+			float nx = 20 + slot * i + slot / 2, ny = t + 50;
+			std::string name = e->to == OUTSIDE ? "Outside" : ROOMS[e->to].name;
+			unsigned fs = width(name, fontSerif, 13) > slot - 12 ? 11 : 13;
+			float nw = std::min(slot - 8, width(name, fontSerif, fs) + 12);
+			lineTo({ cx, t + 24 }, { nx, ny }, e->locked ? LOCK : OPEN);
+			rect(nx - nw / 2, ny, nw, 22, CHIP, e->locked ? LOCK : OPEN);
+			txt(name, fontSerif, fs, BONE, nx, ny + 3, true);
+			std::string st = e->locked ? std::string("needs ") + ITEMS[e->requiredItem].name : "open";
+			unsigned ss = width(st, fontItalic, 12) > slot - 4 ? 10 : 12;
+			txt(st, fontItalic, ss, e->locked ? LOCK : OPEN, nx, ny + 25, true);
+		}
 	}
 
-	// PRIORITY QUEUE
-	head("Dangers right now, worst first", "Priority queue (max-heap): the most dangerous threat is always on top");
-	bool any = false;
-	for (int i = 0; i < threats.size(); ++i) {
-		const Threat& t = threats.at(i);
-		if (t.kind == TH_CALM || !t.label[0]) continue;
-		any = true;
-		std::snprintf(b, sizeof b, "%s %s   (danger %d)", i == 0 ? ">" : "-", t.label, t.priority);
-		item(std::string(b).substr(0, 70), i == 0 ? sf::Color(255, 140, 140) : BONE);
-	}
-	if (!any) item("Nothing is threatening you right now.", ASH);
-
-	// LINKED LIST
-	head("What you're carrying", "Linked list: items are added when picked up and removed when used");
-	std::string inv;
-	player.inventory.forEach([&](const InventoryItem& it) { if (!inv.empty()) inv += ",  "; inv += ITEMS[it.id].name; });
-	item(inv.empty() ? "Your pockets are empty." : inv);
-
-	// BST
-	std::snprintf(b, sizeof b, "Binary search tree: every item and clue sorted by number (height %d)", itemDB.height());
-	head("Everything you can find in the house", b);
-	int found = 0, total = 0; std::string got, clues;
-	itemDB.inOrder([&](int, const ItemRecord& r) {
-		++total;
-		if (r.collected) { ++found; if (!got.empty()) got += ", "; got += ITEMS[r.id].name; }
-		if (ITEMS[r.id].isClue && r.discovered) { if (!clues.empty()) clues += ", "; clues += ITEMS[r.id].name; }
-	});
-	std::snprintf(b, sizeof b, "Found %d of %d", found, total);
-	item(b);
-	if (!got.empty()) item("Found: " + got.substr(0, 60) + (got.size() > 60 ? "..." : ""), ASH);
-	item(clues.empty() ? "No clues read yet." : "Clues read: " + clues, ASH);
-
-	// BFS
-	head("Shortest way to your goal", "Breadth-first search over the house graph (and over the room's tiles)");
-	if (hintText.empty()) item("No hint yet - press H, or wait 30 seconds.", ASH);
-	else if (lastRouteLen <= 1) { std::snprintf(b, sizeof b, "You're in the right room: follow %d steps of blood.", trailLen); item(b); }
-	else {
-		std::string r;
-		for (int i = 0; i < lastRouteLen; ++i) { r += ROOMS[lastRoute[i]].name; if (i + 1 < lastRouteLen) r += "  >  "; }
-		item(r);
+	// ---- STACK: rooms visited, top = where you are
+	{
+		float t = card(80, "Where you've been", "STACK");
+		int hist[32]; int hn = player.history.toArray(hist, 32);
+		for (int i = 0; i < hn && i < 2; ++i) {
+			float bx = 24, by = t + i * 22, bw = 190;
+			rect(bx, by, bw, 20, i == 0 ? HI : CHIP, i == 0 ? TITLE : EDGE);
+			txt(ROOMS[hist[i]].name, fontSerif, 13, i == 0 ? sf::Color::White : BONE, bx + 8, by + 2);
+		}
+		if (hn > 2) { std::snprintf(b, sizeof b, "+%d more below", hn - 2); txt(b, fontItalic, 12, TAG, 226, t + 25 + 22); }
+		txt("TOP  -  you are here", fontItalic, 12, TAG, 226, t + 3);
+		if (hn > 1) txt(std::string("B goes back to the ") + ROOMS[hist[1]].name, fontItalic, 12, TAG, 226, t + 25);
 	}
 
-	// DFS
-	head("Searching for hidden rooms", "Depth-first search: explores every path, even through secret doors");
-	if (lastDfsLen == 0) item("Not used yet - it runs when you read the Hymn Page in the Chapel.", ASH);
-	else {
-		std::string r;
-		for (int i = 0; i < lastDfsLen; ++i) { r += ROOMS[lastDfs[i]].name; if (i + 1 < lastDfsLen) r += ", "; }
-		item("Explored: " + r.substr(0, 64) + (r.size() > 64 ? "..." : ""));
+	// ---- QUEUE: scares in the order they will fire
+	{
+		float t = card(60, "Next scares in this room", "QUEUE");
+		const char* what[] = { "flicker", "whisper", "door slam", "whisper", "blood writing", "moan", "floor crack", "glass" };
+		HauntEvent ev[16]; int en = events.toArray(ev, 16);
+		float x = 22;
+		if (en == 0) txt("none left - the room is quiet", fontItalic, 13, TAG, 22, t + 2);
+		for (int i = 0; i < en && i < 4; ++i) {
+			float in = std::max(0.f, ev[i].at - roomTime);
+			std::snprintf(b, sizeof b, "%s  %.0fs", what[ev[i].kind], in);
+			float cw = width(b, fontSerif, 14) + 14;
+			if (x + cw > W - 30) break;
+			chip(x, t, b, i == 0 ? HI : CHIP, BONE, i == 0 ? TITLE : sf::Color::Transparent);
+			x += cw;
+			if (i + 1 < en && i < 3) { arrow(x + 4, t + 11, TAG); x += 18; }
+		}
 	}
 
-	// ARRAY
-	head(std::string("About the ") + ROOMS[room].name, "Array: fixed facts about each room, looked up by room number");
-	std::snprintf(b, sizeof b, "Danger %d / 10.  %s.  %s", ROOMS[room].danger, ROOMS[room].dark ? "Dark without a lantern" : "Lit",
-		ROOMS[room].wraith ? "A ghost can drift in here." : "No drifting ghosts here.");
-	item(b);
-	(void)H;
+	// ---- PRIORITY QUEUE: current dangers, worst first
+	{
+		float t = card(74, "Dangers right now", "PRIORITY QUEUE");
+		int shown = 0;
+		for (int i = 0; i < threats.size() && shown < 2; ++i) {
+			const Threat& th = threats.at(i);
+			if (th.kind == TH_CALM || !th.label[0]) continue;
+			float by = t + shown * 22, maxw = W - 160;
+			rect(24, by + 4, maxw, 12, CHIP);
+			rect(24, by + 4, maxw * th.priority / 100.f, 12, shown == 0 ? sf::Color(200, 40, 60) : sf::Color(130, 50, 60));
+			std::string lbl = th.label; if (lbl.size() > 38) lbl = lbl.substr(0, 36) + "...";
+			std::snprintf(b, sizeof b, "%d", th.priority);
+			txt(b, fontMono, 11, BONE, W - 128, by + 3);
+			txt(lbl, fontSerif, 12, shown == 0 ? sf::Color::White : BONE, 30, by + 1);
+			++shown;
+		}
+		if (!shown) chip(22, t, "calm - nothing is hunting you", CHIP, OPEN);
+	}
+
+	// ---- LINKED LIST: inventory
+	{
+		float t = card(60, "Carrying", "LINKED LIST");
+		float x = 22; int k = 0;
+		bool overflow = false;
+		player.inventory.forEach([&](const InventoryItem& it) {
+			if (overflow) return;
+			float cw = width(ITEMS[it.id].name, fontSerif, 14) + 14;
+			if (x + cw + 60 > W - 20) { overflow = true; return; }
+			x += chip(x, t, ITEMS[it.id].name, k == 0 ? HI : CHIP, BONE);
+			arrow(x + 4, t + 11, TAG); x += 18; ++k;
+		});
+		txt(overflow ? "..." : "null", fontMono, 12, TAG, x, t + 4);
+	}
+
+	// ---- BST: every item and clue
+	{
+		float t = card(62, "Items and clues found", "BINARY SEARCH TREE");
+		int found = 0, total = 0, read = 0;
+		float dx = 22;
+		itemDB.inOrder([&](int, const ItemRecord& r) {
+			++total; if (r.collected) ++found; if (r.discovered && ITEMS[r.id].isClue) ++read;
+			sf::CircleShape dot(6.f); dot.setPosition({ dx, t + 2 });
+			dot.setFillColor(r.collected ? (ITEMS[r.id].isClue ? sf::Color(240, 200, 120) : OPEN) : CHIP);
+			dot.setOutlineColor(EDGE); dot.setOutlineThickness(1); w->draw(dot);
+			dx += 18;
+		});
+		std::snprintf(b, sizeof b, "%d of %d found  -  %d clue%s read  -  tree height %d", found, total, read, read == 1 ? "" : "s", itemDB.height());
+		txt(b, fontSerif, 13, BONE, 22, t + 16);
+	}
+
+	// ---- BFS + DFS: searching the house
+	{
+		float t = card(76, "Finding the way", "BFS  /  DFS");
+		if (hintText.empty()) txt("route appears with the hint  (press H)", fontItalic, 13, TAG, 22, t);
+		else if (lastRouteLen <= 1) { std::snprintf(b, sizeof b, "goal is in this room  -  %d steps of blood", trailLen); txt(b, fontSerif, 13, BONE, 22, t); }
+		else {
+			float x = 22;
+			for (int i = 0; i < lastRouteLen; ++i) {
+				std::string nm = ROOMS[lastRoute[i]].name;
+				float cw = width(nm, fontSerif, 14) + 14;
+				if (x + cw > W - 30) { txt("...", fontMono, 12, TAG, x, t + 4); break; }
+				x += chip(x, t - 2, nm, i == lastRouteLen - 1 ? HI : CHIP, BONE);
+				if (i + 1 < lastRouteLen) { arrow(x + 4, t + 9, TAG); x += 18; }
+			}
+		}
+		if (lastDfsLen == 0) txt("hidden rooms: not searched yet (read the Hymn Page)", fontItalic, 12, TAG, 22, t + 26);
+		else { std::snprintf(b, sizeof b, "hidden rooms: searched %d rooms through secret doors", lastDfsLen); txt(b, fontItalic, 12, TAG, 22, t + 26); }
+	}
 }
