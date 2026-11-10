@@ -117,8 +117,25 @@ void Game::drawHud(sf::RenderWindow* w) {
 	bar(w, fontSerif, "Health", 22, 18, player.health, sf::Color(170, 16, 30));
 	bar(w, fontSerif, "Fear", 22, 44, player.fear, sf::Color(110, 60, 160));
 	char buf[64];
-	std::snprintf(buf, sizeof buf, flareCooldown > 0 ? "Flare  %.0fs" : "Flare  ready (F)", flareCooldown);
-	w->draw(label(fontSerif, player.has(LANTERN) ? buf : "No light", 17, flareCooldown > 0 ? ASH : BONE, 22, 72));
+	// Flare recharge: a bar that refills, with the seconds left on it.
+	if (!player.has(LANTERN)) w->draw(label(fontSerif, "No light", 17, ASH, 22, 72));
+	else {
+		float ready = 1.f - flareCooldown / FLARE_COOLDOWN;
+		ready = std::max(0.f, std::min(1.f, ready));
+		bool full = flareCooldown <= 0;
+		float glow = full ? 0.75f + 0.25f * std::sin(t * 4) : 1.f;
+		sf::Color fillCol = full ? sf::Color((std::uint8_t)(255 * glow), (std::uint8_t)(200 * glow), (std::uint8_t)(110 * glow)) : sf::Color(150, 110, 60);
+		bar(w, fontSerif, "Flare", 22, 70, ready * 100.f, fillCol);
+		if (full) std::snprintf(buf, sizeof buf, "ready - press F");
+		else std::snprintf(buf, sizeof buf, "%.0fs", std::ceil(flareCooldown));
+		sf::Text tt(fontMono, buf, 11);
+		tt.setFillColor(full ? sf::Color(40, 10, 4) : BONE);
+		// centre on the bar (x 92..272, y 76..88) using the text's real bounds
+		sf::FloatRect lb = tt.getLocalBounds();
+		tt.setOrigin({ lb.position.x + lb.size.x / 2.f, lb.position.y + lb.size.y / 2.f });
+		tt.setPosition({ 92.f + 90.f, 76.f + 6.f });
+		w->draw(tt);
+	}
 
 	// "[E] Talk" over Alfred's head when you're next to him.
 	if (room == ENTRANCE_HALL && npc.state == Npc::standing && npc.near(&player)) {

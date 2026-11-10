@@ -439,8 +439,11 @@ void Game::goBack() {
 
 void Game::flareLantern() {
 	if (!player.has(LANTERN)) { say("You have nothing to light."); return; }
-	if (flareCooldown > 0) { showToast("The lantern is still recovering..."); return; }
-	flareCooldown = 10.f; flare = 1.f;
+	if (flareCooldown > 0) {
+		char b[64]; std::snprintf(b, sizeof b, "Flare ready in %.0fs", std::ceil(flareCooldown));
+		showToast(b); return;
+	}
+	flareCooldown = FLARE_COOLDOWN; flare = 1.f;
 	player.fear -= 20;
 	audio.play(SFX_FLARE, 90);
 	sf::Vector2f c = pp() + sf::Vector2f(12, 12);
