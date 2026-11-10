@@ -183,7 +183,7 @@ int main() {
 			sf::Texture cap(window.getSize());
 			cap.update(window);
 			(void)cap.copyToImage().saveToFile(shotPath);
-			if (game && env("CS_PRINTPOS")) std::fprintf(stderr, "POS %.1f %.1f\n", game->devPos().x, game->devPos().y);
+			if (game && env("CS_PRINTPOS")) std::fprintf(stderr, "POS %.1f %.1f HP %.0f\n", game->devPos().x, game->devPos().y, game->devHealth());
 			window.close();
 		}
 	}

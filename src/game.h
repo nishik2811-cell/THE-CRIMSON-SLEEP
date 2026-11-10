@@ -61,6 +61,7 @@ public:
 	void devSpawnBride();
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
+	float devHealth() const { return player.health; }
 	void devPlace(float x, float y) { player.setPosition((int)x, (int)y); }
 	void devAlfredTalk(float t) { npc.state = Npc::counting; alfredT = t; alfredWalkT = 0; player.lockInput = true; }
 	void devAlfredDead() { alfredDead = 1; alfredLeft = true; }
@@ -168,6 +169,7 @@ private:
 	void computeTrail();
 	int trailDistance() const;
 	void hurt(float health, float fear, const std::string& why, int tip, bool respawn);
+	void knockBack(sf::Vector2f from);
 	void die(const std::string& why, int tip);
 	void openTip(int tip, bool force = false);
 	void say(const std::string& s) { dialogue = s; }

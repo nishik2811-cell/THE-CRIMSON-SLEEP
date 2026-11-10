@@ -616,8 +616,15 @@ void Game::updateThreats(float dt) {
 		hurt(30, 18, "Samara's cursed face fills your vision.", TIP_BRIDE, false);
 	}
 	// Contact with patrol spirits / crawler.
-	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
-	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
+	// A ghost's touch hurts and shoves you back a step - only dying sends you to the room's start.
+	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player) && player.invulnerable <= 0) {
+		hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, false);
+		knockBack(ghostEasy[i].characterImage.getPosition());
+	}
+	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player) && player.invulnerable <= 0) {
+		hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, false);
+		knockBack(ghostMedium[i].characterImage.getPosition());
+	}
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 18) {
 		audio.play(SFX_CHILD_LUNGE, 95);
 		child.stun = 3; child.pos = child.home;
@@ -909,4 +916,19 @@ float Game::scrawlWidth(const std::string& word) const {
 	float x = 0;
 	for (char ch : word) x += fontBlood.getGlyph((unsigned char)ch, WALL_TEXT_SIZE, false).advance + (ch == ' ' ? 7.f : 1.f);
 	return x;
+}
+
+// Pushes the player up to 28px directly away from `from`, one pixel at a time,
+// stopping at anything solid (walls, pits, fire), so a hit never throws you
+// into danger or back to the room's entrance.
+void Game::knockBack(sf::Vector2f from) {
+	sf::Vector2f d = pp() - from;
+	bool horiz = std::fabs(d.x) >= std::fabs(d.y);
+	int dir = horiz ? (d.x >= 0 ? Character::Right : Character::Left) : (d.y >= 0 ? Character::Down : Character::Up);
+	sf::Vector2f step = dir == Character::Right ? sf::Vector2f(1, 0) : dir == Character::Left ? sf::Vector2f(-1, 0) :
+		dir == Character::Down ? sf::Vector2f(0, 1) : sf::Vector2f(0, -1);
+	for (int i = 0; i < 28; ++i) {
+		if (player.col.isCollisionMap(pp(), dir)) break;
+		player.characterImage.move(step);
+	}
 }
