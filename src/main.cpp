@@ -129,6 +129,7 @@ int main() {
 	// so the hero stays in view while it is open.
 	const float CONSOLE_W = 430.f;
 	bool consoleOpen = env("CS_CONSOLE") != nullptr;
+	float devScroll = env("CS_SCROLL") ? (float)std::atof(env("CS_SCROLL")) : 0.f;
 	float consoleSlide = consoleOpen ? 1.f : 0.f;          // 0 = hidden, 1 = fully out
 	auto toggleConsole = [&]() { consoleOpen = !consoleOpen; };
 
@@ -143,8 +144,14 @@ int main() {
 			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
 				key_record(key->code);
 				if (key->code == sf::Keyboard::Key::Tab) toggleConsole();
+				if (game && consoleOpen && key->code == sf::Keyboard::Key::PageDown) game->scrollConsole(300.f);
+				if (game && consoleOpen && key->code == sf::Keyboard::Key::PageUp) game->scrollConsole(-300.f);
 				if (key->code == sf::Keyboard::Key::M) audio.toggleMute();
 				if (key->code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
+			}
+			else if (const auto* ws = event->getIf<sf::Event::MouseWheelScrolled>()) {
+				sf::Vector2f p = window.mapPixelToCoords(ws->position, window.getDefaultView());
+				if (game && consoleSlide > 0.5f && p.x > 1024.f - CONSOLE_W * consoleSlide) game->scrollConsole(-ws->delta * 48.f);
 			}
 			else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
 				sf::Vector2f p = window.mapPixelToCoords(mb->position, window.getDefaultView());
@@ -168,6 +175,7 @@ int main() {
 		float consolePx = CONSOLE_W * consoleSlide;
 		g_uiShift = consolePx;
 		if (game) game->setConsoleWidth(consolePx);
+		if (game && devScroll > 0 && frame > 2) { game->scrollConsole(devScroll); devScroll = 0; }
 		window.clear(sf::Color::Black);
 
 		switch (game_state) {

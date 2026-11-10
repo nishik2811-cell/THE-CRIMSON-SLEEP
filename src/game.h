@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <SFML/Graphics.hpp>
 #include <string>
 #include "globals.h"
@@ -73,6 +74,7 @@ public:
 	// How many pixels of the window the console panel covers right now:
 	// the HUD squeezes left and the camera keeps the hero centred in what's left.
 	void setConsoleWidth(float px) { consoleW = px; player.camShift = px / 2; }
+	void scrollConsole(float d) { consoleScroll = std::clamp(consoleScroll + d, 0.f, std::max(0.f, consoleContentH - 768.f)); }
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
 private:
@@ -94,6 +96,7 @@ private:
 
 	int room = ENTRANCE_HALL;
 	float consoleW = 0;                   // width of the console panel over the game
+	float consoleScroll = 0, consoleContentH = 0;   // console panel scrolling
 	int lastLookup = -1;                  // last item searched for in the BST (shown as a path)
 	sf::Vector2i entryTile;
 	float roomTime = 0;

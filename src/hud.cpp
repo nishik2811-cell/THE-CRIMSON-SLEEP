@@ -415,14 +415,20 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 // card DRAWS the structure (boxes, arrows, bars, a tree) with real game data.
 // x0 = where the panel's left edge is on screen, pw = its full width.
 void Game::drawConsole(sf::RenderWindow* w, float x0, float pw) {
-	sf::View pv(sf::FloatRect({ 0.f, 0.f }, { pw, 768.f }));
-	pv.setViewport(sf::FloatRect({ x0 / 1024.f, 0.f }, { pw / 1024.f, 1.f }));
-	w->setView(pv);
-	const float W = pw;
+	// Two views over the same screen strip: a fixed one for the background and
+	// scroll bar, and one that is moved down by consoleScroll for the cards.
+	sf::View fixedV(sf::FloatRect({ 0.f, 0.f }, { pw, 768.f }));
+	fixedV.setViewport(sf::FloatRect({ x0 / 1024.f, 0.f }, { pw / 1024.f, 1.f }));
+	sf::View scrollV = fixedV;
+	consoleScroll = std::clamp(consoleScroll, 0.f, std::max(0.f, consoleContentH - 768.f));
+	scrollV.move({ 0.f, std::floor(consoleScroll) });
+	w->setView(fixedV);
+	const float W = pw - 10;   // leave a strip on the right for the scroll bar
 	const sf::Color BG(12, 4, 6), CARD(24, 8, 12), EDGE(70, 16, 26), TITLE(236, 120, 130), TAG(120, 100, 100);
 	const sf::Color OPEN(120, 200, 150), LOCK(230, 110, 110), CHIP(42, 14, 20), HI(110, 22, 36);
-	sf::RectangleShape bg({ W, 768.f }); bg.setFillColor(sf::Color(BG.r, BG.g, BG.b, 245)); w->draw(bg);
+	sf::RectangleShape bg({ pw, 768.f }); bg.setFillColor(sf::Color(BG.r, BG.g, BG.b, 245)); w->draw(bg);
 	sf::RectangleShape edge({ 2.f, 768.f }); edge.setFillColor(sf::Color(150, 14, 30)); w->draw(edge);
+	w->setView(scrollV);
 
 	auto txt = [&](const std::string& str, const sf::Font& f, unsigned size, sf::Color c, float x, float y, bool centre = false) {
 		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); t.setFillColor(c);
@@ -457,7 +463,7 @@ void Game::drawConsole(sf::RenderWindow* w, float x0, float pw) {
 		float tw = width(tag, fontMono, 10);
 		rect(W - 24 - tw - 8, y + 8, tw + 8, 15, sf::Color(40, 16, 22));
 		txt(tag, fontMono, 10, TAG, W - 24 - tw - 4, y + 9);
-		float top = y + 28; y += h + 8; return top;
+		float top = y + 28; y += h + 12; return top;
 	};
 	char b[160];
 
@@ -571,7 +577,7 @@ void Game::drawConsole(sf::RenderWindow* w, float x0, float pw) {
 	// x = in-order position, y = depth; lines join each node to its parent.
 	// The path search() walked for the last item you picked up is lit red.
 	{
-		float t = card(166, "Items and clues", "BINARY SEARCH TREE");
+		float t = card(206, "Items and clues", "BINARY SEARCH TREE");
 		const int MAXN = 32;
 		int key[MAXN], depth[MAXN], parent[MAXN]; ItemRecord rec[MAXN]; int n = 0;
 		itemDB.walk([&](int k, const ItemRecord& r, int d, int p) {
@@ -605,24 +611,26 @@ void Game::drawConsole(sf::RenderWindow* w, float x0, float pw) {
 			w->draw(c);
 			txt(std::to_string(key[i]), fontMono, 11, r.collected ? sf::Color(20, 6, 8) : TAG, at(i).x, at(i).y - 7, true);
 		}
-		float ly = t + R + 2 + (itemDB.height() - 1) * ystep + R + 8;
+		float ly = t + R + 2 + (itemDB.height() - 1) * ystep + R + 14;
+		rect(18, ly - 6, W - 36, 1, EDGE);   // divider between the tree and its text
+		ly += 4;
 		if (pn > 0) {
 			std::string s = std::string("search(") + ITEMS[lastLookup].name + ")  ";
 			for (int i = 0; i < pn; ++i) s += std::to_string(path[i]) + (i + 1 < pn ? " > " : "");
 			std::snprintf(b, sizeof b, "   %d step%s", pn, pn == 1 ? "" : "s");
-			txt(s + b, fontSerif, 12, sf::Color(255, 150, 160), 18, ly);
-		} else txt("search() path lights up when you pick something up", fontItalic, 12, TAG, 18, ly);
-		ly += 18;
+			txt(s + b, fontSerif, 14, sf::Color(255, 150, 160), 18, ly);
+		} else txt("search() path lights up when you pick something up", fontItalic, 13, TAG, 18, ly);
+		ly += 28;
 		float lx = 18;
 		auto key2 = [&](sf::Color c, const std::string& s) {
 			sf::CircleShape d(5.f); d.setOrigin({ 5.f, 5.f }); d.setPosition({ lx + 5, ly + 8 }); d.setFillColor(c);
 			d.setOutlineColor(EDGE); d.setOutlineThickness(1); w->draw(d);
-			lx += 14 + txt(s, fontItalic, 12, TAG, lx + 14, ly) + 14;
+			lx += 14 + txt(s, fontSerif, 13, BONE, lx + 14, ly) + 22;
 		};
 		std::snprintf(b, sizeof b, "found %d/%d", found, n); key2(OPEN, b);
-		std::snprintf(b, sizeof b, "clue read %d", read); key2(GOLD, b);
+		std::snprintf(b, sizeof b, "clues read %d", read); key2(GOLD, b);
 		key2(CHIP, "not yet");
-		std::snprintf(b, sizeof b, "height %d", itemDB.height()); txt(b, fontMono, 10, TAG, W - 18 - width(b, fontMono, 10), ly + 3);
+		std::snprintf(b, sizeof b, "tree height %d", itemDB.height()); txt(b, fontMono, 10, TAG, W - 18 - width(b, fontMono, 10), ly + 4);
 	}
 
 	// ---- BFS + DFS: searching the house
@@ -643,4 +651,14 @@ void Game::drawConsole(sf::RenderWindow* w, float x0, float pw) {
 		if (lastDfsLen == 0) txt("DFS: hidden rooms not searched yet (read the Hymn Page)", fontItalic, 12, TAG, 22, t + 24);
 		else { std::snprintf(b, sizeof b, "DFS: searched %d rooms through secret doors", lastDfsLen); txt(b, fontItalic, 12, TAG, 22, t + 24); }
 	}
+	// Scroll bar (mouse wheel or Page Up / Page Down over the panel).
+	consoleContentH = y;
+	w->setView(fixedV);
+	if (consoleContentH > 768.f) {
+		float trackH = 768.f - 16, barH = std::max(40.f, trackH * 768.f / consoleContentH);
+		float barY = 8 + (trackH - barH) * consoleScroll / (consoleContentH - 768.f);
+		rect(pw - 8, 8, 4, trackH, sf::Color(40, 12, 18));
+		rect(pw - 8, barY, 4, barH, sf::Color(170, 40, 60));
+	}
+	w->setView(w->getDefaultView());
 }
