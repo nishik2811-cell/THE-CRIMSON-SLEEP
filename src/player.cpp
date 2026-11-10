@@ -20,30 +20,50 @@ bool Player::has(int id) { return inventory.find([id](const InventoryItem& it) {
 void Player::give(int id) { if (!has(id)) inventory.insertFront(InventoryItem{ id }); }
 bool Player::take(int id) { return inventory.removeIf([id](const InventoryItem& it) { return it.id == id; }); }
 
+static sf::Vector2f dirVec(int d) {
+	return d == Character::Down ? sf::Vector2f(0, 1) : d == Character::Left ? sf::Vector2f(-1, 0) :
+		d == Character::Right ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
+}
+
+// Moves one step in `dir`.  If the way is blocked but an opening is just a
+// little to one side (the 24px feet vs 32px corridors problem), the player
+// is slid sideways into line with it - "corner sliding".  It only ever slides
+// toward open floor, never into a wall, pit or fire (those are all solid).
+void Player::tryMove(int dir) {
+	source.y = dir;
+	sf::Vector2f p = characterImage.getPosition(), v = dirVec(dir);
+	if (!col.isCollisionMap(p, dir)) { characterImage.move(v * characterSpeed); return; }
+	const int SLIDE = 14;                                      // how far off-line we still help
+	int sideA = (dir == Down || dir == Up) ? Left : Up;
+	int sideB = (dir == Down || dir == Up) ? Right : Down;
+	for (int o = 1; o <= SLIDE; ++o) {
+		for (int side : { sideA, sideB }) {
+			sf::Vector2f s = dirVec(side);
+			bool clear = true;                                 // can we actually get there sideways?
+			for (int k = 0; k < o && clear; ++k)
+				if (col.isCollisionMap(p + s * (float)k, side)) clear = false;
+			if (clear && !col.isCollisionMap(p + s * (float)o, dir)) {
+				characterImage.move(s * characterSpeed);       // ease into line with the opening
+				sliding = true;
+				return;
+			}
+		}
+	}
+}
+
 bool Player::isMoving() const {
 	return !frozen && (down(Key::Down) || down(Key::Up) || down(Key::Left) || down(Key::Right) ||
 		down(Key::W) || down(Key::A) || down(Key::S) || down(Key::D));
 }
 
 void Player::movement(sf::RenderWindow* window) {
-	if (!frozen) {
-		sf::Vector2f p = characterImage.getPosition();
-		if (down(Key::Down) || down(Key::S)) {
-			source.y = Down;
-			if (!col.isCollisionMap(p, source.y)) characterImage.move({ 0.f, characterSpeed });
-		}
-		else if (down(Key::Left) || down(Key::A)) {
-			source.y = Left;
-			if (!col.isCollisionMap(p, source.y)) characterImage.move({ -characterSpeed, 0.f });
-		}
-		else if (down(Key::Right) || down(Key::D)) {
-			source.y = Right;
-			if (!col.isCollisionMap(p, source.y)) characterImage.move({ characterSpeed, 0.f });
-		}
-		else if (down(Key::Up) || down(Key::W)) {
-			source.y = Up;
-			if (!col.isCollisionMap(p, source.y)) characterImage.move({ 0.f, -characterSpeed });
-		}
+	sliding = false;
+	if (!frozen && forcedDir >= 0) tryMove(forcedDir);
+	else if (!frozen) {
+		if (down(Key::Down) || down(Key::S)) tryMove(Down);
+		else if (down(Key::Left) || down(Key::A)) tryMove(Left);
+		else if (down(Key::Right) || down(Key::D)) tryMove(Right);
+		else if (down(Key::Up) || down(Key::W)) tryMove(Up);
 	}
 	if (isMoving()) animate(); else clock.restart();
 

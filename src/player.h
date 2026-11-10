@@ -34,4 +34,7 @@ public:
 	bool take(int itemId);
 	bool hasLight() { return has(LANTERN); }
 	bool isMoving() const;
+	void tryMove(int dir);
+	bool sliding = false;
+	int forcedDir = -1;     // test hook: hold this direction (CS_HOLD)   // being eased around a corner this frame
 };

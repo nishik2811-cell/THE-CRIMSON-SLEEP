@@ -25,6 +25,7 @@ class Audio {
 
 	sf::Music tracks[TRACK_COUNT];          // title / chase / death / endings
 	float trackVolume[TRACK_COUNT] = {};
+	sf::Music theme;                        // the in-game theme, under every room
 	sf::Music roomAmb, roomLayer;           // the current room's ambience + optional extra loop
 	std::string ambName, layerName;
 	Track current = TRACK_NONE;

@@ -3,6 +3,7 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include "globals.h"
@@ -43,6 +44,7 @@ int main() {
 		if (env("CS_NOTIPS")) game->devNoTips();
 		if (env("CS_ALFRED")) game->devAlfredDead();
 		if (env("CS_PX")) game->devPlace((float)std::atof(env("CS_PX")), (float)std::atof(env("CS_PY")));
+		if (env("CS_HOLD")) game->devHold(std::atoi(env("CS_HOLD")));
 		if (env("CS_TALK")) game->devAlfredTalk((float)std::atof(env("CS_TALK")));
 		if (env("CS_OPEN")) game->devOpen(std::atoi(env("CS_OPEN")));
 	}
@@ -124,6 +126,7 @@ int main() {
 			sf::Texture cap(window.getSize());
 			cap.update(window);
 			(void)cap.copyToImage().saveToFile(shotPath);
+			if (game && env("CS_PRINTPOS")) std::fprintf(stderr, "POS %.1f %.1f\n", game->devPos().x, game->devPos().y);
 			window.close();
 		}
 	}

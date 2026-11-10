@@ -31,19 +31,27 @@ void bar(sf::RenderWindow* w, const sf::Font& f, const char* name, float x, floa
 
 void Game::drawWorldOverlays(sf::RenderWindow* w) {
 	float t = runStats.time;
-	// BFS hint trail: just the next few dripping blood drops ahead of you
-	// (every third tile), so it points the way without flooding the map.
-	for (int k = 1; k <= 4; ++k) {
-		int i = trailLen - 1 - k * 3;
-		if (i < 1) break;
-		int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
-		int h = (c * 73856093) ^ (r * 19349663);
-		float jx = (float)(((h >> 6) & 7) - 3), jy = (float)(((h >> 9) & 7) - 3);
-		decalSprite.setTextureRect(sf::IntRect({ 16, 0 }, { 16, 16 }));   // the drip
-		decalSprite.setPosition({ c * 32 + 8.f + jx, r * 32 + 8.f + jy });
-		float fade = 1.f - 0.15f * (k - 1);                              // fainter further ahead
-		decalSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(255 * fade)));
-		w->draw(decalSprite);
+	// BFS hint trail: dripping blood drops fixed to every third tile of the
+	// path (trail[0] is beside the goal), so they never slide as you walk.
+	// Only the next few ahead of you are shown.
+	{
+		int pc = (int)((pp().x + 12) / 32), pr = (int)((pp().y + 12) / 32), here = trailLen - 1, best = 999;
+		for (int i = 0; i < trailLen; ++i) {
+			int d = std::abs(trail[i] % GRID_W - pc) + std::abs(trail[i] / GRID_W - pr);
+			if (d < best) { best = d; here = i; }
+		}
+		int shown = 0;
+		for (int i = here - 1; i >= 1 && shown < 4; --i) {
+			if (i % 3 != 0) continue;
+			int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
+			int h = (c * 73856093) ^ (r * 19349663);
+			float jx = (float)(((h >> 6) & 7) - 3), jy = (float)(((h >> 9) & 7) - 3);
+			decalSprite.setTextureRect(sf::IntRect({ 16, 0 }, { 16, 16 }));   // the drip
+			decalSprite.setPosition({ c * 32 + 8.f + jx, r * 32 + 8.f + jy });
+			decalSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(255 * (1.f - 0.15f * shown))));
+			w->draw(decalSprite);
+			++shown;
+		}
 	}
 	// After a minute the objective itself starts to pulse.
 	int tc, tr;

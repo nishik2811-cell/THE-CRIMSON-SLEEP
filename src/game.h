@@ -59,6 +59,8 @@ public:
 	void devStartAt(int room);
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
+	void devHold(int dir) { player.forcedDir = dir; }
+	sf::Vector2f devPos() const { return pp(); }
 	void devPlace(float x, float y) { player.setPosition((int)x, (int)y); }
 	void devAlfredTalk(float t) { npc.state = Npc::counting; alfredT = t; }
 	void devAlfredDead() { alfredDead = 1; alfredLeft = true; }
@@ -97,6 +99,7 @@ private:
 	float stepT = 0, brideVoiceT = 3, childVoiceT = 2, devilVoiceT = 4;
 	int lastBrideState = 0;
 	void updateVoices(float dt);
+	float hazardPushT = 0, lastDt = 0;   // forgiving hazards: how long you've pushed into one
 	float childBanishT = 0;   // a flare banishes the crawler for this long
 	bool childRoom = false;
 	float chaseHold = 0;      // chase music keeps playing this long after the threat
@@ -155,6 +158,7 @@ private:
 	void updateDig(float dt);
 	void updateHints(float dt);
 	void computeTrail();
+	int trailDistance() const;
 	void hurt(float health, float fear, const std::string& why, int tip, bool respawn);
 	void die(const std::string& why, int tip);
 	void openTip(int tip, bool force = false);

@@ -11,10 +11,9 @@ OUT = os.path.join(ROOT, 'assets', 'audio')
 
 MUSIC = ['title_music', 'chase_music', 'memory_music', 'ending_morning', 'ending_waking', 'rank_music']
 AMBIENCE = ['amb_house', 'amb_gallery', 'amb_library', 'amb_crawl', 'amb_crimson', 'amb_drowned',
-            'drone_tension', 'drone_dread', 'wind_loop', 'drip_loop', 'rumble_loop', 'water_loop', 'clock_tick', 'creak_long']
+            'drone_tension', 'drone_dread', 'wind_loop', 'drip_loop', 'rumble_loop', 'water_loop']
 SFX = ['step_wood_%d' % i for i in range(1, 7)] + ['step_carpet_%d' % i for i in range(1, 5)] + \
       ['step_stone_%d' % i for i in range(1, 4)] + ['step_water_%d' % i for i in range(1, 5)] + \
-      ['step_creak_%d' % i for i in range(1, 6)] + \
       ['door_open_1', 'door_open_2', 'door_locked_1', 'door_locked_2', 'unlock', 'keys',
        'pickup_1', 'pickup_2', 'paper_1', 'paper_2', 'lever_1', 'lever_2',
        'whisper_1', 'whisper_2', 'whisper_3', 'slam_1', 'slam_2', 'slam_3', 'slam_4', 'slam_metal',

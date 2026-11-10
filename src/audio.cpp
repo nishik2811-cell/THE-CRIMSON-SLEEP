@@ -10,7 +10,7 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 	"whisper_1.ogg whisper_2.ogg whisper_3.ogg",             // SFX_WHISPER
 	"slam_1.ogg slam_2.ogg slam_3.ogg slam_4.ogg slam_metal.ogg",
 	"hushed_breath.ogg scared_breath.ogg",                   // SFX_BREATH
-	"creak_long.ogg step_creak_4.ogg step_creak_5.ogg",     // SFX_CRACK
+	"slam_1.ogg slam_2.ogg slam_3.ogg",                      // SFX_CRACK (played low)
 	"moan_1.ogg moan_2.ogg moan_3.ogg",                      // SFX_MOAN
 	"glass_shatter_1.ogg glass_shatter_2.ogg glass_shatter_3.ogg",
 	"heart_slow.ogg", "heart_fast.ogg",
@@ -21,7 +21,7 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 	"voice_1.ogg voice_2.ogg voice_3.ogg voice_4.ogg", "drowned_lunge.ogg",   // the crawler
 	"step_carpet_1.ogg step_carpet_2.ogg step_carpet_3.ogg step_carpet_4.ogg",
 	"step_wood_1.ogg step_wood_2.ogg step_wood_3.ogg step_wood_4.ogg step_wood_5.ogg step_wood_6.ogg",
-	"step_creak_1.ogg step_creak_2.ogg step_creak_3.ogg",
+	"step_wood_1.ogg step_wood_2.ogg step_wood_3.ogg",      // (was creaky boards)
 	"step_stone_1.ogg step_stone_2.ogg step_stone_3.ogg",
 	"step_water_1.ogg step_water_2.ogg step_water_3.ogg step_water_4.ogg",
 	"ui_move.ogg", "ui_click.ogg",
@@ -42,11 +42,12 @@ Audio::Audio() {
 	struct { Track t; const char* file; float vol; bool loop; } list[] = {
 		{ TRACK_TITLE,       "title_music.ogg",    80, true },
 		{ TRACK_CHASE,       "chase_music.ogg",    85, true },
-		{ TRACK_DEATH,       "memory_music.ogg",   80, true },
+		{ TRACK_DEATH,       "ending_waking.ogg",  80, true },
 		{ TRACK_END_TRUE,    "ending_morning.ogg", 85, true },
-		{ TRACK_END_OTHER,   "rank_music.ogg",     85, true },
+		{ TRACK_END_OTHER,   "memory_music.ogg",   85, true },
 		{ TRACK_END_TRAPPED, "ending_waking.ogg",  85, true },
 	};
+	if (theme.openFromFile(asset("audio/rank_music.ogg"))) { theme.setLooping(true); theme.setVolume(60); }
 	for (auto& e : list) {
 		if (tracks[e.t].openFromFile(asset(std::string("audio/") + e.file))) { tracks[e.t].setLooping(e.loop); tracks[e.t].setVolume(e.vol); }
 		trackVolume[e.t] = e.vol;
@@ -65,11 +66,13 @@ void Audio::play(Sfx s, float volume, float pitch) {
 }
 
 void Audio::startRoom() {
-	roomAmb.setVolume(70 * (1.f - 0.4f * tension));
+	if (theme.getStatus() != sf::SoundSource::Status::Playing) theme.play();
+	theme.setVolume(60 * (1.f - 0.4f * tension));
+	roomAmb.setVolume(40 * (1.f - 0.4f * tension));
 	if (roomAmb.getStatus() != sf::SoundSource::Status::Playing) roomAmb.play();
 	if (!layerName.empty() && roomLayer.getStatus() != sf::SoundSource::Status::Playing) roomLayer.play();
 }
-void Audio::stopRoom() { roomAmb.pause(); roomLayer.pause(); }
+void Audio::stopRoom() { theme.pause(); roomAmb.pause(); roomLayer.pause(); }
 
 void Audio::setRoom(const char* amb, const char* layer) {
 	if (ambName != amb) {
@@ -80,7 +83,7 @@ void Audio::setRoom(const char* amb, const char* layer) {
 	if (layerName != layer) {
 		layerName = layer;
 		roomLayer.stop();
-		if (*layer && roomLayer.openFromFile(asset(std::string("audio/") + layer))) { roomLayer.setLooping(true); roomLayer.setVolume(45); }
+		if (*layer && roomLayer.openFromFile(asset(std::string("audio/") + layer))) { roomLayer.setLooping(true); roomLayer.setVolume(30); }
 	}
 	if (current == TRACK_GAME) startRoom();
 }
@@ -92,7 +95,7 @@ void Audio::music(Track t) {
 	current = t;
 	if (t == TRACK_GAME) startRoom();
 	else if (t != TRACK_NONE) { tracks[t].setVolume(trackVolume[t]); tracks[t].play(); }
-	if (t == TRACK_TITLE) { roomAmb.stop(); roomLayer.stop(); ambName.clear(); layerName.clear(); }
+	if (t == TRACK_TITLE) { theme.stop(); roomAmb.stop(); roomLayer.stop(); ambName.clear(); layerName.clear(); }
 }
 
 void Audio::pauseAll(bool paused) {
@@ -105,5 +108,5 @@ void Audio::pauseAll(bool paused) {
 
 void Audio::setTension(float f) {
 	tension = f;
-	if (current == TRACK_GAME) roomAmb.setVolume(70 * (1.f - 0.4f * f));
+	if (current == TRACK_GAME) { theme.setVolume(60 * (1.f - 0.4f * f)); roomAmb.setVolume(40 * (1.f - 0.4f * f)); }
 }

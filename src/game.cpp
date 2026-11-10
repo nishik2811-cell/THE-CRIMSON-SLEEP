@@ -43,8 +43,8 @@ const TipInfo TIPS[TIP_COUNT] = {
 // Per-room audio: ambience loop, optional extra loop, and footstep surface.
 static const char* const ROOM_AMB[ROOM_COUNT] = { "", "amb_house.ogg", "amb_gallery.ogg", "amb_library.ogg", "drone_tension.ogg",
 	"amb_crawl.ogg", "amb_crimson.ogg", "drone_dread.ogg", "amb_crimson.ogg", "amb_drowned.ogg", "drone_dread.ogg" };
-static const char* const ROOM_LAYER[ROOM_COUNT] = { "", "clock_tick.ogg", "wind_loop.ogg", "", "", "", "", "", "rumble_loop.ogg", "drip_loop.ogg", "water_loop.ogg" };
-static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX_STEP_WOOD, SFX_STEP_WOOD, SFX_STEP_CREAK,
+static const char* const ROOM_LAYER[ROOM_COUNT] = { "", "", "wind_loop.ogg", "", "", "", "", "", "rumble_loop.ogg", "drip_loop.ogg", "water_loop.ogg" };
+static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX_STEP_WOOD, SFX_STEP_WOOD, SFX_STEP_WOOD,
 	SFX_STEP_CARPET, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_WATER, SFX_STEP_STONE };
 
 // ------------------------------------------------------------------ setup
@@ -181,6 +181,7 @@ void Game::retryRoom() {
 
 // ------------------------------------------------------------ main update
 void Game::update(sf::RenderWindow* window, float dt) {
+	lastDt = dt;
 	bool overlay = tipOpen >= 0 || journalPage >= 0;
 	if (!overlay) {
 		runStats.time += dt;
@@ -480,20 +481,29 @@ void Game::die(const std::string& why, int tip) {
 }
 
 void Game::updateHazards() {
-	if (!player.isMoving()) return;
-	if (!player.col.isCollisionMap(pp(), player.source.y)) return;
-	sf::Vector2i a = current_map->at(player.col.next_tile1.x, player.col.next_tile1.y);
-	sf::Vector2i b = current_map->at(player.col.next_tile2.x, player.col.next_tile2.y);
-	auto deadly = [](sf::Vector2i t) { return t.y == 1 && (t.x == 14 || t.x == 21 || t.x == 22); };
-	if (deadly(a) || deadly(b)) {
-		if (player.invulnerable > 0) return;
-		hurt(10, 3, "The house bites back - spikes, fire, an open grave.", TIP_HAZARDS, false);
-		// knocked back a step instead of being thrown to the room entrance
-		const float back = 10.f;
-		sf::Vector2f push = player.source.y == 0 ? sf::Vector2f(0, -back) : player.source.y == 1 ? sf::Vector2f(back, 0) :
-			player.source.y == 2 ? sf::Vector2f(-back, 0) : sf::Vector2f(0, back);
-		player.characterImage.move(push);
+	// Forgiving hazards: only the middle of your feet counts (brushing a pit
+	// or brazier with the edge of your feet is safe), and you are only hurt if
+	// you keep pushing into it for a moment - the first touch is a warning.
+	if (!player.isMoving() || player.sliding) { hazardPushT = 0; return; }
+	sf::Vector2f c = pp() + sf::Vector2f(12.f, 12.f);          // centre of the 24x24 foot box
+	const float reach = 14.f;                                   // just past the edge of the box
+	sf::Vector2f ahead = player.source.y == 0 ? sf::Vector2f(0, reach) : player.source.y == 1 ? sf::Vector2f(-reach, 0) :
+		player.source.y == 2 ? sf::Vector2f(reach, 0) : sf::Vector2f(0, -reach);
+	sf::Vector2f probe = c + ahead;
+	sf::Vector2i t = current_map->at((int)(probe.x / 32), (int)(probe.y / 32));
+	bool pit = t.y == 1 && t.x == 14;
+	bool fire = t.y == 1 && (t.x == 21 || t.x == 22);
+	if (!pit && !fire) { hazardPushT = 0; return; }
+	hazardPushT += lastDt;
+	if (hazardPushT < 0.5f) {
+		if (toastT <= 0) showToast(pit ? "You're at the edge of a pit!" : "Too close - it burns!");
+		return;
 	}
+	hazardPushT = 0;
+	if (player.invulnerable > 0) return;
+	hurt(10, 3, pit ? "You slip into the pit's edge!" : "The flames catch you!", TIP_HAZARDS, false);
+	// knocked back a step
+	player.characterImage.move(-ahead * 0.8f);
 }
 
 void Game::updateDig(float dt) {
@@ -505,7 +515,7 @@ void Game::updateDig(float dt) {
 	digT += dt;
 	if (digT > 3.5f) {
 		digT = 0; digCount++;
-		audio.play(SFX_CRACK, 100, 0.8f); shake = 0.5f;
+		audio.play(SFX_CRACK, 90, 0.6f); shake = 0.5f;
 		changeFacingTile(sf::Vector2i(16, 0));
 		if (digCount == 2) { player.is_mattock = false; player.take(MATTOCK); say("The mattock broke! Find another tool to dig."); }
 		if (digCount >= 4) { changeFacingTile(sf::Vector2i(12, 1)); say("The Devil's corpse lies exposed.\nDestroy it with the Blessed Sword!"); }
@@ -532,7 +542,7 @@ void Game::updateEvents(float dt) {
 			audio.play(SFX_STING, 60); eventCaption = "Something is written on the wall - in blood."; player.fear += 4;
 			break;
 		}
-		case EV_CRACK: audio.play(SFX_CRACK, 90, 0.9f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 3; break;
+		case EV_CRACK: audio.play(SFX_CRACK, 80, 0.6f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 3; break;
 		case EV_GLASS: audio.play(SFX_GLASS, 80); shake = 0.3f; eventCaption = "Somewhere in the house, glass shatters."; player.fear += 3; break;
 		default: audio.play(SFX_MOAN, 70); eventCaption = "A low moan rises from beneath the floorboards."; player.fear += 2; break;
 		}
@@ -661,9 +671,10 @@ void Game::updateHints(float dt) {
 		}
 		else route = "  Follow the trail of blood.";
 		hintText = "HINT: " + what + route;
-		trailT -= dt;
-		if (room == targetRoom && trailT <= 0) { computeTrail(); trailT = 0.25f; }
+		// The trail is worked out once and then stays put; it is only redone
+		// when you leave the room or wander well away from it.
 		if (room != targetRoom) trailLen = 0;
+		else if (trailLen == 0 || trailDistance() > 2) computeTrail();
 	}
 }
 
@@ -811,4 +822,14 @@ void Game::updateVoices(float dt) {
 		devilVoiceT -= dt;
 		if (devilVoiceT <= 0) { audio.play(SFX_MOAN, 75, 0.8f); devilVoiceT = frand(6, 10); }
 	}
+}
+
+// How far (in tiles) the player is from the nearest tile of the current trail.
+int Game::trailDistance() const {
+	int pc = (int)((pp().x + 12) / 32), pr = (int)((pp().y + 12) / 32), best = 999;
+	for (int i = 0; i < trailLen; ++i) {
+		int d = std::abs(trail[i] % GRID_W - pc) + std::abs(trail[i] / GRID_W - pr);
+		if (d < best) best = d;
+	}
+	return best;
 }
