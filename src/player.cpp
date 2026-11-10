@@ -9,10 +9,10 @@ Player::Player() : object_sound(soundbuffer_object), door_sound(soundbuffer_door
 	source = sf::Vector2i(0, Up);
 	view.zoom(0.5f);
 
-	if (soundbuffer_door.loadFromFile(asset("audio/open_door.wav"))) door_sound.setBuffer(soundbuffer_door);
-	if (soundbuffer_object.loadFromFile(asset("audio/sfx_pick.flac"))) object_sound.setBuffer(soundbuffer_object);
-	if (soundbuffer_dead.loadFromFile(asset("audio/dead.ogg"))) dead_sound.setBuffer(soundbuffer_dead);
-	if (soundbuffer_end.loadFromFile(asset("audio/end.ogg"))) end_sound.setBuffer(soundbuffer_end);
+	if (soundbuffer_door.loadFromFile(asset("audio/door_open_1.ogg"))) door_sound.setBuffer(soundbuffer_door);
+	if (soundbuffer_object.loadFromFile(asset("audio/pickup_1.ogg"))) object_sound.setBuffer(soundbuffer_object);
+	if (soundbuffer_dead.loadFromFile(asset("audio/death.ogg"))) dead_sound.setBuffer(soundbuffer_dead);
+	if (soundbuffer_end.loadFromFile(asset("audio/sting_2.ogg"))) end_sound.setBuffer(soundbuffer_end);
 	if (soundbuffer_beep.loadFromFile(asset("audio/beep.wav"))) beep_sound.setBuffer(soundbuffer_beep);
 }
 

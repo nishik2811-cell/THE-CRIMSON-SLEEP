@@ -3,8 +3,6 @@
 
 Enemy_medium::Enemy_medium() {
 	loadSprite(asset("graphics/enemy_medium.png"));
-	frameW = 32;                         // wider cells: room for the arm and tail
-	characterImage.setOrigin({ 4.f, 24.f });
 }
 void Enemy_medium::movement(Character*, sf::RenderWindow* window) {
 	if (characterImage.getPosition().y > 544) { source.y = Up; velocity = -velocity; }

@@ -1,4 +1,5 @@
 #include "screens.h"
+#include "audio.h"
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -117,6 +118,7 @@ void Screens::centered(sf::RenderWindow* w, const sf::Font& f, const std::string
 
 // Keyboard (Up/Down/W/S + Enter) and mouse menu.  Returns chosen index or -1.
 int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx, float y, float size) {
+	int before = menuIndex;
 	if (key_hit(sf::Keyboard::Key::Up) || key_hit(sf::Keyboard::Key::W)) menuIndex = (menuIndex + n - 1) % n;
 	if (key_hit(sf::Keyboard::Key::Down) || key_hit(sf::Keyboard::Key::S)) menuIndex = (menuIndex + 1) % n;
 	if (menuIndex >= n) menuIndex = 0;
@@ -137,6 +139,8 @@ int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx
 		w->draw(tx);
 	}
 	if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Space)) chosen = menuIndex;
+	if (g_audio && menuIndex != before) g_audio->play(SFX_UI_MOVE, 60);
+	if (g_audio && chosen >= 0) g_audio->play(SFX_UI_CLICK, 70);
 	return chosen;
 }
 
@@ -204,7 +208,7 @@ int Screens::controls(sf::RenderWindow* w, float dt) {
 		"How to survive\n\n"
 		"- Samara hunts by sound. Stand still, or flare.\n"
 		"- Never turn your back on Carrie. Face her to freeze her.\n"
-		"- Pennywise & Freddy patrol fixed paths: watch, then cross.\n"
+		"- Spirits walk fixed paths: watch, then cross.\n"
 		"- Fear kills too: keep the lantern lit and rest.\n"
 		"- Stuck for 30 seconds? A trail of blood appears.\n"
 		"- Some doors open only to knowledge, not keys.";
@@ -259,8 +263,8 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		{ { "" }, "" },
 		{ { "The corpse crumbles into grey ash.", "You stagger out into a cold, colourless morning.", "Behind you, faint and far away, a woman is still weeping.", "Somewhere beneath the chapel, something was left undone.", "" }, "ESCAPE ENDING" },
 		{ { "The petrol catches. The house screams.", "Smoke fills the corridors - every door slams shut.", "Through the flames they come, all ten of them.", "The fire burns for three days.", "No one finds you. The house simply... sleeps again.", "" }, "TRAPPED ENDING" },
-		{ { "You run, the locket burning in your fist.", "The front door gives way to a forest of black trees.", "Samara walks beside you now - quiet, at peace.", "But beneath the house, Jason still waits.", "And one day, he will dream of you.", "" }, "SECRET ENDING" },
-		{ { "The blade falls. Jason's cursed mask shrieks and turns to ash.", "Ten pale lights rise slowly from the floorboards.", "Samara takes back her locket... and smiles at peace.", "One by one, they drift up into the breaking dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
+		{ { "You run, the locket burning in your fist.", "The front door gives way to a forest of black trees.", "Samara walks beside you now - quiet, at peace.", "But beneath the house, the Devil still sleeps.", "And one day, he will dream of you.", "" }, "SECRET ENDING" },
+		{ { "The blade falls. The Devil's corpse shrieks and turns to ash.", "Ten pale lights rise slowly from the floorboards.", "Samara takes back her locket... and smiles at peace.", "One by one, they drift up into the breaking dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
 	};
 	const Script& sc = scripts[e < 1 || e > 4 ? 1 : e];
 
@@ -324,7 +328,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		const char* rank = e == END_TRUE ? (st.deaths == 0 ? "Rank: Dreamwalker - flawless" : st.deaths < 3 ? "Rank: Lightbringer" : "Rank: Survivor")
 			: e == END_SECRET ? "Rank: The One Who Ran" : e == END_ESCAPE ? "Rank: Half-Awake" : "Rank: Ash";
 		centered(w, fontItalic, rank, 26, sf::Color(255, 200, 170, (std::uint8_t)(255 * a)), 400);
-		if (e != END_TRUE) centered(w, fontItalic, "Hint: return Samara's locket before facing Jason...", 20, sf::Color(200, 150, 150, (std::uint8_t)(200 * a)), 440);
+		if (e != END_TRUE) centered(w, fontItalic, "Hint: return Samara's locket before facing the Devil...", 20, sf::Color(200, 150, 150, (std::uint8_t)(200 * a)), 440);
 
 		// Credits roll.
 		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Retro Horror Adventure",

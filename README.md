@@ -62,7 +62,7 @@ Every structure is written from scratch in `src/ds/`. No `std::vector`, `std::ma
 |---|---|---|
 | **Graph (adjacency list)** | `ds/Graph.h`, `world.cpp` | The house. Rooms are nodes and doors are edges. Each edge carries its door number, its lock, the item that unlocks it, and a *hidden* flag for secret passages. Every door you open goes through `Game::tryDoor`, which checks the graph. |
 | **Stack** | `ds/Stack.h`, `Player::history` | Movement history. Entering a room pushes it. **B (Go Back)** pops the current room and walks you through the door to the previous one. |
-| **Queue** | `ds/Queue.h`, `Game::events` | The haunted-event timeline: flickering lights, whispers, door slams, cold breath, blood writing and apparitions. They are scheduled when you enter a room and fire strictly first-in, first-out. Queues also power the BFS frontiers and the boot-screen slide sequence. |
+| **Queue** | `ds/Queue.h`, `Game::events` | The haunted-event timeline: flickering lights, whispers, door slams, cold breath, cracking floorboards and blood writing. They are scheduled when you enter a room and fire strictly first-in, first-out. Queues also power the BFS frontiers and the boot-screen slide sequence. |
 | **Priority Queue (max-heap)** | `ds/PriorityQueue.h`, `Game::updateThreats` | Active threats, ranked by danger: Bride attack 100 > Devil 90 > Hollow Child 80 > Bride near 75 > spirit 60 > darkness 20 > calm 0. The top threat drives the on-screen warning, the fear rate and the jump scare. |
 | **Linked List** | `ds/LinkedList.h`, `Player::inventory` | Inventory. Items are inserted on pickup and deleted when used: a key is removed from the list when it opens its door. |
 | **Binary Search Tree** | `ds/BST.h`, `Game::itemDB` | Item and clue database, keyed by item id, with *collected* and *discovered* flags. Puzzle gates query it: the Ossuary door opens only if the 1953 newspaper record is marked *read*. |
@@ -99,7 +99,7 @@ Entrance Hall → Grand Corridor → Library → Collapsed Bedroom / Nursery of 
 | **The Weeping Bride** | Drifts *through walls* toward you, hunting by sound | **Stand still** and she loses you. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
 | **The Hollow Child** | Crawls faster than you can run, but only when unseen | **Face it** and it freezes. Back toward the door. A flare drives it away. |
 | **The Devil** | Hunts you through the crypt; EMF beeps when he's near | Dig the cracked ground with a mattock (stand still), then strike the corpse with the Blessed Sword. A flare stuns him. |
-| **The house** | Spikes, fire, open graves; blood on the walls; apparitions at the edge of the light | Time your steps. Levers silence the spikes. |
+| **The house** | Spikes, fire, open graves; blood on the walls | Time your steps. Levers silence the spikes. |
 | **Fear** | Rises in the dark, near the dead, and with every scare. At 100 your mind breaks. | Keep the lantern lit, rest in quiet rooms, and flare to steady your nerves. |
 
 The first time you meet each horror, a **survival note** explains it. **J** reopens all the notes.

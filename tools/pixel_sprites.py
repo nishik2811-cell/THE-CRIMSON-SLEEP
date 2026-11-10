@@ -598,7 +598,6 @@ def sheet(frames):
 if __name__ == '__main__':
     sheet([bride_poster(f) for f in range(4)]).save(os.path.join(G, 'wraith.png'))
     sheet([child_poster(f) for f in range(4)]).save(os.path.join(G, 'hollow_child.png'))
-    sheet([hanged_poster(), faceless_poster()]).save(os.path.join(G, 'apparitions.png'))
     if not os.path.exists(os.path.join(G, 'jumpscare.png')):
         jumpscare().resize((1024, 768), Image.NEAREST).save(os.path.join(G, 'jumpscare.png'))
     ghost_sheet('ghost', 1).save(os.path.join(G, 'enemy_easy.png'))

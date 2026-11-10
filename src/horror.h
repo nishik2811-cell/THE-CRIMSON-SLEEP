@@ -39,6 +39,9 @@ public:
 	bool active = false;
 	bool frozen = true;
 	float stun = 0, frameT = 0;
+	sf::Vector2f vel;            // smoothed velocity (eases in/out instead of lurching)
+	float walked = 0, bob = 0;   // distance-driven walk cycle
+	bool faceLeft = false;
 	int frame = 0;
 	Crawler();
 	void reset(bool allowed, sf::Vector2f spawn);
@@ -48,14 +51,3 @@ public:
 	bool watched(sf::Vector2f player, int facing) const;
 };
 
-// Short-lived static scares at the edge of the lantern light.
-class Apparition {
-public:
-	sf::Texture tex;
-	sf::Sprite sprite{ tex };
-	float life = 0;
-	Apparition();
-	void spawn(sf::Vector2f at, int kind);
-	void update(float dt, sf::Vector2f player);
-	void draw(sf::RenderWindow* w);
-};

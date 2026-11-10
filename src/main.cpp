@@ -50,7 +50,7 @@ int main() {
 		if (!std::strcmp(st, "title")) game_state = ST_TITLE;
 		if (!std::strcmp(st, "controls")) game_state = ST_CONTROLS;
 		if (!std::strncmp(st, "ending", 6)) { ending_type = std::atoi(st + 7); game_state = ST_ENDING; if (!game) game = new Game(audio); }
-		if (!std::strcmp(st, "retry")) { if (!game) game = new Game(audio); game->deathReason = "Jason cut you down."; game->deathTip = TIP_DEVIL; game_state = ST_RETRY; }
+		if (!std::strcmp(st, "retry")) { if (!game) game = new Game(audio); game->deathReason = "The Devil took you."; game->deathTip = TIP_DEVIL; game_state = ST_RETRY; }
 	}
 	float simDt = env("CS_DT") ? (float)std::atof(env("CS_DT")) : 0.f;
 
@@ -111,7 +111,7 @@ int main() {
 			if (game_state == ST_PLAYING) game->retryRoom();
 			break;
 		case ST_ENDING:
-			audio.music(ending_type == END_TRAPPED ? TRACK_DEATH : TRACK_ENDING);
+			audio.music(ending_type == END_TRUE ? TRACK_END_TRUE : ending_type == END_TRAPPED ? TRACK_END_TRAPPED : TRACK_END_OTHER);
 			game_state = screens.ending(&window, dt, game ? game->stats() : RunStats());
 			break;
 		default:

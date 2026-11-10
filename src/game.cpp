@@ -7,9 +7,9 @@ static float frand(float a, float b) { return a + (b - a) * (std::rand() / (floa
 static float dist(sf::Vector2f a, sf::Vector2f b) { float x = a.x - b.x, y = a.y - b.y; return std::sqrt(x * x + y * y); }
 
 const TipInfo TIPS[TIP_COUNT] = {
-	{ "Pennywise & Freddy (Spirits)",
-	  "Pennywise and Freddy walk their hunting routes over and over.\n"
-	  "- Watch their patrol once before you cross.\n"
+	{ "Restless Spirits",
+	  "They walk the same path, over and over, the way they did in 1953.\n"
+	  "- Watch a patrol once before you cross it.\n"
 	  "- A lantern FLARE (F) freezes them for a few seconds.\n"
 	  "- Contact drains your blood and spikes your fear." },
 	{ "Samara (The Cursed Maiden)",
@@ -23,12 +23,12 @@ const TipInfo TIPS[TIP_COUNT] = {
 	  "- FACE HER directly and she cannot move.\n"
 	  "- Walk backwards toward the door with eyes locked on Carrie.\n"
 	  "- A FLARE (F) disrupts her psychic grip and drives her back." },
-	{ "Jason (The Lake Slasher)",
-	  "He cannot be reasoned with - only ended.\n"
-	  "- The EMF meter beeps when Jason is close: keep your distance.\n"
+	{ "The Devil",
+	  "He cannot be fought - only ended.\n"
+	  "- The EMF meter beeps when he is close: keep your distance.\n"
 	  "- Dig at the cracked heart of the crypt with a mattock\n"
 	  "  (stand still on it). Mattocks break - there is a spare.\n"
-	  "- Strike his cursed grave with the Blessed Sword. A flare stuns him." },
+	  "- Strike the corpse with the Blessed Sword. A flare stuns him." },
 	{ "Spikes, Fire and Graves",
 	  "The house itself wants you.\n"
 	  "- Spikes and flames rise and fall - time your steps.\n"
@@ -39,6 +39,13 @@ const TipInfo TIPS[TIP_COUNT] = {
 	  "- Keep the lantern lit and rest in quiet rooms to calm down.\n"
 	  "- Flaring the lantern steadies your nerves." },
 };
+
+// Per-room audio: ambience loop, optional extra loop, and footstep surface.
+static const char* const ROOM_AMB[ROOM_COUNT] = { "", "amb_house.ogg", "amb_gallery.ogg", "amb_library.ogg", "drone_tension.ogg",
+	"amb_crawl.ogg", "amb_crimson.ogg", "drone_dread.ogg", "amb_crimson.ogg", "amb_drowned.ogg", "drone_dread.ogg" };
+static const char* const ROOM_LAYER[ROOM_COUNT] = { "", "clock_tick.ogg", "wind_loop.ogg", "", "", "", "", "", "rumble_loop.ogg", "drip_loop.ogg", "water_loop.ogg" };
+static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX_STEP_WOOD, SFX_STEP_WOOD, SFX_STEP_CREAK,
+	SFX_STEP_CARPET, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_WATER, SFX_STEP_STONE };
 
 // ------------------------------------------------------------------ setup
 Game::Game(Audio& a) : audio(a) {
@@ -115,6 +122,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	if (!roomVisited[room]) { roomVisited[room] = true; runStats.roomsSeen++; }
 	roomTime = 0; digT = 0; trailLen = 0;
 	spawnEnemies();
+	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room]);
 
 	// Schedule this visit's haunted events (FIFO, in chronological order).
 	events.clear();
@@ -128,7 +136,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	switch (room) {
 	case GRAND_CORRIDOR: if (!roomVisited[LIBRARY]) say("A long corridor. Portraits with scratched-out eyes.\nAlfred was right to be afraid."); break;
 	case NURSERY: say("A music box plays by itself.\nI must not come in contact with whatever lives here."); break;
-	case CRIMSON_CRYPT: say("Jason is somewhere around.\nThe EMF meter beeps when he comes close.\nDig out his cursed grave at the crypt's heart and destroy it."); break;
+	case CRIMSON_CRYPT: say("The Devil is somewhere around.\nThe EMF meter beeps when he comes close.\nDig out his corpse at the crypt's heart and destroy it."); break;
 	case HIDDEN_TUNNEL: say("Wet stone. Scratch marks. Someone was walled in here."); break;
 	case OSSUARY: say("Bones, stacked like firewood.\nAt the far end, a skeleton in a wedding dress."); break;
 	default: break;
@@ -156,6 +164,7 @@ void Game::spawnEnemies() {
 	sf::Vector2f spot = room == NURSERY ? sf::Vector2f(780, 520) : room == HIDDEN_TUNNEL ? sf::Vector2f(700, 180) :
 		room == OSSUARY ? sf::Vector2f(250, 330) : sf::Vector2f(620, 560);
 	child.reset(crawl, spot);
+	childRoom = crawl; childBanishT = 0;
 	ghostStun = bossStun = 0;
 	chaseHold = 0;
 }
@@ -186,6 +195,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (wallT > 0) wallT -= dt;
 		if (ghostStun > 0) ghostStun -= dt;
 		if (bossStun > 0) bossStun -= dt;
+		if (childBanishT > 0) { childBanishT -= dt; if (childBanishT <= 0 && childRoom) child.reset(true, child.home); }
 		if (jumpscare > 0) { jumpscare -= dt; player.frozen = jumpscare > 0.25f; }
 		player.light.flicker *= 0.92f;
 	}
@@ -228,10 +238,8 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	// --- horrors that glow through the dark ---
 	if (!overlay) {
 		bride.update(dt, pp(), player.isMoving());
-		apparition.update(dt, pp());
 	}
 	bride.draw(window);
-	apparition.draw(window);
 	drawWorldOverlays(window);   // hint trail, target marker, blood writing - drawn over the darkness so they can be followed
 
 	if (!overlay) {
@@ -246,12 +254,13 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (key_hit(sf::Keyboard::Key::J)) journalPage = 0;
 
 		updateHazards();
+		updateVoices(dt);
 		updateDig(dt);
 		updateEvents(dt);
 		updateThreats(dt);
 		updateHints(dt);
 		if (bossActive) for (int i = 0; i < 1; ++i) {
-			if (bossStun <= 0 && boss.isCollisionCharacter(&player)) { die("Jason cut you down.", TIP_DEVIL); return; }
+			if (bossStun <= 0 && boss.isCollisionCharacter(&player)) { die("The Devil took you.", TIP_DEVIL); return; }
 		}
 	}
 	else {
@@ -274,7 +283,8 @@ void Game::changeFacingTile(sf::Vector2i v) {
 }
 
 void Game::pickUp(int item, const std::string& msg, bool clearTile) {
-	player.object_sound.play();
+	bool isKey = item == RUSTY_KEY || item == BRASS_KEY || item == CHAPEL_KEY || item == IRON_KEY;
+	audio.play(item == CRIMSON_LOCKET ? SFX_CHIME : ITEMS[item].isClue ? SFX_PAPER : isKey ? SFX_KEYS : SFX_PICKUP, 85);
 	ItemRecord* rec = itemDB.search(item);
 	if (rec && !rec->collected) { rec->collected = true; runStats.itemsFound++; }
 	if (ITEMS[item].isClue) { if (rec) rec->discovered = true; }
@@ -294,7 +304,7 @@ void Game::interact() {
 			pickUp(NEWSPAPER, "A yellowed newspaper - June 26, 1953:\n\tA man killed ten innocent people, women and children,\n\tthen took his own life. His bride was never found.\n\tThe Mansion has never found peace.", false);
 		else if (std::rand() % 3 == 0) {
 			say("A cold hand closes around yours from inside the drawer!");
-			player.fear += 5; audio.play(SFX_STINGER, 80); shake = 0.6f;
+			player.fear += 5; audio.play(SFX_STING, 80); shake = 0.6f;
 		}
 		else say("The drawer is empty. Something scratched 'SLEEP' inside it.");
 		break;
@@ -319,13 +329,13 @@ void Game::interact() {
 			}
 			else say("Hymn Page:\n\t'Beneath the altar the dead still walk.'");
 		}
-		else say("Police, priest, investigator - all tried to end this.\nSome lost their lives doing so.\nSome say Jason lurks here.");
+		else say("Police, priest, investigator - all tried to end this.\nSome lost their lives doing so.\nSome say a Devil lives here.");
 		break;
 	case 4: case 5: case 6: case 7: case 8: case 9: tryDoor(id - 3); break;
 	case 10: // book
 		if (room == LIBRARY && !collected(DIARY)) pickUp(DIARY, "Diary:\n\tThere are dead souls wandering in the Mansion.\n\tSome force stops them from leaving.\n\tShe still wears her wedding dress...", false);
 		else if (room == COLLAPSED_BEDROOM) say("A note: 'The chest opens for those who dare the floor.'");
-		else if (room == ANTECHAMBER) say("All attempts to save the house have failed.\nJason is strongest in the crypt!\n\nI could take the petrol and burn it all down...\nOr take the Blessed Sword and FACE JASON.");
+		else if (room == ANTECHAMBER) say("All attempts to save the house have failed.\nThe Devil is strongest in the next room!\n\nI could take the petrol and burn it all down...\nOr take the Blessed Sword and FIGHT THE DEVIL.");
 		else say("The pages are glued together with something dark.");
 		break;
 	case 11: pickUp(LANTERN, "Lantern picked up.\nIts flame burns a sickly red.\n(F: flare it to drive spirits back)", true); break;
@@ -333,7 +343,7 @@ void Game::interact() {
 		if (room == OSSUARY && !player.has(CRIMSON_LOCKET)) {
 			pickUp(CRIMSON_LOCKET, "The skeleton's fingers open on their own.\nA Crimson Locket. Inside: a wedding photo, 1953.\n\nSomewhere above, a woman stops weeping.", false);
 			bride.pacified = true;
-			audio.play(SFX_BELLS, 80);
+			audio.play(SFX_CHIME, 80);
 		}
 		else if (room == CRIMSON_CRYPT) {
 			if (player.has(SWORD)) { player.end_sound.play(); finish(player.has(CRIMSON_LOCKET) ? END_TRUE : END_ESCAPE); }
@@ -347,22 +357,22 @@ void Game::interact() {
 		break;
 	case 16: pickUp(SWORD, "The Blessed Sword.\nThe crypt door will open for you now.", true); break;
 	case 17:
-		player.object_sound.play();
+		audio.play(SFX_LEVER, 90);
 		say("Lever pulled! The spikes sink into the floor.");
 		for (int r = 0; r < GRID_H; r++) for (int c = 0; c < GRID_W; c++) if (maps[room].map.cell[r][c].x == 21) maps[room].map.cell[r][c] = sf::Vector2i(21, 0);
 		changeFacingTile(sf::Vector2i(17, 2));
 		break;
 	case 18: if (room == CHAPEL) pickUp(IRON_KEY, "The Iron Key. It opens the Ritual Antechamber.", true); break;
 	case 19:
-		player.object_sound.play();
+		audio.play(SFX_PAPER, 80);
 		if (room == ANTECHAMBER) say("Choose wisely - your choice decides how this ends.");
-		else if (room == CRIMSON_CRYPT) say("Jason's body is buried in the center.\nTake the digging tool and stand still to dig.");
+		else if (room == CRIMSON_CRYPT) say("The Devil's corpse is buried in the center.\nTake the digging tool and stand still to dig.");
 		else if (room == OSSUARY) say("Carved in the stone:\n'Here lies the bride of June 26, 1953.\nReturn her heart to the light and she will rest.'");
 		else say("A faint whisper: 'Don't look behind you.'");
 		if (room != OSSUARY) changeFacingTile(sf::Vector2i(-1, -1));
 		break;
 	case 20:
-		player.object_sound.play();
+		audio.play(SFX_PICKUP, 80);
 		say("You pour the petrol and strike a match...");
 		finish(END_TRAPPED);
 		break;
@@ -384,12 +394,13 @@ void Game::tryDoor(int doorNo) {
 		return;
 	}
 	if (e->to == OUTSIDE) {
-		if (player.has(CRIMSON_LOCKET)) { player.door_sound.play(); finish(END_SECRET); }
+		if (player.has(CRIMSON_LOCKET)) { audio.play(SFX_DOOR_OPEN, 80); finish(END_SECRET); }
 		else say("The front door won't open.\nThe house is not done with you.");
 		return;
 	}
 	if (e->locked) {
 		if (!edgeUsable(*e)) {
+			audio.play(SFX_DOOR_LOCKED, 85);
 			if (room == ENTRANCE_HALL) say("It's about to be dark.\nTake the lantern before going any further.");
 			else if (room == ANTECHAMBER) say("Make your decision before proceeding.");
 			else if (e->requiredItem == NEWSPAPER) say("The door is engraved with a date, half scratched out: 'June 2_, 19_3'.\nSomewhere in this house is a record of that day.");
@@ -398,10 +409,11 @@ void Game::tryDoor(int doorNo) {
 		}
 		int req = e->requiredItem;
 		house.unlock(room, e->to);
+		audio.play(SFX_UNLOCK, 90);
 		bool isKey = req == RUSTY_KEY || req == BRASS_KEY || req == CHAPEL_KEY || req == IRON_KEY;
 		if (isKey) { player.take(req); showToast(std::string("- ") + ITEMS[req].name + " (used)"); }
 	}
-	player.door_sound.play();
+	audio.play(SFX_DOOR_OPEN, 80);
 	enterRoom(e->to, room, true);
 }
 
@@ -413,7 +425,7 @@ void Game::goBack() {
 	Edge* e = house.edgeTo(room, previous);
 	if (!e || !edgeUsable(*e)) { player.history.push(current); say("The way back is sealed."); return; }
 	if (room == CRIMSON_CRYPT) { player.history.push(current); say("You can't leave. Not now."); return; }
-	player.door_sound.play();
+	audio.play(SFX_DOOR_OPEN, 80);
 	enterRoom(previous, room, false);
 	showToast(std::string("Went back to ") + ROOMS[previous].name);
 }
@@ -423,7 +435,7 @@ void Game::flareLantern() {
 	if (flareCooldown > 0) { showToast("The lantern is still recovering..."); return; }
 	flareCooldown = 10.f; flare = 1.f;
 	player.fear -= 20;
-	audio.play(SFX_BELLS, 45, 1.6f);
+	audio.play(SFX_FLARE, 90);
 	sf::Vector2f c = pp() + sf::Vector2f(12, 12);
 	if (bride.visible() && bride.distanceTo(pp()) < 130) {
 		bride.banish(frand(25, 35)); runStats.banished++;
@@ -431,12 +443,13 @@ void Game::flareLantern() {
 		audio.play(SFX_SCREAM, 70, 1.3f);
 	}
 	if (child.active && child.distanceTo(pp()) < 130) {
-		child.stun = 4.f; child.pos = child.home; runStats.banished++;
-		showToast("Carrie retreats into the dark.");
+		// banished: it vanishes completely and only returns much later
+		child.active = false; childBanishT = 45.f; runStats.banished++;
+		showToast("The flare banishes it - it is gone, for now.");
 	}
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
-	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("Jason recoils from the flare's light!"); }
+	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("The Devil recoils from the light!"); }
 	(void)c;
 }
 
@@ -450,6 +463,7 @@ void Game::finish(int ending) {
 void Game::hurt(float h, float f, const std::string& why, int tip, bool respawn) {
 	if (player.invulnerable > 0) return;
 	player.health -= h; player.fear += f;
+	audio.play(SFX_HURT, 85); audio.play(SFX_GASP, 60);
 	player.invulnerable = 2.f; hurtFlash = 1.f; shake = 0.8f;
 	showToast(why);
 	openTip(tip);
@@ -471,7 +485,15 @@ void Game::updateHazards() {
 	sf::Vector2i a = current_map->at(player.col.next_tile1.x, player.col.next_tile1.y);
 	sf::Vector2i b = current_map->at(player.col.next_tile2.x, player.col.next_tile2.y);
 	auto deadly = [](sf::Vector2i t) { return t.y == 1 && (t.x == 14 || t.x == 21 || t.x == 22); };
-	if (deadly(a) || deadly(b)) hurt(25, 5, "The house bites back - spikes, fire, an open grave.", TIP_HAZARDS, true);
+	if (deadly(a) || deadly(b)) {
+		if (player.invulnerable > 0) return;
+		hurt(10, 3, "The house bites back - spikes, fire, an open grave.", TIP_HAZARDS, false);
+		// knocked back a step instead of being thrown to the room entrance
+		const float back = 10.f;
+		sf::Vector2f push = player.source.y == 0 ? sf::Vector2f(0, -back) : player.source.y == 1 ? sf::Vector2f(back, 0) :
+			player.source.y == 2 ? sf::Vector2f(-back, 0) : sf::Vector2f(0, back);
+		player.characterImage.move(push);
+	}
 }
 
 void Game::updateDig(float dt) {
@@ -486,7 +508,7 @@ void Game::updateDig(float dt) {
 		audio.play(SFX_CRACK, 100, 0.8f); shake = 0.5f;
 		changeFacingTile(sf::Vector2i(16, 0));
 		if (digCount == 2) { player.is_mattock = false; player.take(MATTOCK); say("The mattock broke! Find another tool to dig."); }
-		if (digCount >= 4) { changeFacingTile(sf::Vector2i(12, 1)); say("Jason's body lies exposed.\nDestroy it with the Blessed Sword!"); }
+		if (digCount >= 4) { changeFacingTile(sf::Vector2i(12, 1)); say("The Devil's corpse lies exposed.\nDestroy it with the Blessed Sword!"); }
 	}
 }
 
@@ -507,17 +529,12 @@ void Game::updateEvents(float dt) {
 			const char* words[] = { "GET OUT", "SHE IS STILL HERE", "1953", "SLEEP", "BEHIND YOU" };
 			wallText = words[std::rand() % 5]; wallT = 7.f;
 			wallPos = pp() + sf::Vector2f(frand(-90, 60), frand(-80, -40));
-			audio.play(SFX_STINGER, 60); eventCaption = "Something is written on the wall - in blood."; player.fear += 4;
-			break;
-		}
-		case EV_APPARITION: {
-			float a = frand(0, 6.283f);
-			apparition.spawn(pp() + sf::Vector2f(std::cos(a), std::sin(a)) * 105.f, std::rand() % 2);
-			audio.play(SFX_STINGER, 75, 0.8f); eventCaption = "Someone is standing at the edge of the light."; player.fear += 4;
+			audio.play(SFX_STING, 60); eventCaption = "Something is written on the wall - in blood."; player.fear += 4;
 			break;
 		}
 		case EV_CRACK: audio.play(SFX_CRACK, 90, 0.9f); shake = 0.4f; eventCaption = "The floorboards crack right behind you."; player.fear += 3; break;
-		default: audio.play(SFX_BELLS, 55); eventCaption = "Distant bells toll for the dead of 1953."; player.fear += 2; break;
+		case EV_GLASS: audio.play(SFX_GLASS, 80); shake = 0.3f; eventCaption = "Somewhere in the house, glass shatters."; player.fear += 3; break;
+		default: audio.play(SFX_MOAN, 70); eventCaption = "A low moan rises from beneath the floorboards."; player.fear += 2; break;
 		}
 		player.fear += 1 * danger;
 		eventCaptionT = 4.f;
@@ -533,13 +550,13 @@ void Game::updateThreats(float dt) {
 		if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "SAMARA HAS YOU" });
 		else if (d < 240) threats.insert(Threat{ 75, TH_BRIDE_NEAR, "Samara drifts toward you - stand still, or FLARE (F)" });
 	}
-	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "Jason is close - the EMF meter screams" });
+	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "The Devil is close - the EMF meter screams" });
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 170) {
 		threats.insert(Threat{ child.frozen ? 50 : 80, TH_CHILD, child.frozen ? "Carrie is frozen while you watch her" : "Carrie stalks behind you in blood - TURN AND FACE HER" });
 		openTip(TIP_CHILD);
 	}
-	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "Pennywise prowls his hunting path" });
-	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "Freddy Krueger stalks his route" });
+	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "A restless spirit walks its old path" });
+	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "A restless spirit walks its old path" });
 	if (ROOMS[room].dark && !player.has(LANTERN)) threats.insert(Threat{ 20, TH_DARK, "It is too dark here" });
 	threats.insert(Threat{ 0, TH_CALM, "" });
 
@@ -572,10 +589,10 @@ void Game::updateThreats(float dt) {
 		hurt(30, 18, "Samara's cursed face fills your vision.", TIP_BRIDE, false);
 	}
 	// Contact with patrol spirits / crawler.
-	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 10, "Pennywise strikes! Fear chokes your breath.", TIP_SPIRITS, true);
-	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 10, "Freddy's razor claws slice through you!", TIP_SPIRITS, true);
+	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
+	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 18) {
-		audio.play(SFX_SCREAM, 90, 1.4f);
+		audio.play(SFX_CHILD_LUNGE, 95);
 		child.stun = 3; child.pos = child.home;
 		hurt(25, 10, "Carrie's telekinetic wrath violently slams you!", TIP_CHILD, false);
 	}
@@ -589,7 +606,7 @@ void Game::updateThreats(float dt) {
 	audio.setTension(player.fear / 100.f);
 	heartbeatT -= dt;
 	if (player.fear > 50 && heartbeatT <= 0) {
-		audio.play(SFX_HEARTBEAT, 40 + player.fear * 0.5f);
+		audio.play(player.fear > 75 ? SFX_HEART_FAST : SFX_HEART_SLOW, 40 + player.fear * 0.5f);
 		heartbeatT = 1.6f - player.fear / 100.f;
 	}
 }
@@ -624,7 +641,7 @@ void Game::updateHints(float dt) {
 	}
 	if (key == 100) {
 		targetRoom = CRIMSON_CRYPT;
-		if (digCount >= 4) { key = 20; targetTile = 12; what = "Strike Jason's cursed remains with the Blessed Sword."; }
+		if (digCount >= 4) { key = 20; targetTile = 12; what = "Strike the Devil's corpse with the Blessed Sword."; }
 		else if (!player.is_mattock) { key = 21 + digCount; targetTile = 15; what = "Find a mattock in the crypt to dig with."; }
 		else { key = 30 + digCount; targetTile = 13; what = "Stand still on the cracked ground at the crypt's heart and dig."; }
 	}
@@ -744,7 +761,7 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 		sf::Vector2f d = pp() - pos;
 		if (!overlay && std::sqrt(d.x * d.x + d.y * d.y) < 60.f) {
 			alfredDead = 2; alfredDeadT = 0;
-			audio.play(SFX_STINGER, 100, 0.7f);
+			audio.play(SFX_STING, 100, 0.7f);
 			shake = 1.f; hurtFlash = 0.5f;
 			player.fear += 8;
 			eventCaption = "Alfred turns around. His eyes are gone.";
@@ -761,4 +778,37 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 		if (alfredDeadT > 2.0f) alfredDead = 3;
 	}
 	window->draw(alfredDeadSprite);
+}
+
+// --------------------------------------------------- footsteps & voices
+void Game::updateVoices(float dt) {
+	// footsteps on this room's floor
+	if (player.isMoving()) {
+		stepT -= dt;
+		if (stepT <= 0) { audio.play(ROOM_STEP[room], 30); stepT = 0.36f; }
+	}
+	else stepT = 0;
+	// the Bride announces herself, then whispers as she hunts
+	if (bride.active) {
+		if (bride.state == Bride::FADE_IN && lastBrideState == Bride::GONE) audio.play(SFX_BRIDE_APPEAR, 80);
+		if (bride.state == Bride::HUNT && !bride.pacified) {
+			brideVoiceT -= dt;
+			if (brideVoiceT <= 0) {
+				float d = bride.distanceTo(pp());
+				audio.play(SFX_BRIDE, std::max(20.f, 85.f - d * 0.25f));
+				brideVoiceT = frand(5, 9);
+			}
+		}
+		lastBrideState = bride.state;
+	}
+	// the crawler mutters when it moves
+	if (child.active && !child.frozen && child.distanceTo(pp()) < 220) {
+		childVoiceT -= dt;
+		if (childVoiceT <= 0) { audio.play(SFX_CHILD, 65); childVoiceT = frand(3, 6); }
+	}
+	// the Devil moans when he is near
+	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 260) {
+		devilVoiceT -= dt;
+		if (devilVoiceT <= 0) { audio.play(SFX_MOAN, 75, 0.8f); devilVoiceT = frand(6, 10); }
+	}
 }

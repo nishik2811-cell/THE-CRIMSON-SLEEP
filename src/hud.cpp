@@ -31,15 +31,17 @@ void bar(sf::RenderWindow* w, const sf::Font& f, const char* name, float x, floa
 
 void Game::drawWorldOverlays(sf::RenderWindow* w) {
 	float t = runStats.time;
-	// BFS hint trail: the team's dripping blood drop on every other tile
-	// from you to the objective, nudged a little per tile so it looks spilled.
-	for (int i = 1; i < trailLen; i += 2) {
+	// BFS hint trail: just the next few dripping blood drops ahead of you
+	// (every third tile), so it points the way without flooding the map.
+	for (int k = 1; k <= 4; ++k) {
+		int i = trailLen - 1 - k * 3;
+		if (i < 1) break;
 		int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
 		int h = (c * 73856093) ^ (r * 19349663);
 		float jx = (float)(((h >> 6) & 7) - 3), jy = (float)(((h >> 9) & 7) - 3);
 		decalSprite.setTextureRect(sf::IntRect({ 16, 0 }, { 16, 16 }));   // the drip
 		decalSprite.setPosition({ c * 32 + 8.f + jx, r * 32 + 8.f + jy });
-		float fade = 0.6f + 0.4f * (float)i / (float)trailLen;          // fainter toward the goal
+		float fade = 1.f - 0.15f * (k - 1);                              // fainter further ahead
 		decalSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(255 * fade)));
 		w->draw(decalSprite);
 	}
@@ -246,7 +248,7 @@ void Game::drawDebug(sf::RenderWindow* w) {
 	line(s);
 	head("QUEUE  pending haunted events (FIFO)");
 	HauntEvent ev[16]; int en = events.toArray(ev, 16);
-	const char* names[] = { "flicker", "whisper", "door slam", "breath", "blood writing", "apparition", "bells", "crack" };
+	const char* names[] = { "flicker", "whisper", "door slam", "breath", "blood writing", "moan", "crack", "glass" };
 	s = "  ";
 	for (int i = 0; i < en; ++i) { std::snprintf(b, sizeof b, "%s@%.0fs  ", names[ev[i].kind], ev[i].at); s += b; }
 	line(en ? s : "  (empty)");

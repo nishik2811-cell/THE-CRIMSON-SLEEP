@@ -25,7 +25,7 @@ struct Threat {
 };
 
 // Haunted event waiting in the FIFO event Queue.
-enum EventKind { EV_FLICKER, EV_WHISPER, EV_SLAM, EV_BREATH, EV_BLOODWRITE, EV_APPARITION, EV_BELLS, EV_CRACK, EV_KIND_COUNT };
+enum EventKind { EV_FLICKER, EV_WHISPER, EV_SLAM, EV_BREATH, EV_BLOODWRITE, EV_MOAN, EV_CRACK, EV_GLASS, EV_KIND_COUNT };
 struct HauntEvent {
 	float at;      // seconds after entering the room
 	int kind;
@@ -51,7 +51,7 @@ public:
 	void update(sf::RenderWindow* window, float dt);
 	void retryRoom();             // after death: wake up at the room's entrance
 	const RunStats& stats() const { return runStats; }
-	Track musicTrack() const { return chaseHold > 0 ? TRACK_CHASE : ROOMS[room].danger >= 7 ? TRACK_DREAD : TRACK_GAME; }
+	Track musicTrack() const { return chaseHold > 0 ? TRACK_CHASE : TRACK_GAME; }
 	std::string deathReason;
 	int deathTip = TIP_FEAR;
 
@@ -75,7 +75,6 @@ private:
 	Enemy_boss boss;
 	Bride bride;
 	Crawler child;
-	Apparition apparition;
 
 	sf::Texture tileset;
 	Map_loader maps[ROOM_COUNT];          // ARRAY of room maps, indexed by RoomId
@@ -95,6 +94,11 @@ private:
 	// threat / fear
 	Threat topThreat{ 0, TH_CALM, "" };
 	float heartbeatT = 0;
+	float stepT = 0, brideVoiceT = 3, childVoiceT = 2, devilVoiceT = 4;
+	int lastBrideState = 0;
+	void updateVoices(float dt);
+	float childBanishT = 0;   // a flare banishes the crawler for this long
+	bool childRoom = false;
 	float chaseHold = 0;      // chase music keeps playing this long after the threat
 	// Alfred the butler: talks, hands over the lantern, leaves... and comes back wrong.
 	float alfredT = -1;       // seconds into his talk (-1 = not talking)

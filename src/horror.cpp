@@ -84,46 +84,38 @@ bool Crawler::watched(sf::Vector2f p, int facing) const {
 }
 void Crawler::update(float dt, sf::Vector2f p, int facing) {
 	if (!active) return;
-	if (stun > 0) { stun -= dt; frozen = true; return; }
+	if (stun > 0) { stun -= dt; frozen = true; vel = { 0, 0 }; return; }
 	frozen = watched(p, facing);
-	if (frozen) return;
-	sf::Vector2f d = p - pos;
-	float l = len(d); if (l < 1) return;
-	float step = 150.f * dt;   // faster than you - never turn your back for long
-	// Axis-separated movement so it slides along walls.
-	int dirX = d.x > 0 ? 2 : 1, dirY = d.y > 0 ? 0 : 3;
-	if (std::fabs(d.x) > 2 && !col.isCollisionMap(pos, dirX)) pos.x += (d.x > 0 ? 1 : -1) * step * std::fabs(d.x) / l;
-	if (std::fabs(d.y) > 2 && !col.isCollisionMap(pos, dirY)) pos.y += (d.y > 0 ? 1 : -1) * step * std::fabs(d.y) / l;
-	frameT += dt;
-	if (frameT > 0.09f) { frameT = 0; frame = (frame + 1) % 4; }
+	sf::Vector2f target(0, 0);
+	if (!frozen) {
+		sf::Vector2f d = p - pos;
+		float l = len(d);
+		if (l > 1) target = d / l * 115.f;          // still faster than walking speed
+	}
+	// ease toward the target velocity: smooth starts and stops
+	float k = std::min(1.f, dt * 8.f);
+	vel += (target - vel) * k;
+	// axis-separated movement so it slides along walls instead of sticking
+	sf::Vector2f before = pos;
+	if (std::fabs(vel.x) > 1 && !col.isCollisionMap(pos, vel.x > 0 ? 2 : 1)) pos.x += vel.x * dt;
+	if (std::fabs(vel.y) > 1 && !col.isCollisionMap(pos, vel.y > 0 ? 0 : 3)) pos.y += vel.y * dt;
+	float moved = len(pos - before);
+	if (std::fabs(vel.x) > 8) faceLeft = vel.x < 0;
+	// the walk cycle follows distance covered, so it never moonwalks
+	walked += moved;
+	if (walked > 7.f) { walked = 0; frame = (frame + 1) % 4; }
+	bob = moved > 0.05f ? bob + moved * 0.45f : bob * 0.85f;
 }
 void Crawler::draw(sf::RenderWindow* w) {
 	if (!active) return;
 	sprite.setTextureRect(sf::IntRect({ frame * 24, 0 }, { 24, 48 }));
-	sprite.setPosition(pos);
+	// Drawn 1.6x larger, anchored at the feet (bottom-centre of the frame) so it
+	// still stands where its 24x24 foot box is; flipped to face its direction.
+	const float SCALE = 1.6f;
+	float lift = std::fabs(std::sin(bob)) * 2.f;         // little step bounce
+	sprite.setOrigin({ 12.f, 48.f });
+	sprite.setScale({ faceLeft ? -SCALE : SCALE, SCALE });
+	sprite.setPosition({ pos.x + 12.f, pos.y + 24.f - lift });
 	sprite.setColor(stun > 0 ? sf::Color(255, 120, 120, 200) : sf::Color::White);
-	w->draw(sprite);
-}
-
-// ----------------------------- Apparition -----------------------------
-Apparition::Apparition() {
-	if (tex.loadFromFile(asset("graphics/apparitions.png"))) sprite.setTexture(tex, true);
-	sprite.setOrigin({ 12.f, 24.f });
-}
-void Apparition::spawn(sf::Vector2f at, int kind) {
-	sprite.setTextureRect(sf::IntRect({ (kind % 2) * 24, 0 }, { 24, 48 }));
-	sprite.setPosition(at);
-	life = 1.6f;
-}
-void Apparition::update(float dt, sf::Vector2f p) {
-	if (life <= 0) return;
-	life -= dt;
-	// Vanishes the moment you get close.
-	if (len(sprite.getPosition() - sf::Vector2f(p.x + 12, p.y)) < 60) life = 0;
-}
-void Apparition::draw(sf::RenderWindow* w) {
-	if (life <= 0) return;
-	float a = life > 1.2f ? (1.6f - life) / 0.4f : life / 1.2f;
-	sprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(220 * a)));
 	w->draw(sprite);
 }
