@@ -34,8 +34,8 @@ for y in range(2, 21):           # pinch it into a winding tunnel
             g[y][x] = '3,2'
 for x in range(8, 18): g[9][x] = '3,3'
 for x in range(14, 24): g[15][x] = '3,3'
-g[3][15] = '5,1'                 # door 2 -> Ossuary (top)
-g[20][15] = 'x,x'; g[21][15] = '4,1'   # door 1 -> Chapel (bottom)
+g[3][15] = '4,1'                 # door 1 -> Chapel (top: the Chapel's tunnel door is in its floor)
+g[20][15] = 'x,x'; g[21][15] = '5,1'   # door 2 -> Ossuary (bottom, deeper down)
 for (x, y) in [(10, 11), (11, 11), (20, 17), (12, 18), (21, 5)]:
     g[y][x] = '21,1'             # spikes
 g[10][21] = '22,1'               # fire pit
@@ -43,19 +43,21 @@ for (x, y) in [(9, 4), (22, 10), (9, 16)]:
     g[y][x] = '13,0'             # rubble (walkable decoration)
 save(g, 'map9.txt')
 
-# ---- map10: Ossuary -----------------------------------------------------
+# ---- map10: Ossuary ------------------------------------------------------
+# Entered from the top (from the Hidden Tunnel above); the bride's skeleton
+# lies at the far (bottom) end.
 g = blank()
 room(g, 5, 2, 26, 20, floor='x,x')
-g[20][15] = 'x,x'; g[21][15] = '4,1'   # door 1 -> Hidden Tunnel
-g[6][15] = '12,1'                # skeleton clutching the locket
+g[3][15] = '4,1'                 # door 1 -> Hidden Tunnel (top)
+g[18][15] = '12,1'               # skeleton clutching the locket
 for x in (11, 12, 18, 19):
-    g[5][x] = '22,1'             # ritual fire
+    g[19][x] = '22,1'            # ritual fire around her
 for (x, y) in [(8, 8), (23, 8), (8, 15), (23, 15)]:
     g[y][x] = '6,2'              # bone piles (solid)
-for (x, y) in [(10, 11), (21, 11), (13, 14), (18, 14)]:
+for (x, y) in [(10, 12), (21, 12), (13, 9), (18, 9)]:
     g[y][x] = '14,1'             # open graves
-g[10][15] = '19,1'               # inscription
+g[14][15] = '19,1'               # inscription
 for x in range(13, 19):
-    g[17][x] = '%d,0' % (7 + (x - 13) % 3)   # red carpet
+    g[6][x] = '%d,0' % (7 + (x - 13) % 3)    # red carpet inside the entrance
 save(g, 'map10.txt')
 print('maps written')

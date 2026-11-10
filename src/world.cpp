@@ -11,8 +11,8 @@ const RoomInfo ROOMS[ROOM_COUNT] = {
 	{ "Chapel of Ash",          "map6.txt",    7, 16,  4,  true,  true  },
 	{ "Ritual Antechamber",     "map7.txt",    6, 16, 14,  true,  true  },
 	{ "The Crimson Crypt",      "map8.txt",   10, 28, 11,  true,  false },
-	{ "Hidden Tunnel",          "map9.txt",    8, 15, 18,  true,  true  },
-	{ "The Ossuary",            "map10.txt",   9, 15, 17,  true,  true  },
+	{ "Hidden Tunnel",          "map9.txt",    8, 15,  4,  true,  true  },
+	{ "The Ossuary",            "map10.txt",   9, 15,  5,  true,  true  },
 };
 
 const ItemInfo ITEMS[ITEM_COUNT] = {

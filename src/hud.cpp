@@ -123,24 +123,28 @@ void Game::drawHud(sf::RenderWindow* w) {
 	rn.setPosition({ (float)(W - rn.getLocalBounds().size.x - 24), (float)(10) });
 	w->draw(rn);
 
+	// Messages sit below the mini-map (which ends at y ~126) with a dark outline.
 	// Top threat from the Priority Queue.
 	if (topThreat.kind != TH_CALM && topThreat.label[0]) {
 		sf::Text th(fontSerif, topThreat.label, 22);
 		float pulse = topThreat.priority >= 75 ? 0.6f + 0.4f * std::sin(t * 10) : 1.f;
 		th.setFillColor(sf::Color(230, 40, 60, (std::uint8_t)(255 * pulse)));
-		th.setPosition({ (float)(std::floor((W - th.getLocalBounds().size.x) / 2)), (float)(120) });
+		th.setOutlineColor(sf::Color(0, 0, 0, 220)); th.setOutlineThickness(2);
+		th.setPosition({ (float)(std::floor((W - th.getLocalBounds().size.x) / 2)), (float)(164) });
 		w->draw(th);
 	}
 	if (eventCaptionT > 0) {
 		sf::Text ec(fontItalic, eventCaption, 22);
 		ec.setFillColor(sf::Color(200, 170, 165, (std::uint8_t)(255 * (eventCaptionT > 1 ? 1 : eventCaptionT))));
-		ec.setPosition({ (float)(std::floor((W - ec.getLocalBounds().size.x) / 2)), (float)(150) });
+		ec.setOutlineColor(sf::Color(0, 0, 0, 220)); ec.setOutlineThickness(2);
+		ec.setPosition({ (float)(std::floor((W - ec.getLocalBounds().size.x) / 2)), (float)(192) });
 		w->draw(ec);
 	}
 	if (toastT > 0) {
 		sf::Text tt(fontSerif, toast, 22);
 		tt.setFillColor(sf::Color(240, 200, 120, (std::uint8_t)(255 * (toastT > 1 ? 1 : toastT))));
-		tt.setPosition({ (float)(std::floor((W - tt.getLocalBounds().size.x) / 2)), (float)(86) });
+		tt.setOutlineColor(sf::Color(0, 0, 0, 220)); tt.setOutlineThickness(2);
+		tt.setPosition({ (float)(std::floor((W - tt.getLocalBounds().size.x) / 2)), (float)(136) });
 		w->draw(tt);
 	}
 
@@ -296,45 +300,65 @@ void Game::drawDebug(sf::RenderWindow* w) {
 // rooms show as '?', locked doors are dark red, secret passages stay
 // invisible until the DFS reveals them, and the BFS hint route glows.
 void Game::drawMinimap(sf::RenderWindow* w) {
+	// Layout follows where the doors really are: Nursery above the Library,
+	// Bedroom below it, Corridor to the Library's right with the Hall below,
+	// the Antechamber up-right (Crypt to its left), the Chapel down-right with
+	// the Hidden Tunnel and Ossuary going down beneath it.
 	static const sf::Vector2i POS[ROOM_COUNT] = {
-		{ -1, -1 }, { 2, 2 }, { 2, 1 }, { 1, 1 }, { 0, 1 }, { 1, 0 }, { 3, 1 }, { 2, 0 }, { 3, 0 }, { 4, 1 }, { 4, 0 } };
+		{ -1, -1 }, { 1, 2 }, { 1, 1 }, { 0, 1 }, { 0, 2 }, { 0, 0 }, { 2, 2 }, { 2, 0 }, { 1, 0 }, { 2, 3 }, { 2, 4 } };
 	static const char* SHORT[ROOM_COUNT] = { "", "Hall", "Corridor", "Library", "Bedroom", "Nursery", "Chapel", "Antechamber", "Crypt", "Tunnel", "Ossuary" };
-	const float ox = 312, oy = 10, cw = 82, ch = 30, bw = 70, bh = 20;
-	panel(w, ox - 8, oy - 4, 5 * cw + 4, 3 * ch + 8, 190);
-	auto centre = [&](int r) { return sf::Vector2f(ox + POS[r].x * cw + bw / 2, oy + POS[r].y * ch + bh / 2 + 2); };
+	const float cw = 92, ch = 22, bw = 80, bh = 16;
+	const float ox = (1024 - 3 * cw) / 2 + (cw - bw) / 2, oy = 10;
+	panel(w, ox - 10, oy - 4, 3 * cw + 2, 5 * ch + 6, 190);
+	auto box = [&](int r) { return sf::FloatRect({ ox + POS[r].x * cw, oy + POS[r].y * ch }, { bw, bh }); };
 	auto known = [&](int r) {
 		if (r == HIDDEN_TUNNEL || r == OSSUARY) { const Edge* e = house.edgeTo(CHAPEL, HIDDEN_TUNNEL); return e && !e->hidden; }
 		return true;
 	};
+	// Where on the box a door is: the edge of the map its door tile sits on.
+	auto anchor = [&](int r, int doorNo) {
+		sf::FloatRect b = box(r);
+		sf::Vector2f mid(b.position.x + bw / 2, b.position.y + bh / 2);
+		int c, row;
+		if (!maps[r].map.find(3 + doorNo, &c, &row)) return mid;
+		if (row <= 5) return sf::Vector2f(mid.x + (c - 16) * 1.2f, b.position.y);
+		if (row >= 15 || (c > 6 && c < 25)) return sf::Vector2f(mid.x + (c - 16) * 1.2f, b.position.y + bh);
+		if (c <= 6) return sf::Vector2f(b.position.x, mid.y);
+		return sf::Vector2f(b.position.x + bw, mid.y);
+	};
 	bool onRoute[MAX_ROOMS] = {};
 	if (!hintText.empty()) for (int i = 0; i < lastRouteLen; ++i) onRoute[lastRoute[i]] = true;
-	// edges
 	for (int r = 1; r < ROOM_COUNT; ++r) {
 		if (!known(r)) continue;
 		for (const Edge* e = house.neighbours(r); e; e = e->next) {
 			if (e->to == OUTSIDE || e->to < r || e->hidden || !known(e->to)) continue;
-			sf::Color col = e->locked ? sf::Color(110, 10, 24) : sf::Color(150, 120, 112);
+			const Edge* back = house.edgeTo(e->to, r);
+			sf::Vector2f a = anchor(r, e->doorNo), b = back ? anchor(e->to, back->doorNo) : sf::Vector2f(box(e->to).position.x + bw / 2, box(e->to).position.y + bh / 2);
+			sf::Color col = e->locked ? sf::Color(150, 20, 34) : sf::Color(170, 140, 130);
 			if (onRoute[r] && onRoute[e->to]) col = sf::Color(255, 120, 130);
-			sf::Vertex ln[2] = { sf::Vertex{centre(r), col}, sf::Vertex{centre(e->to), col} };
-			w->draw(ln, 2, sf::PrimitiveType::Lines);
+			// elbow line: out of the door side, then across
+			sf::Vector2f m = (std::fabs(a.y - b.y) > std::fabs(a.x - b.x)) ? sf::Vector2f(a.x, (a.y + b.y) / 2) : sf::Vector2f((a.x + b.x) / 2, a.y);
+			sf::Vector2f m2 = (std::fabs(a.y - b.y) > std::fabs(a.x - b.x)) ? sf::Vector2f(b.x, m.y) : sf::Vector2f(m.x, b.y);
+			sf::Vertex ln[6] = { { a, col }, { m, col }, { m, col }, { m2, col }, { m2, col }, { b, col } };
+			w->draw(ln, 6, sf::PrimitiveType::Lines);
 		}
 	}
-	// nodes
 	float t = runStats.time;
 	for (int r = 1; r < ROOM_COUNT; ++r) {
 		if (!known(r)) continue;
-		sf::RectangleShape box(sf::Vector2f(bw, bh));
-		box.setPosition({ (float)(ox + POS[r].x * cw), (float)(oy + POS[r].y * ch + 2) });
+		sf::FloatRect b = box(r);
+		sf::RectangleShape bx({ bw, bh });
+		bx.setPosition(b.position);
 		bool here = r == room;
 		float pulse = 0.6f + 0.4f * std::sin(t * 5);
-		box.setFillColor(here ? sf::Color((std::uint8_t)(150 * pulse), 10, 30) : roomVisited[r] ? sf::Color(40, 10, 16) : sf::Color(16, 6, 8));
-		box.setOutlineColor(onRoute[r] ? sf::Color(255, 120, 130) : r == targetRoom && objectiveTime >= 30 ? sf::Color(255, 200, 120) : sf::Color(90, 20, 30));
-		box.setOutlineThickness(1);
-		w->draw(box);
+		bx.setFillColor(here ? sf::Color((std::uint8_t)(150 * pulse), 10, 30) : roomVisited[r] ? sf::Color(40, 10, 16) : sf::Color(16, 6, 8));
+		bx.setOutlineColor(onRoute[r] ? sf::Color(255, 120, 130) : r == targetRoom && objectiveTime >= 30 ? sf::Color(255, 200, 120) : sf::Color(90, 20, 30));
+		bx.setOutlineThickness(1);
+		w->draw(bx);
 		sf::Text tx(fontMono, roomVisited[r] ? SHORT[r] : "?", 10);
 		tx.setFillColor(here ? sf::Color::White : roomVisited[r] ? BONE : ASH);
-		sf::FloatRect b = tx.getLocalBounds();
-		tx.setPosition({ (float)(std::floor(box.getPosition().x + (bw - b.size.x) / 2 - b.position.x)), (float)(std::floor(box.getPosition().y + 4)) });
+		sf::FloatRect tb = tx.getLocalBounds();
+		tx.setPosition({ std::floor(b.position.x + (bw - tb.size.x) / 2 - tb.position.x), std::floor(b.position.y + 2) });
 		w->draw(tx);
 	}
 }
