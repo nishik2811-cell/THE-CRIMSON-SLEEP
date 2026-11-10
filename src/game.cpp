@@ -319,7 +319,7 @@ void Game::interact() {
 			}
 			else say("Hymn Page:\n\t'Beneath the altar the dead still walk.'");
 		}
-		else say("Police, priest, investigator - all tried to end this.\nSome lost their lives doing so.\nSome say a Devil lives here.");
+		else say("Police, priest, investigator - all tried to end this.\nSome lost their lives doing so.\nSome say Jason lurks here.");
 		break;
 	case 4: case 5: case 6: case 7: case 8: case 9: tryDoor(id - 3); break;
 	case 10: // book
@@ -356,7 +356,7 @@ void Game::interact() {
 	case 19:
 		player.object_sound.play();
 		if (room == ANTECHAMBER) say("Choose wisely - your choice decides how this ends.");
-		else if (room == CRIMSON_CRYPT) say("The Devil's corpse is buried in the center.\nTake the digging tool and stand still to dig.");
+		else if (room == CRIMSON_CRYPT) say("Jason's body is buried in the center.\nTake the digging tool and stand still to dig.");
 		else if (room == OSSUARY) say("Carved in the stone:\n'Here lies the bride of June 26, 1953.\nReturn her heart to the light and she will rest.'");
 		else say("A faint whisper: 'Don't look behind you.'");
 		if (room != OSSUARY) changeFacingTile(sf::Vector2i(-1, -1));
@@ -427,12 +427,12 @@ void Game::flareLantern() {
 	sf::Vector2f c = pp() + sf::Vector2f(12, 12);
 	if (bride.visible() && bride.distanceTo(pp()) < 130) {
 		bride.banish(frand(25, 35)); runStats.banished++;
-		showToast("The Weeping Bride shrieks and dissolves!");
+		showToast("Samara shrieks and dissolves!");
 		audio.play(SFX_SCREAM, 70, 1.3f);
 	}
 	if (child.active && child.distanceTo(pp()) < 130) {
 		child.stun = 4.f; child.pos = child.home; runStats.banished++;
-		showToast("The Hollow Child scuttles back into the dark.");
+		showToast("Carrie retreats into the dark.");
 	}
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
@@ -486,7 +486,7 @@ void Game::updateDig(float dt) {
 		audio.play(SFX_CRACK, 100, 0.8f); shake = 0.5f;
 		changeFacingTile(sf::Vector2i(16, 0));
 		if (digCount == 2) { player.is_mattock = false; player.take(MATTOCK); say("The mattock broke! Find another tool to dig."); }
-		if (digCount >= 4) { changeFacingTile(sf::Vector2i(12, 1)); say("The Devil's corpse lies exposed.\nDestroy it with the Blessed Sword!"); }
+		if (digCount >= 4) { changeFacingTile(sf::Vector2i(12, 1)); say("Jason's body lies exposed.\nDestroy it with the Blessed Sword!"); }
 	}
 }
 

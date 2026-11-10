@@ -188,7 +188,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 			w->draw(ln);
 		}
 		if (age < 0.09f || (age > 0.2f && age < 0.25f)) {
-			sf::RectangleShape f(sf::Vector2f(W, H)); f.setFillColor(sf::Color(200, 0, 20, 110)); w->draw(f);
+			sf::RectangleShape redFlash(sf::Vector2f(W, H)); redFlash.setFillColor(sf::Color(200, 0, 20, 110)); w->draw(redFlash);
 		}
 	}
 	if (tipOpen >= 0) drawTip(w, tipOpen);
