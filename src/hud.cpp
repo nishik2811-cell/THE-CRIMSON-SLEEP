@@ -41,9 +41,9 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 		d.setFillColor(sf::Color(200, 20, 40, (std::uint8_t)(110 + 120 * pulse)));
 		w->draw(d);
 	}
-	// After two minutes the objective itself starts to pulse.
+	// After a minute the objective itself starts to pulse.
 	int tc, tr;
-	if (objectiveTime >= 120 && room == targetRoom && targetTile >= 0 && current_map->find(targetTile, &tc, &tr)) {
+	if (objectiveTime >= 60 && room == targetRoom && targetTile >= 0 && current_map->find(targetTile, &tc, &tr)) {
 		float s = 0.5f + 0.5f * std::sin(t * 5);
 		sf::RectangleShape m(sf::Vector2f(32, 32));
 		m.setPosition({ (float)(tc * 32.f), (float)(tr * 32.f) });
@@ -316,7 +316,7 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 		bool here = r == room;
 		float pulse = 0.6f + 0.4f * std::sin(t * 5);
 		box.setFillColor(here ? sf::Color((std::uint8_t)(150 * pulse), 10, 30) : roomVisited[r] ? sf::Color(40, 10, 16) : sf::Color(16, 6, 8));
-		box.setOutlineColor(onRoute[r] ? sf::Color(255, 120, 130) : r == targetRoom && objectiveTime >= 60 ? sf::Color(255, 200, 120) : sf::Color(90, 20, 30));
+		box.setOutlineColor(onRoute[r] ? sf::Color(255, 120, 130) : r == targetRoom && objectiveTime >= 30 ? sf::Color(255, 200, 120) : sf::Color(90, 20, 30));
 		box.setOutlineThickness(1);
 		w->draw(box);
 		sf::Text tx(fontMono, roomVisited[r] ? SHORT[r] : "?", 10);

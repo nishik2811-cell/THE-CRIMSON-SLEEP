@@ -8,7 +8,7 @@ Npc::Npc() {
 
 bool Npc::near(Character* player) const {
 	sf::Vector2f d = player->characterImage.getPosition() - characterImage.getPosition();
-	return std::sqrt(d.x * d.x + d.y * d.y) < 40.f;
+	return std::sqrt(d.x * d.x + d.y * d.y) < 72.f;   // about two tiles
 }
 
 // Talking is handled by Game (it hands over the lantern); the NPC itself

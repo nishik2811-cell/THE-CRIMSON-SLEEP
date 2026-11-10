@@ -105,7 +105,7 @@ Entrance Hall → Grand Corridor → Library → Collapsed Bedroom / Nursery of 
 The first time you meet each horror, a **survival note** explains it. **J** reopens all the notes.
 
 ### Hints when you're stuck
-If you go **60 seconds** without progress, the hint bar names your next objective and the BFS route to it. Once you're in the right room, a trail of blood leads you to it. After **2 minutes**, the objective itself starts to pulse. Press **H** for a hint at any time.
+If you go **30 seconds** without progress, the hint bar names your next objective and the BFS route to it. Once you're in the right room, a trail of blood leads you to it. After **1 minute**, the objective itself starts to pulse. Press **H** for a hint at any time.
 
 ## Endings
 

@@ -207,7 +207,7 @@ int Screens::controls(sf::RenderWindow* w, float dt) {
 		"- Never turn your back on the Hollow Child.\n"
 		"- Spirits walk fixed paths: watch, then cross.\n"
 		"- Fear kills too: keep the lantern lit and rest.\n"
-		"- Stuck for a minute? A trail of blood appears.\n"
+		"- Stuck for 30 seconds? A trail of blood appears.\n"
 		"- Some doors open only to knowledge, not keys.";
 	sf::Text tp(fontItalic, tips, 21); tp.setFillColor(sf::Color(220, 170, 170)); tp.setPosition({ (float)(560), (float)(160) }); w->draw(tp);
 	centered(w, fontItalic, "Enter or Esc to return", 20, ASH, 640);

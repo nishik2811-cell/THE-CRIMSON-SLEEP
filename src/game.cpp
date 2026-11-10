@@ -239,7 +239,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (!talkedToAlfred && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E))) interact();
 		if (key_hit(sf::Keyboard::Key::B)) goBack();
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
-		if (key_hit(sf::Keyboard::Key::H)) { if (objectiveTime < 61) objectiveTime = 61; }
+		if (key_hit(sf::Keyboard::Key::H)) { if (objectiveTime < 31) objectiveTime = 31; }
 		if (key_hit(sf::Keyboard::Key::I)) showInventory = !showInventory;
 		if (key_hit(sf::Keyboard::Key::Tab)) showDebug = !showDebug;
 		if (key_hit(sf::Keyboard::Key::J)) journalPage = 0;
@@ -631,8 +631,8 @@ void Game::updateHints(float dt) {
 	objectiveTime += dt;
 	objectiveText = what;
 
-	// After a minute without progress, the house "remembers" the way for you.
-	if (objectiveTime >= 60) {
+	// After 30 seconds without progress, the house "remembers" the way for you.
+	if (objectiveTime >= 30) {
 		std::string route;
 		if (targetRoom != room) {
 			lastRouteLen = house.bfsPath(room, targetRoom, lastRoute, MAX_ROOMS, [this](const Edge& e) { return edgeUsable(e); });
