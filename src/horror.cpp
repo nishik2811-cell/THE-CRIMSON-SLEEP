@@ -85,12 +85,13 @@ bool Crawler::watched(sf::Vector2f p, int facing) const {
 void Crawler::update(float dt, sf::Vector2f p, int facing) {
 	if (!active) return;
 	if (stun > 0) { stun -= dt; frozen = true; vel = { 0, 0 }; return; }
+	if (wake > 0) { wake -= dt; frozen = true; return; }
 	frozen = watched(p, facing);
 	sf::Vector2f target(0, 0);
 	if (!frozen) {
 		sf::Vector2f d = p - pos;
 		float l = len(d);
-		if (l > 1) target = d / l * 115.f;          // still faster than walking speed
+		if (l > 1) target = d / l * speed;          // faster than walking speed (slower in the Nursery)
 	}
 	// ease toward the target velocity: smooth starts and stops
 	float k = std::min(1.f, dt * 8.f);

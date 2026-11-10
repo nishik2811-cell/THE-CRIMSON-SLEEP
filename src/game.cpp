@@ -122,7 +122,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	if (!roomVisited[room]) { roomVisited[room] = true; runStats.roomsSeen++; }
 	roomTime = 0; digT = 0; trailLen = 0;
 	spawnEnemies();
-	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room], ROOMS[room].danger >= 7);
+	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room], room == NURSERY ? Audio::THEME_NURSERY : ROOMS[room].danger >= 7 ? Audio::THEME_DREAD : Audio::THEME_CALM);
 
 	// Schedule this visit's haunted events (FIFO, in chronological order).
 	events.clear();
@@ -135,7 +135,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 
 	switch (room) {
 	case GRAND_CORRIDOR: if (!roomVisited[LIBRARY]) say("A long corridor. Portraits with scratched-out eyes.\nAlfred was right to be afraid."); break;
-	case NURSERY: say("A music box plays by itself.\nI must not come in contact with whatever lives here."); break;
+	case NURSERY: say("A music box plays by itself.\nI must not come in contact with whatever lives here.\nSpikes ring the chest - there must be a lever somewhere."); break;
 	case CRIMSON_CRYPT: say("The Devil is somewhere around.\nThe EMF meter beeps when he comes close.\nDig out his corpse at the crypt's heart and destroy it."); break;
 	case HIDDEN_TUNNEL: say("Wet stone. Scratch marks. Someone was walled in here."); break;
 	case OSSUARY: say("Bones, stacked like firewood.\nAt the far end, a skeleton in a wedding dress."); break;
@@ -146,9 +146,12 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 void Game::spawnEnemies() {
 	easyCount = mediumCount = 0; bossActive = false;
 	if (room == NURSERY) {
-		sf::Vector2i e[3] = { {196, 452}, {196, 324}, {292, 228} }, m[3] = { {292, 228}, {676, 164}, {516, 128} };
-		for (int i = 0; i < 3; ++i) { ghostEasy[i].setPosition({ (float)(e[i].x), (float)(e[i].y) }); ghostEasy[i].initialize(); ghostMedium[i].setPosition({ (float)(m[i].x), (float)(m[i].y) }); ghostMedium[i].initialize(); }
-		easyCount = mediumCount = 3;
+		// Gentler than the original six: no stacked pair, nobody patrolling the
+		// chest's column, and they drift a little slower here.
+		sf::Vector2i e[2] = { {196, 452}, {196, 324} }, m[1] = { {676, 164} };
+		for (int i = 0; i < 2; ++i) { ghostEasy[i].setPosition({ (float)(e[i].x), (float)(e[i].y) }); ghostEasy[i].initialize(); ghostEasy[i].velocity = 0.4f; }
+		ghostMedium[0].setPosition({ (float)(m[0].x), (float)(m[0].y) }); ghostMedium[0].initialize(); ghostMedium[0].velocity = 0.45f;
+		easyCount = 2; mediumCount = 1;
 	}
 	else if (room == CHAPEL) {
 		sf::Vector2i e[3] = { {356, 388}, {324, 516}, {420, 260} }, m[2] = { {740, 132}, {388, 132} };
@@ -164,6 +167,8 @@ void Game::spawnEnemies() {
 	sf::Vector2f spot = room == NURSERY ? sf::Vector2f(780, 520) : room == HIDDEN_TUNNEL ? sf::Vector2f(700, 180) :
 		room == OSSUARY ? sf::Vector2f(250, 330) : sf::Vector2f(620, 560);
 	child.reset(crawl, spot);
+	child.wake = room == NURSERY ? 25.f : 0.f;      // in the Nursery it waits a while before hunting
+	child.speed = room == NURSERY ? 85.f : 115.f;
 	childRoom = crawl; childBanishT = 0;
 	ghostStun = bossStun = 0;
 	chaseHold = 0;
@@ -599,8 +604,8 @@ void Game::updateThreats(float dt) {
 		hurt(30, 18, "Samara's cursed face fills your vision.", TIP_BRIDE, false);
 	}
 	// Contact with patrol spirits / crawler.
-	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(34, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
-	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(34, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
+	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player)) hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
+	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player)) hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, true);
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 18) {
 		audio.play(SFX_CHILD_LUNGE, 95);
 		child.stun = 3; child.pos = child.home;
@@ -654,6 +659,11 @@ void Game::updateHints(float dt) {
 		if (digCount >= 4) { key = 20; targetTile = 12; what = "Strike the Devil's corpse with the Blessed Sword."; }
 		else if (!player.is_mattock) { key = 21 + digCount; targetTile = 15; what = "Find a mattock in the crypt to dig with."; }
 		else { key = 30 + digCount; targetTile = 13; what = "Stand still on the cracked ground at the crypt's heart and dig."; }
+	}
+	// In the Nursery the chest is ringed by spikes until the lever is pulled.
+	if (targetRoom == NURSERY && targetTile == 1) {
+		int lc, lr;
+		if (maps[NURSERY].map.find(17, &lc, &lr)) { targetTile = 17; what = "Spikes guard the chest in the Nursery. Pull the lever on the right to lower them first."; }
 	}
 	if (key != objectiveKey) { objectiveKey = key; objectiveTime = forceHint ? 125.f : 0.f; forceHint = false; hintText = ""; trailLen = 0; }
 	objectiveTime += dt;

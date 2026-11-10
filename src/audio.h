@@ -25,9 +25,12 @@ class Audio {
 
 	sf::Music tracks[TRACK_COUNT];          // title / chase / death / endings
 	float trackVolume[TRACK_COUNT] = {};
-	sf::Music themeCalm, themeDread;        // in-game music: calm rooms / dangerous rooms
-	bool dreadRoom = false;
-	sf::Music& theme() { return dreadRoom ? themeDread : themeCalm; }
+	sf::Music themes[3];                    // in-game music: calm rooms / dangerous rooms / the Nursery
+	int themeIdx = 0;
+	sf::Music& theme() { return themes[themeIdx]; }
+	sf::Music pauseMusic;                   // plays while the pause menu is open
+	bool inPause = false;
+	bool muted = false;
 	sf::Music roomAmb, roomLayer;           // the current room's ambience + optional extra loop
 	std::string ambName, layerName;
 	Track current = TRACK_NONE;
@@ -38,7 +41,11 @@ public:
 	Audio();
 	void play(Sfx s, float volume = 100.f, float pitch = 1.f);
 	void music(Track t);
-	void setRoom(const char* ambience, const char* layer, bool dangerous);   // files in assets/audio, layer may be ""
+	enum Theme { THEME_CALM, THEME_DREAD, THEME_NURSERY };
+	void setRoom(const char* ambience, const char* layer, int theme);   // files in assets/audio, layer may be ""
+	void setPaused(bool paused);     // swap the game music for the pause track (and back)
+	void toggleMute();
+	bool isMuted() const { return muted; }
 	void pauseAll(bool paused);
 	void setTension(float fear01);   // room ambience drops back as fear (heartbeat) rises
 };

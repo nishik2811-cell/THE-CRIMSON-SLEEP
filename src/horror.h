@@ -42,6 +42,8 @@ public:
 	sf::Vector2f vel;            // smoothed velocity (eases in/out instead of lurching)
 	float walked = 0, bob = 0;   // distance-driven walk cycle
 	bool faceLeft = false;
+	float wake = 0;              // seconds before it starts hunting
+	float speed = 115.f;         // hunting speed (px/s)
 	int frame = 0;
 	Crawler();
 	void reset(bool allowed, sf::Vector2f spawn);

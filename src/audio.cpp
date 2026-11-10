@@ -47,8 +47,10 @@ Audio::Audio() {
 		{ TRACK_END_OTHER,   "rank_music.ogg",     85, true },
 		{ TRACK_END_TRAPPED, "music_wrong.ogg",    85, true },
 	};
-	if (themeCalm.openFromFile(asset("audio/theme_calm.ogg"))) { themeCalm.setLooping(true); themeCalm.setVolume(60); }
-	if (themeDread.openFromFile(asset("audio/theme_dread.ogg"))) { themeDread.setLooping(true); themeDread.setVolume(60); }
+	const char* themeFiles[3] = { "theme_calm.ogg", "theme_dread.ogg", "theme_nursery.ogg" };
+	for (int i = 0; i < 3; ++i)
+		if (themes[i].openFromFile(asset(std::string("audio/") + themeFiles[i]))) { themes[i].setLooping(true); themes[i].setVolume(60); }
+	if (pauseMusic.openFromFile(asset("audio/pause_music.ogg"))) { pauseMusic.setLooping(true); pauseMusic.setVolume(65); }
 	for (auto& e : list) {
 		if (tracks[e.t].openFromFile(asset(std::string("audio/") + e.file))) { tracks[e.t].setLooping(e.loop); tracks[e.t].setVolume(e.vol); }
 		trackVolume[e.t] = e.vol;
@@ -67,18 +69,18 @@ void Audio::play(Sfx s, float volume, float pitch) {
 }
 
 void Audio::startRoom() {
-	sf::Music& other = dreadRoom ? themeCalm : themeDread;
-	if (other.getStatus() == sf::SoundSource::Status::Playing) other.pause();
+	for (int i = 0; i < 3; ++i)
+		if (i != themeIdx && themes[i].getStatus() == sf::SoundSource::Status::Playing) themes[i].pause();
 	if (theme().getStatus() != sf::SoundSource::Status::Playing) theme().play();
 	theme().setVolume(60 * (1.f - 0.4f * tension));
 	roomAmb.setVolume(40 * (1.f - 0.4f * tension));
 	if (roomAmb.getStatus() != sf::SoundSource::Status::Playing) roomAmb.play();
 	if (!layerName.empty() && roomLayer.getStatus() != sf::SoundSource::Status::Playing) roomLayer.play();
 }
-void Audio::stopRoom() { themeCalm.pause(); themeDread.pause(); roomAmb.pause(); roomLayer.pause(); }
+void Audio::stopRoom() { for (sf::Music& m : themes) m.pause(); roomAmb.pause(); roomLayer.pause(); }
 
-void Audio::setRoom(const char* amb, const char* layer, bool dangerous) {
-	dreadRoom = dangerous;
+void Audio::setRoom(const char* amb, const char* layer, int theme) {
+	themeIdx = theme < 0 || theme > 2 ? 0 : theme;
 	if (ambName != amb) {
 		ambName = amb;
 		roomAmb.stop();
@@ -93,13 +95,14 @@ void Audio::setRoom(const char* amb, const char* layer, bool dangerous) {
 }
 
 void Audio::music(Track t) {
+	if (inPause && t != current) { pauseMusic.stop(); inPause = false; }   // e.g. pause menu -> title
 	if (t == current) return;
 	if (current == TRACK_GAME) stopRoom();
 	else if (current != TRACK_NONE) tracks[current].stop();
 	current = t;
 	if (t == TRACK_GAME) startRoom();
 	else if (t != TRACK_NONE) { tracks[t].setVolume(trackVolume[t]); tracks[t].play(); }
-	if (t == TRACK_TITLE) { themeCalm.stop(); themeDread.stop(); roomAmb.stop(); roomLayer.stop(); ambName.clear(); layerName.clear(); }
+	if (t == TRACK_TITLE) { for (sf::Music& m : themes) m.stop(); roomAmb.stop(); roomLayer.stop(); ambName.clear(); layerName.clear(); }
 }
 
 void Audio::pauseAll(bool paused) {
@@ -113,4 +116,22 @@ void Audio::pauseAll(bool paused) {
 void Audio::setTension(float f) {
 	tension = f;
 	if (current == TRACK_GAME) { theme().setVolume(60 * (1.f - 0.4f * f)); roomAmb.setVolume(40 * (1.f - 0.4f * f)); }
+}
+
+void Audio::setPaused(bool paused) {
+	if (paused == inPause) return;
+	inPause = paused;
+	if (paused) {
+		pauseAll(true);                 // hold the game music where it is
+		pauseMusic.play();
+	}
+	else {
+		pauseMusic.pause();             // the pause track remembers its place too
+		pauseAll(false);
+	}
+}
+
+void Audio::toggleMute() {
+	muted = !muted;
+	sf::Listener::setGlobalVolume(muted ? 0.f : 100.f);
 }

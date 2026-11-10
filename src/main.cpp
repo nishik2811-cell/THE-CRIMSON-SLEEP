@@ -14,6 +14,46 @@
 #define GAME_WIDTH 1024u
 #define GAME_HEIGHT 768u
 
+// Small speaker icon in the bottom-right corner: click it (or press M) to mute.
+static sf::FloatRect muteButton() { return sf::FloatRect({ 1024.f - 46.f, 768.f - 46.f }, { 34.f, 34.f }); }
+static void drawMuteButton(sf::RenderWindow& w, bool muted) {
+	sf::View keep = w.getView();
+	w.setView(w.getDefaultView());
+	sf::FloatRect r = muteButton();
+	sf::Vector2f mouse = w.mapPixelToCoords(sf::Mouse::getPosition(w));
+	bool hover = r.contains(mouse);
+	sf::RectangleShape bg(r.size); bg.setPosition(r.position);
+	bg.setFillColor(sf::Color(10, 2, 4, hover ? 220 : 150)); bg.setOutlineColor(sf::Color(120, 6, 18)); bg.setOutlineThickness(1);
+	w.draw(bg);
+	sf::Color ink = muted ? sf::Color(150, 140, 136) : sf::Color(236, 224, 204);
+	float x = r.position.x, y = r.position.y;
+	sf::RectangleShape box({ 6.f, 10.f }); box.setPosition({ x + 7, y + 12 }); box.setFillColor(ink); w.draw(box);
+	sf::ConvexShape cone(4);
+	cone.setPoint(0, { x + 13, y + 12 }); cone.setPoint(1, { x + 20, y + 6 }); cone.setPoint(2, { x + 20, y + 28 }); cone.setPoint(3, { x + 13, y + 22 });
+	cone.setFillColor(ink); w.draw(cone);
+	if (muted) {
+		sf::RectangleShape a({ 11.f, 2.f }), b({ 11.f, 2.f });
+		a.setOrigin({ 5.5f, 1.f }); b.setOrigin({ 5.5f, 1.f });
+		a.setPosition({ x + 26, y + 17 }); b.setPosition({ x + 26, y + 17 });
+		a.setRotation(sf::degrees(45)); b.setRotation(sf::degrees(-45));
+		a.setFillColor(sf::Color(200, 40, 60)); b.setFillColor(sf::Color(200, 40, 60));
+		w.draw(a); w.draw(b);
+	}
+	else {
+		for (int i = 0; i < 2; ++i) {                 // two sound waves
+			sf::CircleShape wave(4.f + i * 4.f, 24);
+			wave.setOrigin({ wave.getRadius(), wave.getRadius() });
+			wave.setPosition({ x + 20, y + 17 });
+			wave.setFillColor(sf::Color::Transparent); wave.setOutlineColor(ink); wave.setOutlineThickness(1.5f);
+			sf::RectangleShape mask({ 12.f, 34.f }); mask.setPosition({ x + 8, y }); mask.setFillColor(sf::Color(10, 2, 4, 255));
+			w.draw(wave);
+			w.draw(mask);                              // hide the left half: only the arcs show
+			w.draw(cone); w.draw(box);
+		}
+	}
+	w.setView(keep);
+}
+
 static const char* env(const char* k) { const char* v = std::getenv(k); return v && *v ? v : nullptr; }
 
 int main() {
@@ -51,6 +91,8 @@ int main() {
 	if (const char* st = env("CS_STATE")) {
 		if (!std::strcmp(st, "title")) game_state = ST_TITLE;
 		if (!std::strcmp(st, "controls")) game_state = ST_CONTROLS;
+		if (!std::strcmp(st, "pause")) { if (!game) { game = new Game(audio); } game_state = ST_PAUSED; }
+		if (env("CS_MUTE")) audio.toggleMute();
 		if (!std::strncmp(st, "ending", 6)) { ending_type = std::atoi(st + 7); game_state = ST_ENDING; if (!game) game = new Game(audio); }
 		if (!std::strcmp(st, "retry")) { if (!game) game = new Game(audio); game->deathReason = "The Devil took you."; game->deathTip = TIP_DEVIL; game_state = ST_RETRY; }
 	}
@@ -64,7 +106,12 @@ int main() {
 			if (event->is<sf::Event::Closed>()) window.close();
 			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
 				key_record(key->code);
+				if (key->code == sf::Keyboard::Key::M) audio.toggleMute();
 				if (key->code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
+			}
+			else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
+				sf::Vector2f p = window.mapPixelToCoords(mb->position, window.getDefaultView());
+				if (mb->button == sf::Mouse::Button::Left && muteButton().contains(p)) audio.toggleMute();
 			}
 			else if (event->is<sf::Event::FocusLost>() && game_state == ST_PLAYING && shotFrame < 0) game_state = ST_PAUSED;
 		}
@@ -87,6 +134,7 @@ int main() {
 			if (game_state == ST_CONTROLS) controlsReturn = ST_TITLE;
 			break;
 		case ST_CONTROLS: {
+			if (controlsReturn == ST_PAUSED) audio.setPaused(true);   // keep the pause music when opened from pause
 			int r = screens.controls(&window, dt);
 			if (r == -100) game_state = controlsReturn;
 			break;
@@ -97,6 +145,7 @@ int main() {
 			game_state = ST_PLAYING;
 			break;
 		case ST_PLAYING:
+			audio.setPaused(false);
 			audio.music(game->musicTrack());
 			audio.pauseAll(false);
 			window.draw(floor);
@@ -104,6 +153,7 @@ int main() {
 			if (game_state == ST_ENDING) screens.resetEnding();
 			break;
 		case ST_PAUSED:
+			audio.setPaused(true);         // the pause menu has its own music; the game's resumes where it was
 			game_state = screens.pause(&window, dt);
 			if (game_state == ST_CONTROLS) controlsReturn = ST_PAUSED;
 			break;
@@ -121,6 +171,7 @@ int main() {
 			break;
 		}
 		if (!window.isOpen()) break;
+		drawMuteButton(window, audio.isMuted());
 		window.display();
 		if (++frame == shotFrame && shotPath) {
 			sf::Texture cap(window.getSize());

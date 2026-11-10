@@ -155,7 +155,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	}
 
 	// Controls strip.
-	w->draw(label(fontSerif, "E interact   F flare   B go back   H hint   I items   J tips   TAB data structures   ESC pause", 16, ASH, 22, H - 26));
+	w->draw(label(fontSerif, "E interact   F flare   B go back   H hint   I items   J tips   TAB data structures   M mute   ESC pause", 16, ASH, 22, H - 26));
 
 	// Story text box.
 	if (!dialogue.empty()) {
