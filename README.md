@@ -20,7 +20,9 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 **Highlights**
 
 - **Ten rooms** joined in a **graph**, with locked doors, a hidden passage found by **DFS**, and a **BFS** hint route plus a trail of blood to your goal.
-- **Enemy AI** with a **state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
+- **Enemy AI** with an **eight-state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
+- **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet.
+- **Save & continue**, health kits hidden in drawers, and rolling **credits** over TV static.
 - **Live data-structure console**: press **TAB** and the window widens with a panel that draws every structure as the game changes it.
 - **Watch the dream**: a self-playing demo that finishes the whole game, with the console open beside it.
 - **No STL.** No `std::vector`, `std::string`, `std::map`, `std::queue` or `<algorithm>`: stack, queue, heap, list, tree, graph, grid and even the string class are all written by hand in [`src/ds/`](src/ds).
@@ -118,48 +120,59 @@ In fullscreen the game is letterboxed and the console takes the right-hand strip
 
 <img align="right" src="docs/images/spider_walk.gif" alt="Spider walk cycle" width="160">
 
-The **Weavers** are spiders the size of a spread hand, and they don't move at random. Each one runs a
-**state machine** and has two senses:
+The **Weavers** are spiders the size of a spread hand, and they don't move at random. Each one runs an
+**eight-state machine** and has two senses:
 
-- **Hearing:** every step you take makes noise that carries about 5 tiles, and a flare can be heard across the room. **Standing still is silent.**
-- **Sight:** a **line-of-sight** ray is stepped across the tile grid inside a 120° cone in front of the spider. Walls block it.
+- **Hearing:** every step you take carries a few tiles, and a flare can be heard across the room. **Standing still is silent.**
+- **Sight:** a **line-of-sight** ray is stepped across the tile grid inside a 120° cone in front of the spider. Walls block it. With your **lantern off (L)** it only sees you up close, and **inside a wardrobe** it can't see or hear you at all.
 
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    IDLE --> ALERT : hears footsteps / a flare
+    IDLE --> PATROL : rested
+    PATROL --> IDLE : done a round
+    IDLE --> INVESTIGATE : hears footsteps / a flare
+    PATROL --> INVESTIGATE : hears footsteps / a flare
+    INVESTIGATE --> SEARCH : nothing there
     IDLE --> CHASE : sees you
-    ALERT --> CHASE : sees you
-    ALERT --> SEARCH : reached the noise, nothing there
-    CHASE --> ATTACK : close enough
-    CHASE --> SEARCH : lost sight of you
-    ATTACK --> FLEE : after the lunge / bite
+    PATROL --> CHASE : sees you
+    INVESTIGATE --> CHASE : sees you
     SEARCH --> CHASE : sees you
-    SEARCH --> IDLE : gives up after 3 looks
-    FLEE --> IDLE : safe again
-    IDLE --> FLEE : flare
-    CHASE --> FLEE : flare
+    CHASE --> SEARCH : lost sight of you
+    CHASE --> ATTACK : at your feet
+    ATTACK --> RETURN : bit you
+    SEARCH --> RETURN : gave up
+    CHASE --> STUNNED : flare
+    STUNNED --> RETURN : recovers
+    RETURN --> IDLE : back at the nest
 ```
 
 | State | What it does | Algorithm |
 |---|---|---|
-| IDLE | Skitters in short bursts, then freezes | — |
-| ALERT | Goes to where it heard the sound | **A\*** |
+| IDLE | Frozen, listening | — |
+| PATROL | Walks between spots around its nest | **BFS** picks the spot, **A\*** walks there |
+| INVESTIGATE | Goes to where it heard the sound | **A\*** |
+| SEARCH | Looks around where it last saw you | **BFS** + **A\*** |
 | CHASE | Re-plans a route to you every 0.35 s | **A\*** |
-| ATTACK | A short lunge | straight line |
-| FLEE | Runs to the reachable tile farthest from you | **BFS** |
-| SEARCH | Picks spots around where it last saw you | **BFS** + **A\*** |
+| ATTACK | **Rears up** for half a second, then lunges | straight line |
+| STUNNED | Caught in a flare: curls up, then scuttles off | — |
+| RETURN | Goes back to its nest | **A\*** |
+
+**Killing them.** When a spider rears up at your feet, **stomp (Q)**. The hero lifts a boot and stamps
+(a three-frame animation with a dust ring), and the spider is squashed flat. Its body stays on the floor
+for good, saves included, and a squashed spider never comes back. Stomp too early and you miss; too late
+and it bites. In the dark, two red eyes show you where a spider is before it reaches the light.
 
 A Weaver that is chasing you **follows you through the door** into the next room. With the console
-open, the *Enemy AI* card shows each spider's current state, what it sensed, which algorithm planned
-its path, and how many nodes A\* explored. Its planned path is also drawn as dots on the floor.
+open, the *Enemy AI* card lights up each spider's current state and shows what it sensed, which
+algorithm planned its path, and how many nodes A\* explored. The planned path is also drawn as dots on the floor.
 
 <p align="center"><img src="docs/images/card_ai.png" alt="Enemy AI card" width="460"></p>
 
-The walk cycle is generated from a single drawing by [`tools/make_spider.py`](tools/make_spider.py):
-- each of the 8 legs is cut out (a multi-source BFS from the joints decides which pixel belongs to which leg);
-- each leg swings around its joint, in the alternating sets real spiders use;
-- the result is 6 frames, rotated into 4 directions.
+The sprites are generated from single drawings:
+- [`tools/make_spider.py`](tools/make_spider.py) cuts out each of the 8 legs (a multi-source BFS from the joints decides which pixel belongs to which leg) and swings it around its joint: 6 frames, rotated into 4 directions.
+- [`tools/make_spider_dead.py`](tools/make_spider_dead.py) draws the squashed body.
+- [`tools/make_stomp.py`](tools/make_stomp.py) adds the hero's stomp frames.
 
 ---
 
@@ -212,10 +225,13 @@ This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** 
 | 👻 | **Restless Spirits** | Walk the same patrol, over and over | Watch the pattern, then cross. A **flare** freezes them. |
 | 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
 | 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking | **Face her** and she freezes. A **flare** drives her away for a while. |
-| 🕷️ | **The Weavers** | Hear your steps, see you, chase with A\*, bite, flee, search | **Stand still** so they can't hear you. **Flare** to scatter them. |
+| 🕷️ | **The Weavers** | Patrol, hear your steps, see you, chase with A\*, rear up and bite | **Stand still**, turn the **lantern off (L)** or **hide in a wardrobe (E)**. When one rears up at your feet, **stomp (Q)**. A flare stuns them. |
 | 😈 | **The Devil** | Hunts you through the crypt; the EMF meter beeps when he's near | Dig at the crypt's heart with a mattock (stand still), then strike his corpse with the Blessed Sword. A flare stuns him. |
 | 🔥 | **The house** | Spikes, fire, open graves | Time your steps. **Levers** lower the spikes. |
 | 😱 | **Fear** | Rises in the dark, near the dead and with every scare | At 100 your mind breaks. Keep the lantern lit and flare to steady your nerves. |
+
+**Health kits** are hidden in drawers around the house (+40 health). **Wardrobes** are hiding spots:
+press E to step inside, and nothing can see, hear or touch you until you step out.
 
 The first time you meet each horror, a **survival note** explains it. **J** reopens all of them.
 If you go 30 seconds without progress, the hint bar names your next goal and the BFS route to it,
@@ -223,9 +239,17 @@ and a trail of blood leads you there.
 
 ---
 
+## Menus, saving and credits
+
+- **Title:** Continue the dream (when there's a save), Begin the dream, Watch the dream, Credits, Controls, Wake up.
+- **Save & quit to menu** (pause menu) writes `savegame.txt` straight from the data structures: the inventory **linked list**, the room **stack**, the item **BST**, every door in the **graph**, and every room's tile **array**. **Continue** restores the run exactly where you left it.
+- **Credits:** black screen, live TV static, and the credits rolling up like a film. A horror sting plays under the static first; then the song builds in slowly as the static thins to a faint hiss.
+
+<p align="center"><img src="docs/images/credits.png" alt="Credits" width="560"></p>
+
 ## Endings
 
-<img align="right" src="docs/images/ending_true.png" alt="True ending" width="360">
+<p align="center"><img src="docs/images/ending_true.png" alt="True ending" width="560"></p>
 
 | Ending | How |
 |---|---|
@@ -236,8 +260,6 @@ and a trail of blood leads you there.
 
 Each ending closes with your run stats (time, rooms, items, spirits banished, deaths, peak fear), a rank and the credits.
 
-<br clear="right">
-
 ---
 
 ## Controls
@@ -247,6 +269,8 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 | Arrows / WASD | Walk |
 | E / Enter | Interact: pick up, open, read, use doors |
 | **F** | Flare the lantern (10 s cooldown, shown on the HUD) |
+| **Q** | Stomp (squash a spider at your feet) |
+| **L** | Lantern on / off (stealth) |
 | **B** | Go back one room (Stack) |
 | **H** | Hint now (BFS) |
 | I | Inventory (Linked List) |
@@ -256,7 +280,7 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 | **M** | Mute / unmute (or click the speaker, bottom-right) |
 | Space | Next line / dismiss story text · X skips Alfred's talk |
 | F9 | Movement diagnostics (for bug reports) |
-| Esc | Pause |
+| Esc | Pause (Save & quit to menu is here; **Continue** appears on the title) |
 
 ---
 

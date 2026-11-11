@@ -108,6 +108,9 @@ bool Game::demoDanger(int c, int r) {
 // true while an encounter needs the dreamer to stop and deal with it.
 bool Game::demoEncounter(float dt) {
 	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
+	// A spider at the dreamer's feet: STOMP it.
+	for (int i = 0; i < spiderCount; ++i)
+		if (spiders[i].active && spiders[i].state == Spider::ATTACK && dist(spiders[i].pos, me) < 44) { stomp(); break; }
 	bool canFlare = flareCooldown <= 0 && player.has(LANTERN);
 	int was = demoEnc;
 	demoEnc = 0;
@@ -140,9 +143,7 @@ bool Game::demoEncounter(float dt) {
 		bool near = bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), pp()) < 120;
 		for (int i = 0; i < easyCount && !near; ++i) near = ghostStun <= 0 && dist(ghostEasy[i].characterImage.getPosition(), pp()) < 75;
 		for (int i = 0; i < mediumCount && !near; ++i) near = ghostStun <= 0 && dist(ghostMedium[i].characterImage.getPosition(), pp()) < 75;
-		bool spider = false;
-		for (int i = 0; i < spiderCount && !near; ++i) spider = near = spiders[i].active && spiders[i].state != Spider::FLEE && dist(spiders[i].pos, me) < 110;
-		if (near) { flareLantern(); showToast(spider ? "A spider rushes in - a flare sends it scuttling." : "A flare - the dead recoil from the light."); }
+		if (near) { flareLantern(); showToast("A flare - the dead recoil from the light."); }
 	}
 	return false;
 }
@@ -195,7 +196,9 @@ bool Game::demoPlan(int tile, bool avoid) {
 // Called every frame in demo mode, before the player moves.
 void Game::demoUpdate(float dt) {
 	player.forcedDir = -1;
-	player.invulnerable = 1.f;                  // ghosts pass through the dreamer
+	// The dreamer takes hits like a player (the flash, the health bar) but can't die:
+	// the show always reaches the end.
+	if (player.health < 20) player.health = 20;
 	if (tipOpen >= 0) tipOpen = -1;
 	if (journalPage >= 0) journalPage = -1;
 	if (!dialogue.empty()) { demoTalkT += dt; if (demoTalkT > 4.5f) { dialogue = ""; demoTalkT = 0; } }
@@ -222,7 +225,11 @@ void Game::demoUpdate(float dt) {
 		tile = 3 + e->doorNo;
 	}
 	demoReplanT += dt;
-	if (demoRoomPlanned != room || demoTilePlanned != tile || demoPathLen == 0 || demoReplanT > 0.35f) {
+	// Re-plan around moving horrors - but only while standing exactly on a tile,
+	// so a new plan never starts from the tile behind (no stepping back and forth).
+	sf::Vector2f cur = pp();
+	bool onTile = std::fabs(std::fmod(cur.x - 4.f, 32.f)) < 0.5f && std::fabs(std::fmod(cur.y - 4.f, 32.f)) < 0.5f;
+	if (demoRoomPlanned != room || demoTilePlanned != tile || demoPathLen == 0 || (demoReplanT > 0.35f && onTile)) {
 		demoRoomPlanned = room; demoTilePlanned = tile; demoReplanT = 0;
 		// Plan around the dead first; if they block every way, plan straight
 		// and wait for them to move (below).

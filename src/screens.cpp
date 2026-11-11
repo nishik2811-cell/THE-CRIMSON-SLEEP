@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "screens.h"
 #include "ds/MinMax.h"
 #include "audio.h"
@@ -84,9 +85,7 @@ void Screens::drawMotes(sf::RenderWindow* w, float dt, sf::Color c, bool rising)
 }
 
 void Screens::drawLogo(sf::RenderWindow* w, float x, float y, float height, float alpha) {
-	// Occasional flicker, like a failing bulb.
-	float flick = (std::fmod(t, 7.3f) < 0.12f || std::fmod(t, 11.1f) < 0.08f) ? 0.45f : 1.f;
-	std::uint8_t a = (std::uint8_t)(255 * alpha * flick);
+	std::uint8_t a = (std::uint8_t)(255 * alpha);   // steady - no flicker
 	if (hasLogo) {
 		float k = height / logoTex.getSize().y;
 		// soft blood glow behind the lettering
@@ -182,12 +181,19 @@ int Screens::title(sf::RenderWindow* w, float dt) {
 	float logoW = hasLogo ? logoH * logoTex.getSize().x / logoTex.getSize().y : 380;
 	drawLogo(w, cx - logoW / 2, 70, logoH, 1.f);
 	centered(w, fontItalic, "some dreams don't let you wake up", 24, sf::Color(222, 206, 196), 424, cx);
-	const char* items[] = { "Begin the dream", "Watch the dream", "Controls", "Wake up" };
-	int c = menu(w, items, 4, cx, 470, 34);
-	if (c == 0) return ST_NEW_GAME;
-	if (c == 1) return ST_DEMO;
-	if (c == 2) { menuIndex = 0; return ST_CONTROLS; }
-	if (c == 3) w->close();
+	// "Continue" only appears when there is a saved run.
+	const char* withSave[] = { "Continue the dream", "Begin the dream", "Watch the dream", "Credits", "Controls", "Wake up" };
+	const char* noSave[] = { "Begin the dream", "Watch the dream", "Credits", "Controls", "Wake up" };
+	int n = hasSave ? 6 : 5;
+	int c = menu(w, hasSave ? withSave : noSave, n, cx, 456, 30);
+	if (c < 0) return ST_TITLE;
+	if (!hasSave) ++c;                       // same numbering either way
+	if (c == 0) return ST_CONTINUE;
+	if (c == 1) return ST_NEW_GAME;
+	if (c == 2) return ST_DEMO;
+	if (c == 3) { menuIndex = 0; startCredits(); return ST_CREDITS; }
+	if (c == 4) { menuIndex = 0; return ST_CONTROLS; }
+	if (c == 5) w->close();
 	return ST_TITLE;
 }
 
@@ -225,13 +231,14 @@ int Screens::pause(sf::RenderWindow* w, float dt) {
 	t += dt;
 	drawBackdrop(w, sf::Color(90, 70, 70));
 	drawLogo(w, 512 - 150, 80, 230, 0.8f);
-	const char* items[] = { "Return to the dream", "Controls", "Leave to the title", "Wake up" };
-	int c = menu(w, items, 4, 512, 380, 36);
+	const char* items[] = { "Return to the dream", "Save & quit to menu", "Controls", "Leave to the title", "Wake up" };
+	int c = menu(w, items, 5, 512, 370, 34);
 	if (key_hit(sf::Keyboard::Key::Escape)) return ST_PLAYING;
 	if (c == 0) return ST_PLAYING;
-	if (c == 1) { menuIndex = 0; return ST_CONTROLS; }
-	if (c == 2) { menuIndex = 0; return ST_TITLE; }
-	if (c == 3) w->close();
+	if (c == 1) { menuIndex = 0; return ST_SAVE_QUIT; }
+	if (c == 2) { menuIndex = 0; return ST_CONTROLS; }
+	if (c == 3) { menuIndex = 0; return ST_TITLE; }
+	if (c == 4) w->close();
 	return ST_PAUSED;
 }
 
@@ -378,4 +385,82 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	}
 	if (key_hit(sf::Keyboard::Key::Escape)) { menuIndex = 0; return ST_TITLE; }
 	return ST_ENDING;
+}
+
+// ------------------------------------------------------------------ credits
+// Black screen, TV static, the credits rolling up like a film.  Sound: the
+// horror sting first, under static; then the song builds in gradually while
+// the sting fades and the static thins to a faint hiss.
+void Screens::stopCredits() { crHorror.stop(); crSong.stop(); crStatic.stop(); crStarted = false; }
+
+int Screens::credits(sf::RenderWindow* w, float dt) {
+	if (!crStarted) {
+		crStarted = true; crT = 0;
+		if (crHorror.openFromFile(asset("audio/credits_horror.ogg"))) { crHorror.setVolume(0); crHorror.play(); }
+		if (crStatic.openFromFile(asset("audio/static_loop.ogg"))) { crStatic.setLooping(true); crStatic.setVolume(0); crStatic.play(); }
+		if (crSong.openFromFile(asset("audio/rank_music.ogg"))) { crSong.setLooping(true); crSong.setVolume(0); crSong.play(); }
+	}
+	crT += dt;
+	auto ramp = [](float t, float t0, float t1, float a, float b) {        // a -> b between t0 and t1
+		if (t <= t0) return a;
+		if (t >= t1) return b;
+		return a + (b - a) * (t - t0) / (t1 - t0);
+	};
+	crHorror.setVolume(crT < 12 ? ramp(crT, 0, 2.5f, 0, 90) : ramp(crT, 12, 22, 90, 0));
+	crSong.setVolume(ramp(crT, 10, 32, 0, 80));                          // builds up slowly
+	crStatic.setVolume(crT < 10 ? ramp(crT, 0, 3, 0, 38) : ramp(crT, 10, 36, 38, 7));
+
+	w->setView(uiView(*w));
+	sf::RectangleShape black({ 1024.f, 768.f }); black.setFillColor(sf::Color(6, 5, 7)); w->draw(black);
+	// static: fresh noise every other frame, stronger at the start
+	static int tick = 0;
+	if (++tick % 2 == 0) {
+		for (unsigned y = 0; y < 192; ++y)
+			for (unsigned x = 0; x < 256; ++x) { std::uint8_t v = (std::uint8_t)(std::rand() % 256); noiseImg.setPixel({ x, y }, sf::Color(v, v, v)); }
+		noiseTex.update(noiseImg);
+	}
+	noise.setScale({ 1024.f / 256, 768.f / 192 });
+	noise.setColor(sf::Color(255, 255, 255, (std::uint8_t)ramp(crT, 8, 36, 46, 14)));
+	w->draw(noise);
+
+	static const char* const LINES[] = {
+		"#THE CRIMSON SLEEP", "", "A 2D survival horror game", "", "",
+		"Design, code, art and sound - built for this project",
+		"Every system and every data structure written by hand in C++17,", "on SFML 3 - with no STL.", "", "",
+		"@THE DATA STRUCTURES",
+		"World graph  -  BFS  -  DFS", "Haunting-event queue  -  threat priority queue (heap)",
+		"Inventory linked list  -  clue binary search tree  -  room-history stack",
+		"Tile, room and item arrays  -  hand-written strings", "A*  pathfinding for the Weavers' eight-state AI", "", "",
+		"@THE DEAD", "Samara, the cursed bride", "Carrie, the blood oracle", "The restless spirits of June 26, 1953",
+		"The Weavers", "The Devil beneath the crypt", "Alfred, who stayed too long", "", "",
+		"@MUSIC", "Title Music  -  Ambient Horror (Alex Morgan)  -  Creep  -  Chase",
+		"Wrong  -  Apartments  -  Moonlit Lullaby for the Lost", "", "",
+		"@SOUND", "The team's sound library, and effects from Pixabay:",
+		"freesound_community  -  judgecruz1 / remusic  -  Dragon Studio  -  hgoliya08", "", "",
+		"@TYPE", "Grenze Gotisch  -  Cormorant Garamond  -  Nosifer  -  DejaVu Sans", "", "", "",
+		"For anyone who has stayed awake beside someone they could not wake.", "", "", "",
+	};
+	const int N = (int)(sizeof LINES / sizeof LINES[0]);
+	const float lineH = 36.f, speed = 30.f;
+	float top = 790.f - crT * speed;
+	for (int i = 0; i < N; ++i) {
+		float y = top + i * lineH;
+		if (y < -40 || y > 800) continue;
+		const char* L = LINES[i];
+		bool head = L[0] == '#', sub = L[0] == '@';
+		if (head || sub) ++L;
+		float fade = minOf(1.f, minOf((y + 30) / 140.f, (790 - y) / 140.f));       // fades in at the bottom, out at the top
+		if (fade <= 0) continue;
+		sf::Color c = head ? sf::Color(200, 30, 50) : sub ? sf::Color(170, 60, 70) : sf::Color(205, 192, 182);
+		c.a = (std::uint8_t)(255 * fade);
+		centered(w, head ? fontTitle : fontSerif, L, head ? 48u : sub ? 17u : 22u, c, y);
+	}
+	float endY = top + N * lineH;
+	if (endY < 420) {                                                        // the roll has finished
+		float a = minOf(1.f, (420 - endY) / 160.f);
+		centered(w, fontItalic, "Thank you for playing.", 30, sf::Color(220, 205, 195, (std::uint8_t)(255 * a)), 340);
+		centered(w, fontSerif, "Esc / Enter - back", 16, sf::Color(150, 120, 120, (std::uint8_t)(200 * a)), 420);
+	}
+	if (key_hit(sf::Keyboard::Key::Escape) || key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Space)) { stopCredits(); return ST_TITLE; }
+	return ST_CREDITS;
 }

@@ -17,6 +17,7 @@ public:
 	sf::Sprite characterImage;
 	float characterSpeed = 1.f;
 	int frameW = 24;                             // sprite-sheet cell width (ghosts use 32)
+	int walkFrames = 0;                          // >0: only the first N columns are the walk cycle
 	Collision col;
 	Character() : beep_sound(soundbuffer_beep), dead_sound(soundbuffer_dead), characterImage(cTexture) {}
 	virtual ~Character() {}

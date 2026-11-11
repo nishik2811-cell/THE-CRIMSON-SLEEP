@@ -15,7 +15,10 @@ enum GameState {
 	ST_ENDING = 5,
 	ST_CONTROLS = 6,
 	ST_NEW_GAME = 7,    // request: rebuild the Game object then play
-	ST_DEMO = 8         // like NEW_GAME, but the game plays itself
+	ST_DEMO = 8,        // like NEW_GAME, but the game plays itself
+	ST_SAVE_QUIT = 9,   // pause menu: save the run, then back to the title
+	ST_CONTINUE = 10,   // title: load the saved run
+	ST_CREDITS = 11     // title: the rolling credits
 };
 
 enum EndingType { END_NONE, END_ESCAPE, END_TRAPPED, END_SECRET, END_TRUE };

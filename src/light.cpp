@@ -31,6 +31,7 @@ void Light::lighteffect(sf::Vector2f c, sf::RenderWindow* window) {
 	float t = clock.getElapsedTime().asSeconds();
 	// The lantern flame breathes slightly; haunted flickers shrink it hard.
 	float s = 1.f + 0.03f * std::sin(t * 9.f) + 0.02f * std::sin(t * 23.f) - 0.45f * flicker;
+	s *= dim;
 	flashlight.setScale({ s, s });
 	flashlight.setPosition({ c.x + 12, c.y + 12 });
 	layer.clear(sf::Color(14, 0, 3, 255));   // near-black, blood-tinted dark

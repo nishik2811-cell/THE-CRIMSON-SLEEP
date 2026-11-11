@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "horror.h"
 #include "ai.h"
 #include "ds/MinMax.h"
@@ -133,13 +134,13 @@ Spider::Spider() {
 	sprite.setOrigin({ 32.f, 32.f });
 	sprite.setScale({ 0.6f, 0.6f });
 }
-const char* Spider::stateName(State s) {
-	switch (s) { case IDLE: return "IDLE"; case ALERT: return "ALERT"; case CHASE: return "CHASE";
-	             case ATTACK: return "ATTACK"; case FLEE: return "FLEE"; default: return "SEARCH"; }
+const char* Spider::stateName(int s) {
+	static const char* n[] = { "IDLE", "PATROL", "INVESTIGATE", "SEARCH", "CHASE", "ATTACK", "STUNNED", "RETURN" };
+	return s >= 0 && s < STATE_COUNT ? n[s] : "?";
 }
 void Spider::reset(bool on, sf::Vector2f at) {
-	active = on; pos = at; burst = 0; rest = frand(0.5f, 2.f); flee = 0; bite = 0; dir = std::rand() % 4;
-	sawYou = heardYou = false; algo = ""; expanded = 0; searches = 0; lostT = 0;
+	active = on; pos = home = at; bite = 0; stun = 0; dir = std::rand() % 4;
+	sawYou = heardYou = false; algo = ""; expanded = 0; searches = patrols = 0; lostT = 0; wait = frand(0.5f, 2.f);
 	enter(IDLE);
 }
 static bool spiderBlocked(const TileGrid& m, sf::Vector2f p) {
@@ -149,20 +150,19 @@ static bool spiderBlocked(const TileGrid& m, sf::Vector2f p) {
 	}
 	return false;
 }
-// SOUND: footsteps carry a little way, a flare a long way.  Standing still is silent.
+// SOUND: footsteps carry a few tiles, a flare a long way.  Standing still is silent.
 void Spider::hear(sf::Vector2f at, float radius) {
-	if (!active || state == FLEE || state == ATTACK) return;
-	sf::Vector2f d = at - pos;
-	if (len(d) > radius) return;
+	if (!active || state == STUNNED || state == ATTACK || state == CHASE) return;
+	if (len(at - pos) > radius) return;
 	heardYou = true; lastKnown = at;
-	if (state != CHASE) { enter(ALERT); algo = "A*"; }
+	if (state != INVESTIGATE) enter(INVESTIGATE);
 }
-// SIGHT: within 260 px, inside a 120-degree cone ahead of it, and no wall in between.
-bool Spider::canSee(sf::Vector2f p, const TileGrid& map) const {
+// SIGHT: inside a 120-degree cone ahead of it, within range, no wall in between.
+bool Spider::canSee(sf::Vector2f p, float range, const TileGrid& map) const {
 	sf::Vector2f d = p - pos;
 	float l = len(d);
-	if (l > 260) return false;
-	if (l < 40) return true;                            // right on top of it: it feels you
+	if (l > range) return false;
+	if (l < 36) return true;                            // right on top of it: it feels you
 	sf::Vector2f look = dir == 0 ? sf::Vector2f(0, 1) : dir == 1 ? sf::Vector2f(-1, 0) : dir == 2 ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
 	if ((d.x * look.x + d.y * look.y) / l < 0.5f) return false;   // cos 60
 	return ai::lineOfSight(map, pos, p);
@@ -176,8 +176,7 @@ void Spider::stepTowards(sf::Vector2f target, float speed, float dt, const TileG
 	float l = len(d);
 	if (l < 0.5f) return;
 	sf::Vector2f step = d / l * minOf(speed * dt, l);
-	// slide along walls axis by axis
-	if (!spiderBlocked(map, pos + sf::Vector2f(step.x, 0))) pos.x += step.x;
+	if (!spiderBlocked(map, pos + sf::Vector2f(step.x, 0))) pos.x += step.x;   // slide along walls
 	if (!spiderBlocked(map, pos + sf::Vector2f(0, step.y))) pos.y += step.y;
 	dir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? 2 : 1) : (d.y > 0 ? 0 : 3);
 	frameT += dt;
@@ -189,60 +188,61 @@ bool Spider::followPath(float dt, float speed, const TileGrid& map) {
 	stepTowards(t, speed, dt, map);
 	return true;
 }
-void Spider::update(float dt, sf::Vector2f player, const TileGrid& map) {
+void Spider::update(float dt, sf::Vector2f player, bool visible, float sightRange, const TileGrid& map) {
 	if (!active) return;
 	if (bite > 0) bite -= dt;
 	stateT += dt;
 	float dist = len(player - pos);
-	bool sees = canSee(player, map);
+	bool sees = visible && state != STUNNED && canSee(player, sightRange, map);
 	sawYou = sees;
-	if (sees && state != FLEE && state != ATTACK) { lastKnown = player; lostT = 0; if (state != CHASE) enter(CHASE); }
+	if (sees && state != ATTACK && state != RETURN) { lastKnown = player; lostT = 0; if (state != CHASE) enter(CHASE); }
 
 	switch (state) {
-	case IDLE: {                                        // skitter in bursts, freeze, repeat
+	case IDLE:                                          // frozen, listening
 		heardYou = false;
-		if (rest > 0) { rest -= dt; break; }
-		if (burst > 0) {
-			burst -= dt;
-			sf::Vector2f v = dir == 0 ? sf::Vector2f(0, 1) : dir == 1 ? sf::Vector2f(-1, 0) : dir == 2 ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
-			sf::Vector2f before = pos;
-			stepTowards(pos + v * 40.f, 110.f, dt, map);
-			if (len(pos - before) < 0.01f) burst = 0;   // hit a wall
-			break;
-		}
-		burst = frand(0.3f, 0.9f); rest = frand(0.4f, 1.6f); dir = std::rand() % 4;
+		if ((wait -= dt) <= 0) { enter(PATROL); patrols = 0; }
 		break;
-	}
-	case ALERT:                                         // go and look where the noise came from
+	case PATROL:                                        // BFS picks a spot near the nest, A* walks there
+		if (pathLen == 0) {
+			if (patrols >= 3) { enter(IDLE); wait = frand(1.f, 3.f); break; }
+			int spot = ai::bfsSearchSpot(map, ai::tileOf(home), 5);
+			pathLen = ai::aStar(map, ai::tileOf(pos), spot, path, &expanded); pathStep = 0;
+			algo = "BFS+A*"; ++patrols;
+		}
+		if (!followPath(dt, 70.f, map)) pathLen = 0;
+		break;
+	case INVESTIGATE:                                   // go and look where the noise came from
 		if (pathLen == 0) planTo(map, lastKnown);
 		if (!followPath(dt, 95.f, map)) { enter(SEARCH); searches = 0; }
 		break;
-	case CHASE:
-		if (!sees) { lostT += dt; if (lostT > 1.2f) { enter(SEARCH); searches = 0; break; } }
-		if (dist < 34) { enter(ATTACK); break; }
-		repathT -= dt;
-		if (repathT <= 0 || pathStep >= pathLen) { planTo(map, lastKnown); repathT = 0.35f; }
-		if (!followPath(dt, 120.f, map)) stepTowards(lastKnown, 120.f, dt, map);
-		break;
-	case ATTACK:                                        // a short lunge straight at you
-		stepTowards(player, 210.f, dt, map);
-		if (stateT > 0.5f) { enter(FLEE); flee = 2.5f; }
-		break;
-	case FLEE:                                          // BFS: run to the farthest tile it can reach
-		flee -= dt;
-		if (pathLen == 0) { pathLen = ai::bfsEscape(map, ai::tileOf(pos), player, 8, path); pathStep = 0; algo = "BFS"; expanded = 0; }
-		if (!followPath(dt, 160.f, map) && flee <= 0) enter(IDLE);
-		if (flee <= -3.f) enter(IDLE);
-		break;
-	case SEARCH:                                        // BFS picks nearby spots; look around a few times
+	case SEARCH:                                        // BFS picks spots around where you were last seen
 		if (pathLen == 0) {
-			if (searches >= 3) { enter(IDLE); break; }
+			if (searches >= 3) { enter(RETURN); break; }
 			int spot = ai::bfsSearchSpot(map, ai::tileOf(lastKnown), 4);
 			pathLen = ai::aStar(map, ai::tileOf(pos), spot, path, &expanded); pathStep = 0;
 			algo = "BFS+A*"; ++searches;
 		}
 		if (!followPath(dt, 80.f, map)) pathLen = 0;
 		break;
+	case CHASE:
+		if (!sees) { lostT += dt; if (lostT > 1.2f) { enter(SEARCH); searches = 0; break; } }
+		if (dist < 42 && bite <= 0) { enter(ATTACK); break; }
+		repathT -= dt;
+		if (repathT <= 0 || pathStep >= pathLen) { planTo(map, lastKnown); repathT = 0.35f; }
+		if (!followPath(dt, 115.f, map)) stepTowards(lastKnown, 115.f, dt, map);
+		break;
+	case ATTACK:                                        // rears up (your chance to STOMP), then lunges
+		if (stateT > 0.55f) stepTowards(player, 200.f, dt, map);
+		if (stateT > 1.0f) enter(RETURN);
+		break;
+	case STUNNED:                                       // curled up and twitching - it can be squashed now
+		if ((stun -= dt) <= 0) enter(RETURN);
+		break;
+	case RETURN:                                        // A* back to the nest, then rest
+		if (pathLen == 0) planTo(map, home);
+		if (!followPath(dt, 130.f, map) && stateT > 0.3f) { enter(IDLE); wait = frand(1.5f, 3.f); }
+		break;
+	default: break;
 	}
 }
 void Spider::draw(sf::RenderWindow* w) {
@@ -250,5 +250,32 @@ void Spider::draw(sf::RenderWindow* w) {
 	int frame = (int)(frameT * 16) % 6;                 // 6-frame walk cycle
 	sprite.setTextureRect(sf::IntRect({ frame * 64, dir * 64 }, { 64, 64 }));
 	sprite.setPosition(pos);
+	if (state == ATTACK && stateT < 0.55f) {             // rearing up: bigger, twitching - stomp NOW
+		sprite.setScale({ 0.72f, 0.72f });
+		sprite.setPosition(pos + sf::Vector2f(frand(-1.f, 1.f), frand(-1.f, 1.f)));
+	}
+	if (state == STUNNED) {                             // curled up: smaller, greyed, shaking
+		sprite.setPosition(pos + sf::Vector2f(frand(-1.5f, 1.5f), frand(-1.5f, 1.5f)));
+		sprite.setScale({ 0.48f, 0.48f });
+		sprite.setColor(sf::Color(150, 150, 170));
+		sprite.setRotation(sf::degrees(std::sin(stateT * 30.f) * 8.f));
+	}
 	w->draw(sprite);
+	sprite.setScale({ 0.6f, 0.6f }); sprite.setColor(sf::Color::White); sprite.setRotation(sf::degrees(0));
+}
+void Spider::drawEyes(sf::RenderWindow* w, sf::Vector2f player) {
+	if (!active || state == STUNNED) return;
+	float l = len(player - pos);
+	if (l > 340) return;
+	float a = l < 120 ? 0.f : minOf(1.f, (l - 120) / 80.f);   // in the lantern light the body shows instead
+	if (a <= 0) return;
+	sf::Vector2f f = dir == 0 ? sf::Vector2f(0, 1) : dir == 1 ? sf::Vector2f(-1, 0) : dir == 2 ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
+	sf::Vector2f side(f.y, -f.x);
+	float glow = 0.75f + 0.25f * std::sin(stateT * 6.f);
+	for (int s = -1; s <= 1; s += 2) {
+		sf::CircleShape e(2.f); e.setOrigin({ 2.f, 2.f });
+		e.setPosition(pos + f * 9.f + side * (3.5f * s));
+		e.setFillColor(sf::Color(255, 40, 50, (std::uint8_t)(230 * a * glow)));
+		w->draw(e, sf::BlendAdd);
+	}
 }

@@ -23,6 +23,11 @@ public:
 	float fear = 0.f;       // 100 -> the mind breaks
 	float invulnerable = 0.f;
 	bool frozen = false;    // input disabled (jump scare)
+	bool hiddenAway = false; // hiding inside a wardrobe: not drawn
+	bool stomping = false;   // playing the 3-frame stomp (columns 4-6 of the sheet)
+	sf::Clock stompClock;
+	void startStomp() { stomping = true; stompClock.restart(); }
+	static constexpr float STOMP_FRAME = 0.11f;   // seconds per stomp frame: lift, STAMP, settle
 
 	Stack<int> history;                 // rooms visited, top = current room
 	LinkedList<InventoryItem> inventory; // items carried

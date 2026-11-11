@@ -1,4 +1,5 @@
 #include "player.h"
+#include "ds/MinMax.h"
 #include "globals.h"
 
 static bool down(sf::Keyboard::Key k) { return key_held(k); }
@@ -60,7 +61,11 @@ bool Player::isMoving() const {
 
 void Player::movement(sf::RenderWindow* window) {
 	sliding = false;
-	if (!frozen && forcedDir >= 0) tryMove(forcedDir);
+	walkFrames = 4;                                  // columns 4-6 are the stomp, not the walk
+	float st = stompClock.getElapsedTime().asSeconds();
+	if (stomping && st > 3 * STOMP_FRAME) { stomping = false; source.x = 0; }
+	if (stomping) {}                                 // planted mid-stomp: no walking
+	else if (!frozen && forcedDir >= 0) tryMove(forcedDir);
 	else if (!frozen && lockInput) { if (autoDir >= 0) tryMove(autoDir); }
 	else if (!frozen) {
 		if (down(Key::Down) || down(Key::S)) tryMove(Down);
@@ -68,7 +73,8 @@ void Player::movement(sf::RenderWindow* window) {
 		else if (down(Key::Right) || down(Key::D)) tryMove(Right);
 		else if (down(Key::Up) || down(Key::W)) tryMove(Up);
 	}
-	if (isMoving()) animate(); else clock.restart();
+	if (stomping) source.x = 4 + minOf(2, (int)(st / STOMP_FRAME));
+	else if (isMoving()) animate(); else clock.restart();
 
 	scale_x = g_gameVP.size.x;                 // the 4:3 game area (see layoutScreen)
 	view.setViewport(g_gameVP);
@@ -77,6 +83,6 @@ void Player::movement(sf::RenderWindow* window) {
 	setFrame();
 	// Blink while invulnerable after being hurt.
 	bool blink = invulnerable > 0 && ((int)(invulnerable * 12) % 2 == 0);
-	if (!blink) window->draw(characterImage);
+	if (!blink && !hiddenAway) window->draw(characterImage);
 	if (hasLight()) light.lighteffect(characterImage.getPosition(), window);
 }

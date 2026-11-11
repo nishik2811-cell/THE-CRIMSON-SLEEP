@@ -117,6 +117,8 @@ int main() {
 	if (const char* st = env("CS_STATE")) {
 		if (!std::strcmp(st, "title")) game_state = ST_TITLE;
 		if (!std::strcmp(st, "controls")) game_state = ST_CONTROLS;
+		if (!std::strcmp(st, "credits")) { screens.startCredits(); game_state = ST_CREDITS; }
+		if (!std::strcmp(st, "continue")) game_state = ST_CONTINUE;
 		if (!std::strcmp(st, "pause")) { if (!game) { game = new Game(audio); } game_state = ST_PAUSED; }
 		if (env("CS_MUTE")) audio.toggleMute();
 		if (!std::strncmp(st, "ending", 6)) { ending_type = std::atoi(st + 7); game_state = ST_ENDING; if (!game) game = new Game(audio); }
@@ -130,19 +132,27 @@ int main() {
 	bool consoleOpen = false;
 	sf::Font consoleFont;
 	(void)consoleFont.openFromFile(asset("fonts/DejaVuSans.ttf"));
+	unsigned widenedBy = 0;   // how much WE widened the window (0 if it was maximised / no room)
 	auto toggleConsole = [&]() {
-		// Widen (or narrow) the window by the console strip when the window
-		// manager allows it; if it's maximised/fullscreen it can't change size
-		// and layoutScreen() simply splits the space it has.
+		// Widen the window by the console strip when there is room on the screen;
+		// shrink it back by exactly that much on close.  A maximised or fullscreen
+		// window is never resized - layoutScreen() just splits the space it has.
 		sf::Vector2u sz = window.getSize();
-		unsigned strip = (unsigned)std::lround(CONSOLE_PANEL_W * sz.y / 768.f);
 		consoleOpen = !consoleOpen;
-		unsigned newW = consoleOpen ? sz.x + strip : (sz.x > strip + 320 ? sz.x - strip : sz.x);
-		int desk = (int)sf::VideoMode::getDesktopMode().size.x;
-		if ((int)newW <= desk) {
-			window.setSize({ newW, sz.y });
-			sf::Vector2i p = window.getPosition();
-			if (p.x + (int)newW > desk) window.setPosition({ maxOf(0, desk - (int)newW), p.y });
+		if (consoleOpen) {
+			unsigned strip = (unsigned)std::lround(CONSOLE_PANEL_W * sz.y / 768.f);
+			int desk = (int)sf::VideoMode::getDesktopMode().size.x;
+			if ((int)(sz.x + strip) <= desk - 40) {          // fits on screen with a margin: grow
+				window.setSize({ sz.x + strip, sz.y });
+				widenedBy = strip;
+				sf::Vector2i p = window.getPosition();
+				if (p.x + (int)(sz.x + strip) > desk) window.setPosition({ maxOf(0, desk - (int)(sz.x + strip)), p.y });
+			}
+			else widenedBy = 0;
+		}
+		else if (widenedBy > 0 && sz.x > widenedBy + 320) {
+			window.setSize({ sz.x - widenedBy, sz.y });
+			widenedBy = 0;
 		}
 	};
 	if (env("CS_CONSOLE")) toggleConsole();
@@ -200,6 +210,7 @@ int main() {
 		case ST_TITLE:
 			audio.music(TRACK_TITLE);
 			if (game) { delete game; game = nullptr; }
+			screens.hasSave = Game::saveExists("savegame.txt");
 			game_state = screens.title(&window, dt);
 			if (game_state == ST_CONTROLS) controlsReturn = ST_TITLE;
 			break;
@@ -213,6 +224,19 @@ int main() {
 			delete game;
 			game = new Game(audio);
 			game_state = ST_PLAYING;
+			break;
+		case ST_SAVE_QUIT:                     // pause menu: write the run, back to the title
+			if (game) game->saveGame("savegame.txt");
+			game_state = ST_TITLE;
+			break;
+		case ST_CONTINUE:
+			delete game;
+			game = new Game(audio);
+			game_state = game->loadGame("savegame.txt") ? ST_PLAYING : ST_NEW_GAME;
+			break;
+		case ST_CREDITS:
+			audio.music(TRACK_NONE);
+			game_state = screens.credits(&window, dt);
 			break;
 		case ST_DEMO:
 			delete game;
@@ -276,6 +300,7 @@ int main() {
 			sf::Texture cap(window.getSize());
 			cap.update(window);
 			(void)cap.copyToImage().saveToFile(shotPath);
+			if (game && env("CS_SAVE")) game->saveGame(env("CS_SAVE"));
 			if (game && env("CS_PRINTPOS")) std::fprintf(stderr, "POS %.1f %.1f HP %.0f\n", game->devPos().x, game->devPos().y, game->devHealth());
 			window.close();
 		}

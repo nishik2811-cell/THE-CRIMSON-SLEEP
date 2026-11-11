@@ -3,3 +3,4 @@ crimson_sleep
 crimson_sleep.exe
 *.o
 raw-assets/AudioSrc/
+savegame.txt

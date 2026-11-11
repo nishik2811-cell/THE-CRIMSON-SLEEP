@@ -13,6 +13,9 @@ public:
 	int title(sf::RenderWindow* w, float dt);
 	int controls(sf::RenderWindow* w, float dt);
 	int pause(sf::RenderWindow* w, float dt);
+	int credits(sf::RenderWindow* w, float dt);          // rolling credits over static
+	void startCredits() { crT = 0; crStarted = false; }
+	bool hasSave = false;                                // shows "Continue" on the title
 	int retry(sf::RenderWindow* w, float dt, const Game& g);
 	int ending(sf::RenderWindow* w, float dt, const RunStats& s);
 	void resetEnding() { endT = 0; }
@@ -30,6 +33,13 @@ private:
 	sf::Texture bgTex, logoTex, floorTex;
 	sf::Sprite bg{ bgTex }, logo{ logoTex };
 	bool hasLogo = false;
+	// credits: a horror sting, then a song that builds as the static fades
+	sf::Music crHorror, crSong, crStatic;
+	float crT = 0; bool crStarted = false;
+	sf::Image noiseImg{ sf::Vector2u(256, 192) };
+	sf::Texture noiseTex{ sf::Vector2u(256, 192) };
+	sf::Sprite noise{ noiseTex };
+	void stopCredits();
 	struct Mote { float x, y, vx, vy, r, a; };
 	Mote motes[70];
 	struct Soul { float x, y, phase, speed; };

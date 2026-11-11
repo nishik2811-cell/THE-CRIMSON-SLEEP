@@ -20,7 +20,7 @@ void Character::animate() {
 	if (frameCounter > switchFrame) {
 		frameCounter = 0;
 		source.x++;
-		if (source.x * frameW >= (int)cTexture.getSize().x) source.x = 0;
+		if (source.x * frameW >= (int)cTexture.getSize().x || (walkFrames > 0 && source.x >= walkFrames)) source.x = 0;
 	}
 }
 

@@ -42,8 +42,9 @@ const TipInfo TIPS[TIP_COUNT] = {
 	{ "The Weavers (Spiders)",
 	  "Too many legs, and they live in the dark between the lights.\n"
 	  "- They skitter in bursts, then freeze. When you come close, they RUSH.\n"
-	  "- A bite stings and spikes your fear, then the spider scuttles off.\n"
-	  "- A lantern FLARE (F) scatters every spider near you." },
+	  "- STAND STILL, turn your lantern OFF (L) or HIDE in a wardrobe (E).\n"
+	  "- When one is at your feet, STOMP (Q) - squashed for good.\n"
+	  "- A FLARE (F) scares them back to their nest." },
 };
 
 // Per-room audio: ambience loop, optional extra loop, and footstep surface.
@@ -56,6 +57,8 @@ static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX
 // ------------------------------------------------------------------ setup
 Game::Game(Audio& a) : audio(a) {
 	g_lastLookup = -1; g_consoleScroll = 0;
+	if (deadTex.loadFromFile(asset("graphics/spider_dead.png"))) deadSprite.setTexture(deadTex, true);
+	deadSprite.setOrigin({ 32.f, 32.f }); deadSprite.setScale({ 0.6f, 0.6f });
 	(void)tileset.loadFromFile(asset("graphics/texture.png"));
 	for (int r = 1; r < ROOM_COUNT; ++r) maps[r].initializeMap(ROOMS[r].mapFile, tileset);
 	buildHouse(house);
@@ -185,7 +188,8 @@ void Game::spawnEnemies() {
 	child.speed = room == NURSERY ? 85.f : 115.f;
 	childRoom = crawl; childBanishT = 0;
 	// Spiders: dropped on random floor tiles well away from where you come in.
-	spiderCount = room == LIBRARY ? 2 : room == HIDDEN_TUNNEL ? 2 : room == OSSUARY ? 2 : room == GRAND_CORRIDOR ? 1 : room == CHAPEL ? 1 : 0;
+	spiderCount = room == HIDDEN_TUNNEL ? 2 : (room == LIBRARY || room == OSSUARY || room == GRAND_CORRIDOR || room == CHAPEL) ? 1 : 0;
+	spiderCount = maxOf(0, spiderCount - corpseCount[room]);        // squashed ones don't come back
 	for (int i = 0; i < 3; ++i) spiders[i].reset(false, {});
 	for (int i = 0; i < spiderCount; ++i) {
 		const TileGrid& m = maps[room].map;
@@ -224,6 +228,9 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		roomTime += dt;
 		if (player.invulnerable > 0) player.invulnerable -= dt;
 		if (flareCooldown > 0) flareCooldown -= dt;
+		if (stompT > 0) stompT -= dt;
+		if (stompHitT > 0) { stompHitT -= dt; if (stompHitT <= 0) stompLand(); }
+		if (stompFxT > 0) stompFxT -= dt;
 		if (flare > 0) flare -= dt * 2.f;
 		if (shake > 0) shake -= dt * 2.5f;
 		if (hurtFlash > 0) hurtFlash -= dt * 1.5f;
@@ -236,7 +243,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (jumpscare > 0) { jumpscare -= dt; player.frozen = jumpscare > 0.25f; }
 		player.light.flicker *= 0.92f;
 	}
-	player.frozen = overlay || jumpscare > 0.25f;
+	player.frozen = overlay || jumpscare > 0.25f || hidden;
 
 	window->setView(player.view);   // the room always follows the camera
 	// Camera shake.
@@ -275,15 +282,20 @@ void Game::update(sf::RenderWindow* window, float dt) {
 			showToast("Something followed you through the door...");
 		}
 	}
+	// Squashed spiders lie where they died.
+	for (int i = 0; i < corpseCount[room]; ++i) { deadSprite.setPosition(corpses[room][i]); window->draw(deadSprite); }
 	for (int i = 0; i < spiderCount; ++i) {
 		Spider& s = spiders[i];
+		sf::Vector2f me = pp() + sf::Vector2f(12, 12);
 		if (!overlay) {
-			if (player.isMoving()) s.hear(pp() + sf::Vector2f(12, 12), 170.f);   // footsteps carry; standing still is silent
-			s.update(dt, pp() + sf::Vector2f(12, 12), maps[room].map);
-			if (s.active && s.bite <= 0 && s.state != Spider::FLEE && dist(s.pos, pp() + sf::Vector2f(12, 12)) < 20) {
-				audio.play(SFX_STING, 70, 1.4f);
-				hurt(8, 10, "A spider skitters up your arm and BITES!", TIP_SPIDERS, false);
-				s.bite = 3.f; s.scatter();
+			if (player.isMoving() && !hidden) s.hear(me, 140.f);        // footsteps carry; standing still is silent
+			s.update(dt, me, !hidden, lanternOn ? 260.f : 90.f, maps[room].map);   // lantern off: it only sees you up close
+			if (s.active && !hidden && dist(s.pos, me) < 22) {
+				if (s.bite <= 0 && s.dangerous()) {
+					audio.play(SFX_STING, 70, 1.4f);
+					hurt(8, 10, "A spider skitters up your arm and BITES!", TIP_SPIDERS, false);
+					s.bitten();
+				}
 			}
 		}
 		s.draw(window);
@@ -291,7 +303,17 @@ void Game::update(sf::RenderWindow* window, float dt) {
 
 	// --- player + lantern darkness ---
 	if (shake > 0) player.view.move({ (float)(0), (float)(0) });
+	player.light.dim = lanternOn ? 1.f : 0.42f;
 	player.movement(window);
+	if (stompFxT > 0) {                            // dust ring kicked out by the stamp
+		float k = 1.f - stompFxT / 0.35f;
+		sf::CircleShape ring(6.f + 22.f * k); ring.setOrigin({ ring.getRadius(), ring.getRadius() });
+		ring.setScale({ 1.f, 0.45f });
+		ring.setPosition(pp() + sf::Vector2f(12.f, 22.f));
+		ring.setFillColor(sf::Color::Transparent);
+		ring.setOutlineThickness(2.f); ring.setOutlineColor(sf::Color(190, 165, 140, (std::uint8_t)(200 * (1 - k))));
+		window->draw(ring);
+	}
 	if (shake > 0) {
 		sf::View v = player.view; v.move({ (float)(frand(-4, 4) * shake), (float)(frand(-4, 4) * shake) }); window->setView(v);
 	}
@@ -302,12 +324,14 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 	bride.draw(window);
 	drawWorldOverlays(window);
+	for (int si = 0; si < spiderCount; ++si) spiders[si].drawEyes(window, pp() + sf::Vector2f(12, 12));   // red glints in the dark
 	for (int si = 0; si < spiderCount; ++si) {
 		const Spider& s = spiders[si];
 		// With the console open, show what the AI is planning: its path as dots on the floor.
 		if (g_panelVP.size.x > 0 && s.active && s.pathLen > s.pathStep) {
 			sf::Color pc = s.state == Spider::CHASE || s.state == Spider::ATTACK ? sf::Color(240, 60, 70, 170) :
-			               s.state == Spider::ALERT ? sf::Color(240, 190, 90, 160) : s.state == Spider::FLEE ? sf::Color(120, 160, 230, 150) : sf::Color(200, 150, 220, 140);
+			               s.state == Spider::INVESTIGATE ? sf::Color(240, 190, 90, 160) : s.state == Spider::RETURN ? sf::Color(120, 160, 230, 150) :
+			               s.state == Spider::PATROL ? sf::Color(150, 140, 140, 120) : sf::Color(200, 150, 220, 140);
 			for (int k = s.pathStep; k < s.pathLen; ++k) {
 				sf::CircleShape dot(2.5f); dot.setOrigin({ 2.5f, 2.5f });
 				dot.setPosition(sf::Vector2f((s.path[k] % GRID_W) * 32.f + 16, (s.path[k] / GRID_W) * 32.f + 16));
@@ -323,6 +347,12 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (!talkedToAlfred && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E))) interact();
 		if (key_hit(sf::Keyboard::Key::B)) goBack();
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
+		if (key_hit(sf::Keyboard::Key::Q)) stomp();
+		if (key_hit(sf::Keyboard::Key::L) && player.has(LANTERN)) {      // lantern on/off (stealth)
+			lanternOn = !lanternOn;
+			audio.play(SFX_UI_CLICK, 70);
+			showToast(lanternOn ? "Lantern lit." : "Lantern out. You see less - and are seen less.");
+		}
 		if (key_hit(sf::Keyboard::Key::H)) { if (objectiveTime < 31) objectiveTime = 31; }
 		if (key_hit(sf::Keyboard::Key::I)) showInventory = !showInventory;
 		if (key_hit(sf::Keyboard::Key::J)) journalPage = 0;
@@ -373,16 +403,28 @@ void Game::interact() {
 	int id = player.col.isInteractionMap(pp(), player.source.y);
 	if (id < 0) return;
 	switch (id) {
-	case 0: // drawer
+	case 0: { // drawer: each one holds exactly one thing - a story item, a health kit, or a scare
+		sf::Vector2i ft = player.col.facingTile(player.source.y);
+		bool& done = searched[room][ft.y * GRID_W + ft.x];
+		bool first = !done;
+		done = true;
 		if (room == LIBRARY && !collected(RUSTY_KEY)) pickUp(RUSTY_KEY, "Drawer:\n\tA rusty key, wrapped in a child's ribbon.", false);
 		else if (room == GRAND_CORRIDOR && !collected(NEWSPAPER))
 			pickUp(NEWSPAPER, "A yellowed newspaper - June 26, 1953:\n\tA man killed ten innocent people, women and children,\n\tthen took his own life. His bride was never found.\n\tThe Mansion has never found peace.", false);
+		else if (first && room != LIBRARY && room != GRAND_CORRIDOR) {
+			player.health = minOf(100.f, player.health + 40.f);
+			player.fear = maxOf(0.f, player.fear - 15.f);
+			audio.play(SFX_PICKUP, 85);
+			showToast("+ Health kit  (+40 health)");
+			say("Drawer:\n\tA small tin first-aid kit, dated 1953.\n\tSomeone hid it here, hoping to live.");
+		}
 		else if (std::rand() % 3 == 0) {
 			say("A cold hand closes around yours from inside the drawer!");
 			player.fear += 5; audio.play(SFX_STING, 80); shake = 0.6f;
 		}
 		else say("The drawer is empty. Something scratched 'SLEEP' inside it.");
 		break;
+	}
 	case 1: // chest
 		if (room == COLLAPSED_BEDROOM) { pickUp(BRASS_KEY, "Chest:\n\tA brass key. It opens the nursery.", false); changeFacingTile(sf::Vector2i(2, 1)); }
 		else if (room == NURSERY) { pickUp(CHAPEL_KEY, "Chest:\n\tThe Chapel Key, beneath a doll with no face.", false); changeFacingTile(sf::Vector2i(2, 1)); }
@@ -451,6 +493,12 @@ void Game::interact() {
 		say("You pour the petrol and strike a match...");
 		finish(END_TRAPPED);
 		break;
+	case 23: // wardrobe: hide inside (E again to step out)
+		hidden = !hidden;
+		player.hiddenAway = hidden;
+		audio.play(SFX_DOOR_OPEN, 55, 1.3f);
+		if (hidden) showToast("You hide in the wardrobe. Hold your breath...  (E to step out)");
+		break;
 	default: say("I don't need this."); break;
 	}
 }
@@ -512,6 +560,7 @@ void Game::flareLantern() {
 		showToast(b); return;
 	}
 	flareCooldown = FLARE_COOLDOWN; flare = 1.f;
+	lanternOn = true;                    // a flare relights the lantern
 	player.fear -= 20;
 	audio.play(SFX_FLARE, 90);
 	sf::Vector2f c = pp() + sf::Vector2f(12, 12);
@@ -528,10 +577,13 @@ void Game::flareLantern() {
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("The Devil recoils from the light!"); }
+	bool stunned = false;
 	for (int i = 0; i < spiderCount; ++i) {
-		if (spiders[i].active && dist(spiders[i].pos, c) < 170) spiders[i].scatter();   // too close to the light: run
+		if (!spiders[i].active) continue;
+		if (dist(spiders[i].pos, c) < 190) { spiders[i].flareHit(); stunned = true; }   // caught in the light: curls up
 		else spiders[i].hear(c, 420.f);                                                 // farther off: it heard that
 	}
+	if (stunned) showToast("The spider recoils from the light and scuttles back to its nest.");
 	(void)c;
 }
 
@@ -662,9 +714,10 @@ void Game::updateThreats(float dt) {
 	for (int i = 0; i < spiderCount; ++i) {
 		const Spider& s = spiders[i];
 		if (!s.active) continue;
-		if (s.state == Spider::CHASE || s.state == Spider::ATTACK) { threats.insert(Threat{ 65, TH_SPIDER, "A spider has SEEN you - it's coming. FLARE (F)!" }); break; }
-		if (s.state == Spider::ALERT) { threats.insert(Threat{ 45, TH_SPIDER, "Something heard your footsteps... stand still" }); break; }
-		if (s.state != Spider::FLEE && dist(s.pos, p + sf::Vector2f(12, 12)) < 160) { threats.insert(Threat{ 40, TH_SPIDER, "Something with too many legs is close" }); break; }
+		if ((s.state == Spider::CHASE || s.state == Spider::ATTACK) && dist(s.pos, p + sf::Vector2f(12, 12)) < 60) { threats.insert(Threat{ 70, TH_SPIDER, "It's at your feet - STOMP (Q)!" }); break; }
+		if (s.state == Spider::CHASE || s.state == Spider::ATTACK) { threats.insert(Threat{ 65, TH_SPIDER, "A spider has SEEN you - let it come, then STOMP (Q)" }); break; }
+		if (s.state == Spider::INVESTIGATE) { threats.insert(Threat{ 45, TH_SPIDER, "Something heard your footsteps... stand still, lantern off (L)" }); break; }
+		if (s.dangerous() && dist(s.pos, p + sf::Vector2f(12, 12)) < 160) { threats.insert(Threat{ 40, TH_SPIDER, "Something with too many legs is close" }); break; }
 	}
 	if (ROOMS[room].dark && !player.has(LANTERN)) threats.insert(Threat{ 20, TH_DARK, "It is too dark here" });
 	threats.insert(Threat{ 0, TH_CALM, "" });
@@ -701,15 +754,15 @@ void Game::updateThreats(float dt) {
 	}
 	// Contact with patrol spirits / crawler.
 	// A ghost's touch hurts and shoves you back a step - only dying sends you to the room's start.
-	for (int i = 0; i < easyCount && ghostStun <= 0; ++i) if (ghostEasy[i].isCollisionCharacter(&player) && player.invulnerable <= 0) {
+	for (int i = 0; i < easyCount && ghostStun <= 0 && !hidden; ++i) if (ghostEasy[i].isCollisionCharacter(&player) && player.invulnerable <= 0) {
 		hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, false);
 		knockBack(ghostEasy[i].characterImage.getPosition());
 	}
-	for (int i = 0; i < mediumCount && ghostStun <= 0; ++i) if (ghostMedium[i].isCollisionCharacter(&player) && player.invulnerable <= 0) {
+	for (int i = 0; i < mediumCount && ghostStun <= 0 && !hidden; ++i) if (ghostMedium[i].isCollisionCharacter(&player) && player.invulnerable <= 0) {
 		hurt(25, 10, "A spirit passes through you. Ice in your veins.", TIP_SPIRITS, false);
 		knockBack(ghostMedium[i].characterImage.getPosition());
 	}
-	if (child.active && child.stun <= 0 && child.distanceTo(p) < 18) {
+	if (child.active && child.stun <= 0 && !hidden && child.distanceTo(p) < 18) {
 		audio.play(SFX_CHILD_LUNGE, 95);
 		child.stun = 3; child.pos = child.home;
 		hurt(25, 10, "Carrie's telekinetic wrath violently slams you!", TIP_CHILD, false);
@@ -1016,4 +1069,34 @@ void Game::knockBack(sf::Vector2f from) {
 		if (player.col.isCollisionMap(pp(), dir)) break;
 		player.characterImage.move(step);
 	}
+}
+
+// A stunned spider, stepped on.  It stays where it died - for good.
+void Game::squash(Spider& s) {
+	s.active = false;
+	if (corpseCount[room] < 4) corpses[room][corpseCount[room]++] = s.pos;
+	audio.play(SFX_CRACK, 90, 1.6f);
+	audio.play(SFX_GASP, 50, 1.4f);
+	shake = 0.4f;
+	runStats.banished++;
+	showToast("SQUASHED.  It won't crawl again.");
+}
+
+// Q: stamp on the nearest spider if it's right at your feet.  Miss, and it bites.
+void Game::stomp() {
+	if (hidden || stompT > 0) return;
+	stompT = 0.6f;                                 // you can't stamp again straight away
+	player.startStomp();                           // lift... (the hit lands on the STAMP frame)
+	stompHitT = Player::STOMP_FRAME;
+}
+void Game::stompLand() {                           // the boot comes down
+	shake = maxOf(shake, 0.3f);
+	stompFxT = 0.35f;
+	audio.play(SFX_STEP_WOOD, 95, 0.7f);           // a heavy boot
+	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
+	Spider* best = nullptr; float bestD = 46.f;    // reach: about one and a half tiles
+	for (int i = 0; i < spiderCount; ++i)
+		if (spiders[i].active && dist(spiders[i].pos, me) < bestD) { bestD = dist(spiders[i].pos, me); best = &spiders[i]; }
+	if (best) squash(*best);
+	else showToast("You stamp at nothing...");
 }

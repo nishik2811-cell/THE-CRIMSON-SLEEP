@@ -186,6 +186,14 @@ void Game::drawHud(sf::RenderWindow* w) {
 		w->draw(label(fontSerif, hintText, 19, sf::Color(255, 120, 130), 22, H - 89));
 	}
 
+	// Hiding in a wardrobe: you look out through the gap between the doors.
+	if (hidden) {
+		sf::RectangleShape l({ W / 2 - 60, H }); l.setFillColor(sf::Color(6, 2, 3, 235)); w->draw(l);
+		sf::RectangleShape r({ W / 2 - 60, H }); r.setPosition({ W / 2 + 60, 0 }); r.setFillColor(sf::Color(6, 2, 3, 235)); w->draw(r);
+		sf::Text ht(fontItalic, "hiding in the wardrobe...  E to step out", 20);
+		ht.setFillColor(ASH); ht.setPosition({ std::floor((W - ht.getLocalBounds().size.x) / 2), H - 150.f }); w->draw(ht);
+	}
+
 	// Demo banner.
 	if (demo) {
 		sf::Text dm(fontSerif, "WATCHING THE DREAM  -  a full playthrough  -  ESC to stop", 18);
@@ -196,7 +204,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	}
 
 	// Controls strip.
-	w->draw(label(fontSerif, "E interact   F flare   B go back   H hint   I items   J tips   TAB data structures   M mute   ESC pause", 16, ASH, 22, H - 26));
+	w->draw(label(fontSerif, "E interact   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB console   M mute   ESC pause", 15, ASH, 22, H - 26));
 
 	// Story text box.
 	if (!dialogue.empty()) {
@@ -595,23 +603,24 @@ void Game::drawConsole(sf::RenderWindow* w) {
 	{
 		float t = card(spiderCount ? 34.f + 46.f * spiderCount : 40.f, "Enemy AI - the Weavers", "STATE MACHINE  /  A*");
 		if (!spiderCount) txt("no spiders in this room", fontItalic, 13, TAG, 22, t);
-		const char* names[] = { "IDLE", "ALERT", "CHASE", "ATTACK", "FLEE", "SEARCH" };
-		const sf::Color stateCol[] = { sf::Color(110, 100, 100), sf::Color(240, 190, 90), sf::Color(240, 70, 80),
-		                               sf::Color(255, 40, 60), sf::Color(120, 160, 230), sf::Color(200, 150, 220) };
+		const char* names[] = { "IDLE", "PATROL", "INVEST.", "SEARCH", "CHASE", "ATTACK", "STUN", "RETURN" };
+		const sf::Color stateCol[] = { sf::Color(150, 140, 140), sf::Color(170, 160, 150), sf::Color(240, 190, 90), sf::Color(200, 150, 220),
+		                               sf::Color(240, 70, 80), sf::Color(255, 40, 60), sf::Color(130, 220, 170), sf::Color(120, 160, 230) };
 		for (int i = 0; i < spiderCount; ++i) {
 			const Spider& s = spiders[i];
 			float y0 = t + i * 46.f;
 			std::snprintf(b, sizeof b, "Weaver %d", i + 1);
 			txt(b, fontSerif, 13, BONE, 22, y0 + 2);
-			float x = 90;
-			for (int k = 0; k < 6; ++k) {                       // the state machine, current state lit
+			float x = 84;
+			for (int k = 0; k < 8; ++k) {                       // the 8-state machine, current state lit
 				bool on = (int)s.state == k;
-				float cw = width(names[k], fontMono, 10) + 10;
+				float cw = width(names[k], fontMono, 9) + 8;
 				rect(x, y0 + 2, cw, 17, on ? stateCol[k] : CHIP, on ? sf::Color::Transparent : EDGE);
-				txt(names[k], fontMono, 10, on ? sf::Color(20, 6, 8) : TAG, x + 5, y0 + 4);
-				x += cw + 4;
+				txt(names[k], fontMono, 9, on ? sf::Color(20, 6, 8) : TAG, x + 4, y0 + 5);
+				x += cw + 3;
 			}
-			const char* sense = s.sawYou ? "SEES you (line of sight)" : s.heardYou ? "HEARD you (footsteps / flare)" : "senses nothing";
+			const char* sense = !s.active ? "squashed" : s.state == Spider::STUNNED ? "stunned by the flare" :
+			                    s.sawYou ? "SEES you (line of sight)" : s.heardYou ? "HEARD you (footsteps / flare)" : hidden ? "you are hidden" : "senses nothing";
 			if (s.pathLen > 0 && s.algo[0]) std::snprintf(b, sizeof b, "%s   -   %s path %d tiles%s", sense, s.algo, s.pathLen - s.pathStep,
 				s.expanded ? "" : "");
 			else std::snprintf(b, sizeof b, "%s", sense);

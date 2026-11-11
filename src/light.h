@@ -11,6 +11,7 @@ public:
 	sf::Sprite sprite{ layer.getTexture() };
 	sf::Clock clock;
 	float flicker = 0.f;
+	float dim = 1.f;          // 1 = lantern lit; small = lantern off (only a faint glow, eyes adjusting)
 	Light();
 	void lighteffect(sf::Vector2f, sf::RenderWindow*);
 };

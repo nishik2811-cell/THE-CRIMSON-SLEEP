@@ -59,7 +59,7 @@ public:
 	void devStartAt(int room);
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
-	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; }
+	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; spiders[0].wait = 30; }
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
 	float devHealth() const { return player.health; }
@@ -72,6 +72,10 @@ public:
 	void devWrite(const char* w) { Str s = w; if (!placeWallWriting(s)) { s = "GET OUT"; if (!placeWallWriting(s)) return; } wallText = s; wallT = 5.f; }
 	void drawConsole(sf::RenderWindow* w);
 	// Demo mode: the game plays itself to the true ending (title screen option).
+	// Save & continue (save.cpp): the whole run, written out of the data structures.
+	bool saveGame(const char* path);
+	bool loadGame(const char* path);
+	static bool saveExists(const char* path);
 	void startDemo();
 	void devDemoFrom(int g) { startDemo(); demoGoal = g; }
 	bool demo = false;   // live data structures, in the separate console window
@@ -89,6 +93,16 @@ private:
 	Spider spiders[3];                    // the Weavers (creepy crawlers)
 	int spiderCount = 0;
 	float spiderFollowT = -1;             // >0: a spider that was chasing you comes through the door
+	sf::Vector2f corpses[ROOM_COUNT][4];  // squashed spiders stay where they died
+	int corpseCount[ROOM_COUNT] = {};
+	sf::Texture deadTex; sf::Sprite deadSprite{ deadTex };
+	bool hidden = false;                  // inside a wardrobe (stealth)
+	bool lanternOn = true;                // L toggles; off = harder to see, harder to be seen
+	bool searched[ROOM_COUNT][GRID_W * GRID_H] = {};   // drawers already opened (each holds one thing)
+	void squash(Spider& s);
+	void stomp();
+	void stompLand();
+	float stompT = 0, stompHitT = 0, stompFxT = 0;   // cooldown, time to the stamp frame, dust ring
 
 	sf::Texture tileset;
 	Map_loader maps[ROOM_COUNT];          // ARRAY of room maps, indexed by RoomId

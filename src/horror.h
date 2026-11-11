@@ -58,40 +58,48 @@ public:
 	bool watched(sf::Vector2f player, int facing) const;
 };
 
-// The Weaver: a spider the size of a hand-spread, with a real hunting brain
-// (see ai.h).  A state machine drives it:
-//   IDLE    skitters about in short bursts
-//   ALERT   heard you (footsteps, a flare) -> A* to where the sound came from
-//   CHASE   sees you (line of sight inside its view cone) -> A* straight at you
-//   ATTACK  close enough: a lunge
-//   FLEE    after a bite or a flare -> BFS to the tile farthest from you
-//   SEARCH  lost you -> BFS picks spots around where you were last seen
+// The Weaver: a spider the size of a hand-spread, with an eight-state hunting
+// brain built on the project's own data structures (see ai.h):
+//   IDLE        frozen, listening
+//   PATROL      walks between spots near its nest (BFS picks them, A* walks there)
+//   INVESTIGATE heard something (footsteps, a flare)   -> A* to the noise
+//   SEARCH      lost you                                -> BFS spots around where you were
+//   CHASE       sees you (line of sight, view cone)     -> A* straight at you
+//   ATTACK      close enough: a lunge
+//   STUNNED     a flare hit it: it curls up for a moment, then scuttles home
+//   RETURN      after a bite or a stun                  -> A* back to its nest
+// Stealth: with the lantern OFF it only sees you up close; hiding in a
+// wardrobe makes you invisible and silent.
 class Spider {
 public:
-	enum State { IDLE, ALERT, CHASE, ATTACK, FLEE, SEARCH };
+	enum State { IDLE, PATROL, INVESTIGATE, SEARCH, CHASE, ATTACK, STUNNED, RETURN, STATE_COUNT };
 	sf::Texture tex;
 	sf::Sprite sprite{ tex };
-	sf::Vector2f pos;            // centre, in room pixels
+	sf::Vector2f pos, home;      // centre and nest, in room pixels
 	bool active = false;
 	int dir = 0;                 // facing: Down, Left, Right, Up (sheet rows)
 	State state = IDLE;
-	float stateT = 0, burst = 0, rest = 1, frameT = 0, flee = 0, bite = 0, repathT = 0, lostT = 0;
-	int searches = 0;
+	float stateT = 0, frameT = 0, bite = 0, repathT = 0, lostT = 0, wait = 0, stun = 0;
+	int searches = 0, patrols = 0;
 	sf::Vector2f lastKnown;      // where it last saw / heard you
 	bool sawYou = false, heardYou = false;
 	int path[96] = {}, pathLen = 0, pathStep = 0, expanded = 0;
 	const char* algo = "";       // which algorithm planned the current path (for the console)
 	Spider();
 	void reset(bool on, sf::Vector2f at);
-	void hear(sf::Vector2f at, float radius);   // a noise at `at`, audible within `radius`
-	void update(float dt, sf::Vector2f player, const TileGrid& map);
-	void scatter() { enter(FLEE); flee = 4.f; }
+	void hear(sf::Vector2f at, float radius);           // a noise at `at`, audible within `radius`
+	// playerVisible: false while the player hides; sightRange shrinks with the lantern off.
+	void update(float dt, sf::Vector2f player, bool playerVisible, float sightRange, const TileGrid& map);
+	void flareHit() { enter(STUNNED); stun = 1.2f; }    // the light scares it off: brief stun, then RETURN
+	void bitten() { bite = 3.f; enter(RETURN); }          // it bit you: back to the nest
 	void startChase(sf::Vector2f target) { lastKnown = target; enter(CHASE); }
+	bool dangerous() const { return active && state != STUNNED && state != RETURN; }
 	void draw(sf::RenderWindow* w);
-	static const char* stateName(State s);
+	void drawEyes(sf::RenderWindow* w, sf::Vector2f player);   // two red glints, seen through the dark
+	static const char* stateName(int s);
 private:
 	void enter(State s) { state = s; stateT = 0; pathLen = 0; pathStep = 0; }
-	bool canSee(sf::Vector2f player, const TileGrid& map) const;
+	bool canSee(sf::Vector2f player, float range, const TileGrid& map) const;
 	void planTo(const TileGrid& map, sf::Vector2f target);
 	bool followPath(float dt, float speed, const TileGrid& map);   // false when the path is used up
 	void stepTowards(sf::Vector2f target, float speed, float dt, const TileGrid& map);
