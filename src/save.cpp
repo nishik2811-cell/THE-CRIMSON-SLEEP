@@ -29,6 +29,7 @@ bool Game::saveGame(const char* path) {
 	std::fprintf(f, "player %.2f %.2f %d %d %d %.2f\n", player.health, player.fear, (int)player.is_mattock, (int)lanternOn, digCount, flareCooldown);
 	std::fprintf(f, "alfred %d %d %d %.1f %.1f\n", npc.state, (int)alfredLeft, alfredDead,
 		npc.characterImage.getPosition().x, npc.characterImage.getPosition().y);
+	std::fprintf(f, "boss %d\n", bossHP);
 	std::fprintf(f, "stats %.2f %d %d %d %.2f %d\n", runStats.time, runStats.deaths, runStats.banished, runStats.roomsSeen, runStats.peakFear, runStats.itemsFound);
 	// LINKED LIST: inventory front to back
 	int inv[32]; int n = 0;
@@ -103,6 +104,7 @@ bool Game::loadGame(const char* path) {
 			if (std::fscanf(f, "%d %d %d %f %f", &npc.state, &left, &alfredDead, &ax, &ay) != 5) break;
 			alfredLeft = left; npc.setPosition({ ax, ay });
 		}
+		else if (!std::strcmp(key, "boss")) { if (std::fscanf(f, "%d", &bossHP) != 1) break; }
 		else if (!std::strcmp(key, "stats")) {
 			if (std::fscanf(f, "%f %d %d %d %f %d", &runStats.time, &runStats.deaths, &runStats.banished, &runStats.roomsSeen, &runStats.peakFear, &runStats.itemsFound) != 6) break;
 		}

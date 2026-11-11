@@ -28,6 +28,14 @@ public:
 	sf::Clock stompClock;
 	void startStomp() { stomping = true; stompClock.restart(); }
 	static constexpr float STOMP_FRAME = 0.11f;   // seconds per stomp frame: lift, STAMP, settle
+	// Sword swing: 4 frames (wind-up, swing, STRIKE, recover) from player_sword.png,
+	// 72x72 cells with the hero at (24, 12) inside each cell.
+	sf::Texture swordTex;
+	sf::Sprite swordSprite{ swordTex };
+	bool swinging = false;
+	sf::Clock swingClock;
+	void startSwing() { swinging = true; swingClock.restart(); }
+	static constexpr float SWING_FRAME = 0.075f;
 
 	Stack<int> history;                 // rooms visited, top = current room
 	LinkedList<InventoryItem> inventory; // items carried

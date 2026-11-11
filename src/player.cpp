@@ -6,6 +6,7 @@ static bool down(sf::Keyboard::Key k) { return key_held(k); }
 
 Player::Player() : object_sound(soundbuffer_object), door_sound(soundbuffer_door), end_sound(soundbuffer_end) {
 	loadSprite(asset("graphics/player.png"));
+	if (swordTex.loadFromFile(asset("graphics/player_sword.png"))) swordSprite.setTexture(swordTex, true);
 	characterSpeed = 1.0f;
 	source = sf::Vector2i(0, Up);
 	view.zoom(0.5f);
@@ -64,7 +65,9 @@ void Player::movement(sf::RenderWindow* window) {
 	walkFrames = 4;                                  // columns 4-6 are the stomp, not the walk
 	float st = stompClock.getElapsedTime().asSeconds();
 	if (stomping && st > 3 * STOMP_FRAME) { stomping = false; source.x = 0; }
-	if (stomping) {}                                 // planted mid-stomp: no walking
+	float sw = swingClock.getElapsedTime().asSeconds();
+	if (swinging && sw > 4 * SWING_FRAME) swinging = false;
+	if (stomping || swinging) {}                     // planted mid-stomp / mid-swing: no walking
 	else if (!frozen && forcedDir >= 0) tryMove(forcedDir);
 	else if (!frozen && lockInput) { if (autoDir >= 0) tryMove(autoDir); }
 	else if (!frozen) {
@@ -83,6 +86,14 @@ void Player::movement(sf::RenderWindow* window) {
 	setFrame();
 	// Blink while invulnerable after being hurt.
 	bool blink = invulnerable > 0 && ((int)(invulnerable * 12) % 2 == 0);
-	if (!blink && !hiddenAway) window->draw(characterImage);
+	if (swinging && !hiddenAway) {                  // the sword swing replaces the normal sprite
+		int f = minOf(3, (int)(sw / SWING_FRAME));
+		swordSprite.setTextureRect(sf::IntRect({ f * 72, source.y * 72 }, { 72, 72 }));
+		sf::Vector2f top = characterImage.getPosition() - characterImage.getOrigin();   // hero cell's top-left
+		swordSprite.setPosition(top - sf::Vector2f(24.f, 12.f));
+		swordSprite.setColor(blink ? sf::Color(255, 255, 255, 120) : sf::Color::White);
+		window->draw(swordSprite);
+	}
+	else if (!blink && !hiddenAway) window->draw(characterImage);
 	if (hasLight()) light.lighteffect(characterImage.getPosition(), window);
 }

@@ -41,13 +41,7 @@ const DemoGoal GOALS[] = {
 	{ ANTECHAMBER,       17, D_LEVER,     "pull the antechamber lever" },
 	{ CRIMSON_CRYPT,     19, D_NOTE,      "read the note (it opens the way)" },
 	{ CRIMSON_CRYPT,     17, D_LEVER,     "pull the crypt lever" },
-	{ CRIMSON_CRYPT,     15, D_MATTOCK1,  "pick up a mattock" },
-	{ CRIMSON_CRYPT,     13, D_DIG1,      "dig" },
-	{ CRIMSON_CRYPT,     13, D_DIG2,      "dig" },
-	{ CRIMSON_CRYPT,     15, D_MATTOCK2,  "find another mattock" },
-	{ CRIMSON_CRYPT,     13, D_DIG3,      "dig" },
-	{ CRIMSON_CRYPT,     13, D_DIG4,      "dig" },
-	{ CRIMSON_CRYPT,     12, D_END,       "destroy the Devil's corpse" },
+	{ CRIMSON_CRYPT,     -1, D_END,       "slay the Devil with the Blessed Sword" },   // tile -1: hunt the boss
 };
 const int GOAL_COUNT = (int)(sizeof GOALS / sizeof GOALS[0]);
 const float READ_PAUSE = 2.5f;   // seconds to stand and let the story text be read
@@ -172,7 +166,8 @@ bool Game::demoPlan(int tile, bool avoid) {
 		int c = cur % GRID_W, r = cur / GRID_W;
 		for (int d = 0; d < 4 && goal < 0; ++d) {
 			sf::Vector2i t = m.at(c + dc[d], r + dr[d]);
-			if (m.inside(c + dc[d], r + dr[d]) && t.y == 1 && t.x == tile) { goal = cur; face = d; }
+			bool hitTarget = tile >= 0 ? (t.y == 1 && t.x == tile) : (r + dr[d]) * GRID_W + (c + dc[d]) == demoTargetIdx;
+			if (m.inside(c + dc[d], r + dr[d]) && hitTarget) { goal = cur; face = d; }
 		}
 		if (goal >= 0) break;
 		for (int d = 0; d < 4; ++d) {
@@ -225,6 +220,22 @@ void Game::demoUpdate(float dt) {
 		tile = 3 + e->doorNo;
 	}
 	demoReplanT += dt;
+	// The Devil: close in and strike with the Blessed Sword (SHIFT) until he falls.
+	if (g.tile < 0) {
+		if (!bossActive) return;                    // he's collapsing - the ending follows
+		sf::Vector2f bc = boss.characterImage.getPosition() + sf::Vector2f(12, 0);
+		sf::Vector2f me = pp() + sf::Vector2f(12, 12), dv = bc - me;
+		if (std::sqrt(dv.x * dv.x + dv.y * dv.y) < 46) {
+			player.source.y = std::fabs(dv.x) > std::fabs(dv.y) ? (dv.x > 0 ? Character::Right : Character::Left)
+			                                                     : (dv.y > 0 ? Character::Down : Character::Up);
+			swingSword();
+			demoPathLen = 0;
+			return;
+		}
+		int bt = (int)(bc.y / 32) * GRID_W + (int)(bc.x / 32);
+		if (bt != demoTargetIdx) { demoTargetIdx = bt; demoPathLen = 0; }   // he moved: chase his new tile
+	}
+
 	// Re-plan around moving horrors - but only while standing exactly on a tile,
 	// so a new plan never starts from the tile behind (no stepping back and forth).
 	sf::Vector2f cur = pp();
@@ -233,7 +244,7 @@ void Game::demoUpdate(float dt) {
 		demoRoomPlanned = room; demoTilePlanned = tile; demoReplanT = 0;
 		// Plan around the dead first; if they block every way, plan straight
 		// and wait for them to move (below).
-		if (!demoPlan(tile, true) && !demoPlan(tile, false)) {
+		if ((g.tile < 0 || !demoPlan(tile, true)) && !demoPlan(tile, false)) {
 			if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "DEMO can't reach tile %d in room %d\n", tile, room);
 			demoWait = 1.f; demoPathLen = 0;
 			if (++demoTries > 5) { ++demoGoal; demoTries = 0; }   // never get stuck forever
@@ -251,7 +262,7 @@ void Game::demoUpdate(float dt) {
 		// Something deadly on the next tile: hold still and let it pass; if it
 		// lingers, flare the lantern at it; after a while just go.
 		bool startTile = demoStep == 0;
-		if (!startTile && demoDanger(t % GRID_W, t / GRID_W) && demoBlockedT < 5.f) {
+		if (!startTile && g.tile >= 0 && demoDanger(t % GRID_W, t / GRID_W) && demoBlockedT < 5.f) {
 			demoBlockedT += dt;
 			if (demoBlockedT > 2.f && flareCooldown <= 0 && player.has(LANTERN)) flareLantern();
 			return;
@@ -265,7 +276,7 @@ void Game::demoUpdate(float dt) {
 
 	// Arrived: face the thing and use it (or, on cracked ground, stand still and dig).
 	player.source.y = demoFace;
-	if (g.tile == 13 && tile == 13) return;     // updateDig does the digging while we stand still
+	if (g.tile < 0) { demoPathLen = 0; return; }   // next to the Devil: the strike happens above
 	interact();
 	demoPathLen = 0;
 	demoWait = 0.6f;

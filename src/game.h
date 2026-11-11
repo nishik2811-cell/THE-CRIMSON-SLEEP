@@ -59,6 +59,7 @@ public:
 	void devStartAt(int room);
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
+	void devSwing() { swingSword(); }
 	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; spiders[0].wait = 30; }
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
@@ -114,7 +115,7 @@ private:
 	// Demo-mode state (see demo.cpp).
 	static const int DEMO_MAX_PATH = 256;
 	int demoGoal = 0, demoTries = 0, demoPath[DEMO_MAX_PATH] = {}, demoPathLen = 0, demoStep = 0, demoFace = 0;
-	int demoRoomPlanned = -1, demoTilePlanned = -1;
+	int demoRoomPlanned = -1, demoTilePlanned = -1, demoTargetIdx = -1;
 	float demoWait = 0, demoTalkT = 0, demoReplanT = 0, demoBlockedT = 0;
 	void demoUpdate(float dt);
 	bool demoPlan(int tile, bool avoid);
@@ -130,6 +131,12 @@ private:
 	bool roomVisited[ROOM_COUNT] = {};
 	int easyCount = 0, mediumCount = 0;
 	bool bossActive = false;
+	static const int BOSS_MAX_HP = 6;
+	int bossHP = BOSS_MAX_HP;             // the Devil takes six blows of the Blessed Sword
+	float bossHitT = 0, bossDeathT = -1;  // red flash on a hit; >= 0 while he collapses
+	float swingT = 0, swingHitT = 0;      // sword cooldown, time until the STRIKE frame lands
+	void swingSword();
+	void swordLand();
 	float ghostStun = 0, bossStun = 0;
 
 	// threat / fear

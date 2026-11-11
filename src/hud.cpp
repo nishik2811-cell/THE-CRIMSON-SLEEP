@@ -202,6 +202,23 @@ void Game::drawHud(sf::RenderWindow* w) {
 		w->draw(label(fontSerif, hintText, 19, sf::Color(255, 120, 130), 22, H - 89));
 	}
 
+	// The Devil's health: a wide boss bar, bottom-centre above the hint line.
+	if (room == CRIMSON_CRYPT && (bossActive || bossDeathT >= 0)) {
+		const float bw = 500, bx = (W - bw) / 2, by = H - 108;
+		sf::Text name(fontTitle, "The Devil", 24); name.setFillColor(CRIMSON);
+		name.setOutlineColor(sf::Color::Black); name.setOutlineThickness(2);
+		name.setPosition({ std::floor((W - name.getLocalBounds().size.x) / 2), by - 32 }); w->draw(name);
+		sf::RectangleShape back({ bw, 12.f }); back.setPosition({ bx, by });
+		back.setFillColor(sf::Color(24, 6, 10, 230)); back.setOutlineColor(sf::Color(120, 20, 34)); back.setOutlineThickness(2); w->draw(back);
+		float frac = maxOf(0.f, (float)bossHP / BOSS_MAX_HP);
+		sf::RectangleShape fill({ (bw - 4) * frac, 8.f }); fill.setPosition({ bx + 2, by + 2 });
+		fill.setFillColor(bossHitT > 0 ? sf::Color(255, 140, 140) : sf::Color(190, 18, 38)); w->draw(fill);
+		for (int i = 1; i < BOSS_MAX_HP; ++i) {         // notches: one per blow
+			sf::RectangleShape n({ 2.f, 12.f }); n.setPosition({ bx + bw * i / BOSS_MAX_HP - 1, by });
+			n.setFillColor(sf::Color(10, 2, 4, 200)); w->draw(n);
+		}
+	}
+
 	// Hiding in a wardrobe: you look out through the gap between the doors.
 	if (hidden) {
 		sf::RectangleShape l({ W / 2 - 60, H }); l.setFillColor(sf::Color(6, 2, 3, 235)); w->draw(l);
@@ -220,7 +237,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	}
 
 	// Controls strip.
-	w->draw(label(fontSerif, "E interact   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB console   M mute   ESC pause", 15, ASH, 22, H - 26));
+	w->draw(label(fontSerif, player.has(SWORD) ? "E interact   SHIFT sword   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB   M   ESC" : "E interact   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB console   M mute   ESC pause", 15, ASH, 22, H - 26));
 
 	// Story text box.
 	if (!dialogue.empty()) {

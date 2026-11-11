@@ -274,6 +274,7 @@ int main() {
 			game_state = ST_TITLE;
 			break;
 		}
+		if (game && env("CS_SWINGAT") && frame == std::atoi(env("CS_SWINGAT"))) game->devSwing();
 		if (game_state == ST_ENDING && env("CS_DEMO_LOG")) { std::fprintf(stderr, "DEMO ENDING %d after %d frames\n", ending_type, frame); window.close(); }
 		prevState = stateAtFrameStart;   // the state this frame ran, so "just died" is detected once
 		if (!window.isOpen()) break;

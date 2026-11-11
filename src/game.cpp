@@ -25,11 +25,10 @@ const TipInfo TIPS[TIP_COUNT] = {
 	  "- Walk backwards toward the door with eyes locked on Carrie.\n"
 	  "- A FLARE (F) disrupts her psychic grip and drives her back." },
 	{ "The Devil",
-	  "He cannot be fought - only ended.\n"
-	  "- The EMF meter beeps when he is close: keep your distance.\n"
-	  "- Dig at the cracked heart of the crypt with a mattock\n"
-	  "  (stand still on it). Mattocks break - there is a spare.\n"
-	  "- Strike the corpse with the Blessed Sword. A flare stuns him." },
+	  "He waits in the crypt. Only the Blessed Sword can end him.\n"
+	  "- SHIFT swings the sword. Six true blows and he falls.\n"
+	  "- His claws tear at you - strike, then step back.\n"
+	  "- A FLARE (F) stuns him: that's your moment to strike." },
 	{ "Spikes, Fire and Graves",
 	  "The house itself wants you.\n"
 	  "- Spikes and flames rise and fall - time your steps.\n"
@@ -153,7 +152,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	switch (room) {
 	case GRAND_CORRIDOR: if (!roomVisited[LIBRARY]) say("A long corridor. Portraits with scratched-out eyes.\nAlfred was right to be afraid."); break;
 	case NURSERY: say("A music box plays by itself.\nI must not come in contact with whatever lives here.\nSpikes ring the chest - there must be a lever somewhere."); break;
-	case CRIMSON_CRYPT: say("The Devil is somewhere around.\nThe EMF meter beeps when he comes close.\nDig out his corpse at the crypt's heart and destroy it."); break;
+	case CRIMSON_CRYPT: say("The Devil is here. The EMF meter screams.\nHe can only be ended by the Blessed Sword:\nSHIFT to strike - six blows. A flare (F) stuns him."); break;
 	case HIDDEN_TUNNEL: say("Wet stone. Scratch marks. Someone was walled in here."); break;
 	case OSSUARY: say("Bones, stacked like firewood.\nAt the far end, a skeleton in a wedding dress."); break;
 	default: break;
@@ -176,7 +175,7 @@ void Game::spawnEnemies() {
 		for (int i = 0; i < 2; ++i) { ghostMedium[i].setPosition({ (float)(m[i].x), (float)(m[i].y) }); ghostMedium[i].initialize(); }
 		easyCount = 3; mediumCount = 2;
 	}
-	else if (room == CRIMSON_CRYPT) { boss.setPosition({ (float)(838), (float)(228) }); bossActive = true; }
+	else if (room == CRIMSON_CRYPT && bossHP > 0) { boss.setPosition({ (float)(838), (float)(228) }); bossActive = true; }
 
 	bride.reset(ROOMS[room].wraith, frand(10, 18));
 	bride.pacified = player.has(CRIMSON_LOCKET);
@@ -230,6 +229,9 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (player.invulnerable > 0) player.invulnerable -= dt;
 		if (flareCooldown > 0) flareCooldown -= dt;
 		if (stompT > 0) stompT -= dt;
+		if (swingT > 0) swingT -= dt;
+		if (bossHitT > 0) bossHitT -= dt;
+		if (swingHitT > 0) { swingHitT -= dt; if (swingHitT <= 0) swordLand(); }
 		if (stompHitT > 0) { stompHitT -= dt; if (stompHitT <= 0) stompLand(); }
 		if (stompFxT > 0) stompFxT -= dt;
 		if (flare > 0) flare -= dt * 2.f;
@@ -268,8 +270,16 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		else { ghostMedium[i].characterImage.setColor(sf::Color::White); ghostMedium[i].movement(&player, window); }
 	}
 	if (bossActive) {
+		boss.characterImage.setColor(bossHitT > 0 ? sf::Color(255, 90, 90) : sf::Color::White);   // flashes red when struck
 		if (overlay || bossStun > 0) { window->draw(boss.characterImage); boss.beep_sound.stop(); }
 		else boss.movement(&player, window);
+	}
+	else if (bossDeathT >= 0) {                      // the Devil collapses: sinks, darkens, fades
+		float k = minOf(1.f, bossDeathT / 2.2f);
+		boss.characterImage.setColor(sf::Color(255, (std::uint8_t)(120 * (1 - k)), (std::uint8_t)(120 * (1 - k)), (std::uint8_t)(255 * (1 - k))));
+		window->draw(boss.characterImage);
+		if (!overlay) bossDeathT += dt;
+		if (bossDeathT > 2.6f) { bossDeathT = -1; player.end_sound.play(); finish(player.has(CRIMSON_LOCKET) ? END_TRUE : END_ESCAPE); return; }
 	}
 	if (!overlay) child.update(dt, pp(), player.source.y);
 	child.draw(window);
@@ -349,6 +359,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (key_hit(sf::Keyboard::Key::B)) goBack();
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
 		if (key_hit(sf::Keyboard::Key::Q)) stomp();
+		if (key_hit(sf::Keyboard::Key::LShift) || key_hit(sf::Keyboard::Key::RShift)) swingSword();
 		if (key_hit(sf::Keyboard::Key::L) && player.has(LANTERN)) {      // lantern on/off (stealth)
 			lanternOn = !lanternOn;
 			audio.play(SFX_UI_CLICK, 70);
@@ -364,8 +375,11 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		updateEvents(dt);
 		updateThreats(dt);
 		updateHints(dt);
-		if (bossActive) for (int i = 0; i < 1; ++i) {
-			if (bossStun <= 0 && boss.isCollisionCharacter(&player)) { die("The Devil took you.", TIP_DEVIL); return; }
+		if (bossActive && bossStun <= 0 && !hidden && player.invulnerable <= 0 && boss.isCollisionCharacter(&player)) {
+			audio.play(SFX_SCREAM, 70, 0.6f);
+			hurt(25, 15, "The Devil's claws tear into you!", TIP_DEVIL, false);
+			knockBack(boss.characterImage.getPosition());
+			if (game_state != ST_PLAYING) return;
 		}
 	}
 	else {
@@ -470,8 +484,7 @@ void Game::interact() {
 		else say("Bones. Just bones. Probably.");
 		break;
 	case 15:
-		if (!player.is_mattock) { player.object_sound.play(); changeFacingTile(sf::Vector2i(-1, -1)); player.is_mattock = true; player.give(MATTOCK); say("Picked up a mattock.\nStand still on the cracked ground to dig."); }
-		else say("I already have this tool.");
+		say("A rusted mattock, its handle snapped.\nWhoever dug here never finished. Only the Blessed Sword will do.");
 		break;
 	case 16: pickUp(SWORD, "The Blessed Sword.\nThe crypt door will open for you now.", true); break;
 	case 17:
@@ -484,7 +497,7 @@ void Game::interact() {
 	case 19:
 		audio.play(SFX_PAPER, 80);
 		if (room == ANTECHAMBER) say("Choose wisely - your choice decides how this ends.");
-		else if (room == CRIMSON_CRYPT) say("The Devil's corpse is buried in the center.\nTake the digging tool and stand still to dig.");
+		else if (room == CRIMSON_CRYPT) say("Scrawled in blood:\n'He cannot be dug out or burned. Only the Blessed Sword\nwill end him. Strike true - six times.'  (SHIFT)");
 		else if (room == OSSUARY) say("Carved in the stone:\n'Here lies the bride of June 26, 1953.\nReturn her heart to the light and she will rest.'");
 		else say("A faint whisper: 'Don't look behind you.'");
 		if (room != OSSUARY) changeFacingTile(sf::Vector2i(-1, -1));
@@ -642,6 +655,7 @@ void Game::updateHazards() {
 }
 
 void Game::updateDig(float dt) {
+	return;   // the crypt is now a sword fight with the Devil - no digging
 	if (room != CRIMSON_CRYPT) return;
 	int id = player.col.isInteractionMap(pp(), player.source.y);
 	if (id != 13) { digT = 0; return; }
@@ -813,9 +827,10 @@ void Game::updateHints(float dt) {
 	}
 	if (key == 100) {
 		targetRoom = CRIMSON_CRYPT;
-		if (digCount >= 4) { key = 20; targetTile = 12; what = "Strike the Devil's corpse with the Blessed Sword."; }
-		else if (!player.is_mattock) { key = 21 + digCount; targetTile = 15; what = "Find a mattock in the crypt to dig with."; }
-		else { key = 30 + digCount; targetTile = 13; what = "Stand still on the cracked ground at the crypt's heart and dig."; }
+		int lc, lr;
+		if (maps[CRIMSON_CRYPT].map.find(19, &lc, &lr)) { key = 20; targetTile = 19; what = "Read the note at the crypt's entrance - it opens the way."; }
+		else if (maps[CRIMSON_CRYPT].map.find(17, &lc, &lr)) { key = 21; targetTile = 17; what = "Pull the crypt lever to lower the spikes."; }
+		else { key = 22 + (BOSS_MAX_HP - bossHP); targetTile = -1; what = "Kill the Devil with the Blessed Sword: SHIFT to strike. A flare (F) stuns him."; }
 	}
 	// In the Nursery the chest is ringed by spikes until the lever is pulled.
 	if (targetRoom == NURSERY && targetTile == 1) {
@@ -1104,4 +1119,52 @@ void Game::stompLand() {                           // the boot comes down
 		if (spiders[i].active && dist(spiders[i].pos, me) < bestD) { bestD = dist(spiders[i].pos, me); best = &spiders[i]; }
 	if (best) squash(*best);
 	else showToast("You stamp at nothing...");
+}
+
+// SHIFT: swing the Blessed Sword.  The blow lands on the STRIKE frame (the 3rd).
+void Game::swingSword() {
+	if (hidden || !player.has(SWORD) || swingT > 0 || player.swinging) return;
+	swingT = 0.45f;
+	player.startSwing();
+	swingHitT = 2 * Player::SWING_FRAME;
+	audio.play(SFX_WHISPER, 55, 1.8f);             // the blade cuts the air
+}
+void Game::swordLand() {
+	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
+	int d = player.source.y;
+	sf::Vector2f f = d == Character::Down ? sf::Vector2f(0, 1) : d == Character::Left ? sf::Vector2f(-1, 0) :
+	                 d == Character::Right ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
+	auto inReach = [&](sf::Vector2f c, float reach) {   // in front of you, within the blade's sweep
+		sf::Vector2f v = c - me;
+		float l = std::sqrt(v.x * v.x + v.y * v.y);
+		return l < 22 || (l < reach && (v.x * f.x + v.y * f.y) / l > 0.2f);
+	};
+	bool hit = false;
+	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58)) {
+		hit = true;
+		--bossHP; bossHitT = 0.25f; bossStun = maxOf(bossStun, 0.7f);
+		shake = 0.7f;
+		audio.play(SFX_SLAM, 95, 0.7f);
+		for (int i = 0; i < 26; ++i) {                // knocked back along the blow
+			sf::Vector2f step = f * 1.f;
+			int dir = d;
+			if (boss.col.isCollisionMap(boss.characterImage.getPosition(), dir)) break;
+			boss.characterImage.move(step);
+		}
+		if (bossHP <= 0) {
+			bossActive = false; bossDeathT = 0; boss.beep_sound.stop();
+			audio.play(SFX_SCREAM, 100, 0.5f);
+			say("The Blessed Sword bites deep.\nThe Devil shrieks, and the crypt shakes...");
+			runStats.banished++;
+		}
+		else {
+			char b[64]; std::snprintf(b, sizeof b, "The blade bites!  (%d more)", bossHP);
+			showToast(b);
+		}
+	}
+	for (int i = 0; i < spiderCount; ++i)          // the sword cuts spiders down too
+		if (spiders[i].active && inReach(spiders[i].pos, 50)) { squash(spiders[i]); hit = true; }
+	for (int i = 0; i < easyCount; ++i) if (inReach(ghostEasy[i].characterImage.getPosition() + sf::Vector2f(12, 0), 50)) { ghostStun = 2.f; hit = true; }
+	for (int i = 0; i < mediumCount; ++i) if (inReach(ghostMedium[i].characterImage.getPosition() + sf::Vector2f(12, 0), 50)) { ghostStun = 2.f; hit = true; }
+	if (!hit) audio.play(SFX_STEP_STONE, 50, 1.5f);
 }

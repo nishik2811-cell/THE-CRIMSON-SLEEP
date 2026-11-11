@@ -173,6 +173,7 @@ The sprites are generated from single drawings:
 - [`tools/make_spider.py`](tools/make_spider.py) cuts out each of the 8 legs (a multi-source BFS from the joints decides which pixel belongs to which leg) and swings it around its joint: 6 frames, rotated into 4 directions.
 - [`tools/make_spider_dead.py`](tools/make_spider_dead.py) draws the squashed body.
 - [`tools/make_stomp.py`](tools/make_stomp.py) adds the hero's stomp frames.
+- [`tools/make_sword_attack.py`](tools/make_sword_attack.py) builds the hero's sword attack: 4 frames (wind-up, swing, strike, recover) in 4 directions. The Blessed Sword is redrawn pixel by pixel at each angle, with a crimson slash arc.
 
 ---
 
@@ -188,6 +189,7 @@ The demo plays by the real rules: it walks to each object, faces it, and uses it
 pressing **E** would. It finds its way with the project's own structures:
 - **Between rooms:** BFS over the house graph.
 - **Inside a room:** BFS over the tiles with the Queue. Tiles next to ghosts, spiders or the Devil are treated as blocked, and it waits for a ghost to pass if one is in the way.
+- **The Devil:** it closes in and strikes with the sword until he falls.
 - **Meeting the horrors:** it uses each one's survival rule. It turns to **face Carrie** so she freezes, **stands still** while Samara hunts, and **flares** spiders and spirits when they get close.
 
 The demo is also the game's end-to-end test: if any room couldn't be solved, the demo would get stuck.
@@ -226,7 +228,7 @@ This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** 
 | 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
 | 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking | **Face her** and she freezes. A **flare** drives her away for a while. |
 | 🕷️ | **The Weavers** | Patrol, hear your steps, see you, chase with A\*, rear up and bite | **Stand still**, turn the **lantern off (L)** or **hide in a wardrobe (E)**. When one rears up at your feet, **stomp (Q)**. A flare stuns them. |
-| 😈 | **The Devil** | Hunts you through the crypt; the EMF meter beeps when he's near | Dig at the crypt's heart with a mattock (stand still), then strike his corpse with the Blessed Sword. A flare stuns him. |
+| 😈 | **The Devil** | The final boss. He hunts you through the crypt, and his claws tear at you; the EMF meter beeps when he's near | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. Each blow staggers and knocks him back. A **flare** stuns him for free hits. |
 | 🔥 | **The house** | Spikes, fire, open graves | Time your steps. **Levers** lower the spikes. |
 | 😱 | **Fear** | Rises in the dark, near the dead and with every scare | At 100 your mind breaks. Keep the lantern lit and flare to steady your nerves. |
 
@@ -253,8 +255,8 @@ and a trail of blood leads you there.
 
 | Ending | How |
 |---|---|
-| **True** | Open the Hidden Tunnel, return Samara's locket, *then* destroy the Devil's corpse. The crimson moon fades to dawn and the house sleeps without dreaming. |
-| **Escape** | Destroy the corpse without the locket. |
+| **True** | Open the Hidden Tunnel, return Samara's locket, *then* slay the Devil with the Blessed Sword. The crimson moon fades to dawn and the house sleeps without dreaming. |
+| **Escape** | Slay the Devil without the locket. |
 | **Secret** | Walk out of the front door carrying the locket. |
 | **Trapped** | Choose the petrol in the Antechamber. |
 
@@ -269,6 +271,7 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 | Arrows / WASD | Walk |
 | E / Enter | Interact: pick up, open, read, use doors |
 | **F** | Flare the lantern (10 s cooldown, shown on the HUD) |
+| **Shift** | Swing the Blessed Sword (once you have it): the final fight, and it cuts spiders down too |
 | **Q** | Stomp (squash a spider at your feet) |
 | **L** | Lantern on / off (stealth) |
 | **B** | Go back one room (Stack) |
