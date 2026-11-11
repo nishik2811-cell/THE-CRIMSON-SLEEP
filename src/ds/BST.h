@@ -18,6 +18,10 @@ class BST {
 		if (!n) return;
 		inorder(n->left, fn); fn(n->key, n->value); inorder(n->right, fn);
 	}
+	template <typename Fn> static void walkNode(Node* n, int depth, int parent, Fn& fn) {
+		if (!n) return;
+		walkNode(n->left, depth + 1, n->key, fn); fn(n->key, n->value, depth, parent); walkNode(n->right, depth + 1, n->key, fn);
+	}
 	static int heightOf(Node* n) {
 		if (!n) return 0;
 		int l = heightOf(n->left), r = heightOf(n->right);
@@ -49,6 +53,18 @@ public:
 	}
 	const V* search(int key) const { return const_cast<BST*>(this)->search(key); }
 	template <typename Fn> void inOrder(Fn fn) const { inorder(root, fn); }
+	// In-order walk that also reports each node's depth and its parent's key
+	// (-1 for the root): enough to draw the tree.
+	template <typename Fn> void walk(Fn fn) const { walkNode(root, 0, -1, fn); }
+	// Keys visited by search(key), root first.  Returns how many were written.
+	int pathTo(int key, int* out, int max) const {
+		int n = 0;
+		for (Node* c = root; c && n < max; c = key < c->key ? c->left : c->right) {
+			out[n++] = c->key;
+			if (c->key == key) break;
+		}
+		return n;
+	}
 	int size() const { return count; }
 	int height() const { return heightOf(root); }
 	void clear() { destroy(root); root = nullptr; count = 0; }

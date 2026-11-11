@@ -14,3 +14,7 @@ void key_reset() { for (int i = 0; i < (int)sf::Keyboard::KeyCount; ++i) g_hits[
 void key_record(sf::Keyboard::Key k) { int i = idx(k); if (i >= 0 && i < (int)sf::Keyboard::KeyCount) g_hits[i] = true; }
 
 std::string asset(const std::string& rel) { return "assets/" + rel; }
+
+float g_consoleScroll = 0, g_consoleContentH = 0;
+int g_lastLookup = -1;
+bool g_diag = false;

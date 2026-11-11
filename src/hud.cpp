@@ -1,3 +1,4 @@
+#include <algorithm>
 // Graphics & UI handler: translates the data structures into pixels.
 #include "game.h"
 #include <cmath>
@@ -235,6 +236,31 @@ void Game::drawHud(sf::RenderWindow* w) {
 			sf::RectangleShape redFlash(sf::Vector2f(W, H)); redFlash.setFillColor(sf::Color(200, 0, 20, 110)); w->draw(redFlash);
 		}
 	}
+	// F9 diagnostics: what the game thinks the player is doing right now.
+	if (g_diag) {
+		using K = sf::Keyboard::Key;
+		auto k = [](K a, K b) { return sf::Keyboard::isKeyPressed(a) || sf::Keyboard::isKeyPressed(b); };
+		static sf::Clock fc; static int frames = 0; static float fps = 0;
+		++frames; if (fc.getElapsedTime().asSeconds() >= 0.5f) { fps = frames / fc.restart().asSeconds(); frames = 0; }
+		sf::Vector2f p = pp();
+		char d[512];
+		std::snprintf(d, sizeof d,
+			"DIAG  fps %.0f   pos %.0f, %.0f   room %d\n"
+			"keys  L%d R%d U%d D%d\n"
+			"frozen %d  lockInput %d  autoDir %d  forcedDir %d  moving %d\n"
+			"tipOpen %d  journal %d  jumpscare %.2f  alfredT %.1f\n"
+			"blocked  down %d  left %d  right %d  up %d   speed %.2f",
+			fps, p.x, p.y, room,
+			k(K::Left, K::A), k(K::Right, K::D), k(K::Up, K::W), k(K::Down, K::S),
+			(int)player.frozen, (int)player.lockInput, player.autoDir, player.forcedDir, (int)player.isMoving(),
+			tipOpen, journalPage, jumpscare, alfredT,
+			player.col.isCollisionMap(p, 0), player.col.isCollisionMap(p, 1), player.col.isCollisionMap(p, 2), player.col.isCollisionMap(p, 3),
+			player.characterSpeed);
+		sf::Text dt(fontMono, d, 14);
+		dt.setFillColor(sf::Color(255, 255, 120)); dt.setOutlineColor(sf::Color::Black); dt.setOutlineThickness(2);
+		dt.setPosition({ 16.f, 300.f });
+		w->draw(dt);
+	}
 	if (tipOpen >= 0) drawTip(w, tipOpen);
 	if (journalPage >= 0) drawJournal(w);
 }
@@ -397,11 +423,19 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 // console button).  One card per structure; each card DRAWS the structure
 // (boxes, arrows, bars) with real game data instead of describing it.
 void Game::drawConsole(sf::RenderWindow* w) {
-	w->setView(w->getDefaultView());
-	const float W = (float)w->getSize().x;
+	// Two views over the console window: a fixed one for the background and
+	// scroll bar, and one moved down by g_consoleScroll for the cards.
+	const float pw = (float)w->getSize().x, PH = (float)w->getSize().y;
+	sf::View fixedV(sf::FloatRect({ 0.f, 0.f }, { pw, PH }));
+	sf::View scrollV = fixedV;
+	g_consoleScroll = std::clamp(g_consoleScroll, 0.f, std::max(0.f, g_consoleContentH - PH));
+	scrollV.move({ 0.f, std::floor(g_consoleScroll) });
+	w->setView(fixedV);
+	const float W = pw - 10;   // leave a strip on the right for the scroll bar
 	const sf::Color BG(12, 4, 6), CARD(24, 8, 12), EDGE(70, 16, 26), TITLE(236, 120, 130), TAG(120, 100, 100);
 	const sf::Color OPEN(120, 200, 150), LOCK(230, 110, 110), CHIP(42, 14, 20), HI(110, 22, 36);
-	sf::RectangleShape bg({ W, (float)w->getSize().y }); bg.setFillColor(BG); w->draw(bg);
+	sf::RectangleShape bg({ pw, PH }); bg.setFillColor(BG); w->draw(bg);
+	w->setView(scrollV);
 
 	auto txt = [&](const std::string& str, const sf::Font& f, unsigned size, sf::Color c, float x, float y, bool centre = false) {
 		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); t.setFillColor(c);
@@ -436,13 +470,13 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		float tw = width(tag, fontMono, 10);
 		rect(W - 24 - tw - 8, y + 8, tw + 8, 15, sf::Color(40, 16, 22));
 		txt(tag, fontMono, 10, TAG, W - 24 - tw - 4, y + 9);
-		float top = y + 28; y += h + 8; return top;
+		float top = y + 28; y += h + 12; return top;
 	};
 	char b[160];
 
 	// ---- header: the current room + its fixed facts (ARRAY)
 	txt(ROOMS[room].name, fontTitle, 26, CRIMSON, 14, y - 2);
-	txt("live data structures", fontItalic, 13, TAG, W - 14 - width("live data structures", fontItalic, 13), y + 8);
+	txt("scroll: wheel / PgUp PgDn", fontItalic, 12, TAG, W - 14 - width("scroll: wheel / PgUp PgDn", fontItalic, 12), y + 10);
 	y += 34;
 	{
 		float x = 14;
@@ -450,13 +484,14 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		x += chip(x, y, b, CHIP, BONE) + 6;
 		x += chip(x, y, ROOMS[room].dark ? "dark" : "lit", CHIP, BONE) + 6;
 		x += chip(x, y, ROOMS[room].wraith ? "ghost can appear" : "no drifting ghost", CHIP, BONE) + 6;
-		txt("ARRAY  ROOMS[" + std::to_string(room) + "]", fontMono, 10, TAG, x + 4, y + 6);
+		txt("ARRAY", fontMono, 10, TAG, x + 4, y + 6);
 		y += 32;
 	}
 
 	// ---- GRAPH: this room and where its doors lead
 	{
-		float t = card(118, "Doors from here", "GRAPH");
+		static const char* SHORT[ROOM_COUNT] = { "", "Hall", "Corridor", "Library", "Bedroom", "Nursery", "Chapel", "Antechamber", "Crypt", "Tunnel", "Ossuary" };
+		float t = card(126, "Doors from here", "GRAPH");
 		float cx = W / 2;
 		float cw = width(ROOMS[room].name, fontSerif, 14) + 16;
 		rect(cx - cw / 2, t, cw, 24, HI, TITLE);
@@ -466,36 +501,36 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		float slot = (W - 40) / std::max(1, n);
 		for (int i = 0; i < n; ++i) {
 			const Edge* e = list[i];
-			float nx = 20 + slot * i + slot / 2, ny = t + 50;
-			std::string name = e->to == OUTSIDE ? "Outside" : ROOMS[e->to].name;
-			unsigned fs = width(name, fontSerif, 13) > slot - 12 ? 11 : 13;
-			float nw = std::min(slot - 8, width(name, fontSerif, fs) + 12);
+			float nx = 20 + slot * i + slot / 2, ny = t + 46;
+			std::string name = e->to == OUTSIDE ? "Outside" : SHORT[e->to];
+			unsigned fs = width(name, fontSerif, 13) > slot - 10 ? 11 : 13;
+			float nw = std::min(slot - 4, width(name, fontSerif, fs) + 12);
 			lineTo({ cx, t + 24 }, { nx, ny }, e->locked ? LOCK : OPEN);
 			rect(nx - nw / 2, ny, nw, 22, CHIP, e->locked ? LOCK : OPEN);
 			txt(name, fontSerif, fs, BONE, nx, ny + 3, true);
 			std::string st = e->locked ? std::string("needs ") + ITEMS[e->requiredItem].name : "open";
-			unsigned ss = width(st, fontItalic, 12) > slot - 4 ? 10 : 12;
-			txt(st, fontItalic, ss, e->locked ? LOCK : OPEN, nx, ny + 25, true);
+			float sy = ny + 25 + ((n > 3 && i % 2) ? 14 : 0);    // stagger so neighbours' labels never collide
+			txt(st, fontItalic, 11, e->locked ? LOCK : OPEN, nx, sy, true);
 		}
 	}
 
 	// ---- STACK: rooms visited, top = where you are
 	{
-		float t = card(80, "Where you've been", "STACK");
+		float t = card(76, "Where you've been", "STACK");
 		int hist[32]; int hn = player.history.toArray(hist, 32);
 		for (int i = 0; i < hn && i < 2; ++i) {
-			float bx = 24, by = t + i * 22, bw = 190;
+			float bx = 22, by = t + i * 22, bw = 160;
 			rect(bx, by, bw, 20, i == 0 ? HI : CHIP, i == 0 ? TITLE : EDGE);
 			txt(ROOMS[hist[i]].name, fontSerif, 13, i == 0 ? sf::Color::White : BONE, bx + 8, by + 2);
 		}
-		if (hn > 2) { std::snprintf(b, sizeof b, "+%d more below", hn - 2); txt(b, fontItalic, 12, TAG, 226, t + 25 + 22); }
-		txt("TOP  -  you are here", fontItalic, 12, TAG, 226, t + 3);
-		if (hn > 1) txt(std::string("B goes back to the ") + ROOMS[hist[1]].name, fontItalic, 12, TAG, 226, t + 25);
+		txt("TOP  -  you are here", fontItalic, 12, TAG, 192, t + 3);
+		if (hn > 1) txt(std::string("B goes back one room"), fontItalic, 12, TAG, 192, t + 25);
+		if (hn > 2) { std::snprintf(b, sizeof b, "+%d more below", hn - 2); txt(b, fontItalic, 11, TAG, W - 22 - width(b, fontItalic, 11), t + 25); }
 	}
 
 	// ---- QUEUE: scares in the order they will fire
 	{
-		float t = card(60, "Next scares in this room", "QUEUE");
+		float t = card(54, "Next scares in this room", "QUEUE");
 		const char* what[] = { "flicker", "whisper", "door slam", "whisper", "blood writing", "moan", "floor crack", "glass" };
 		HauntEvent ev[16]; int en = events.toArray(ev, 16);
 		float x = 22;
@@ -513,17 +548,17 @@ void Game::drawConsole(sf::RenderWindow* w) {
 
 	// ---- PRIORITY QUEUE: current dangers, worst first
 	{
-		float t = card(74, "Dangers right now", "PRIORITY QUEUE");
+		float t = card(70, "Dangers right now", "PRIORITY QUEUE");
 		int shown = 0;
 		for (int i = 0; i < threats.size() && shown < 2; ++i) {
 			const Threat& th = threats.at(i);
 			if (th.kind == TH_CALM || !th.label[0]) continue;
-			float by = t + shown * 22, maxw = W - 160;
+			float by = t + shown * 20, maxw = W - 90;
 			rect(24, by + 4, maxw, 12, CHIP);
 			rect(24, by + 4, maxw * th.priority / 100.f, 12, shown == 0 ? sf::Color(200, 40, 60) : sf::Color(130, 50, 60));
-			std::string lbl = th.label; if (lbl.size() > 38) lbl = lbl.substr(0, 36) + "...";
+			std::string lbl = th.label; if (lbl.size() > 44) lbl = lbl.substr(0, 42) + "...";
 			std::snprintf(b, sizeof b, "%d", th.priority);
-			txt(b, fontMono, 11, BONE, W - 128, by + 3);
+			txt(b, fontMono, 11, BONE, W - 56, by + 3);
 			txt(lbl, fontSerif, 12, shown == 0 ? sf::Color::White : BONE, 30, by + 1);
 			++shown;
 		}
@@ -532,7 +567,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 
 	// ---- LINKED LIST: inventory
 	{
-		float t = card(60, "Carrying", "LINKED LIST");
+		float t = card(54, "Carrying", "LINKED LIST");
 		float x = 22; int k = 0;
 		bool overflow = false;
 		player.inventory.forEach([&](const InventoryItem& it) {
@@ -545,25 +580,69 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		txt(overflow ? "..." : "null", fontMono, 12, TAG, x, t + 4);
 	}
 
-	// ---- BST: every item and clue
+	// ---- BST: the item / clue database drawn as the actual tree.
+	// x = in-order position, y = depth; lines join each node to its parent.
+	// The path search() walked for the last item you picked up is lit red.
 	{
-		float t = card(62, "Items and clues found", "BINARY SEARCH TREE");
-		int found = 0, total = 0, read = 0;
-		float dx = 22;
-		itemDB.inOrder([&](int, const ItemRecord& r) {
-			++total; if (r.collected) ++found; if (r.discovered && ITEMS[r.id].isClue) ++read;
-			sf::CircleShape dot(6.f); dot.setPosition({ dx, t + 2 });
-			dot.setFillColor(r.collected ? (ITEMS[r.id].isClue ? sf::Color(240, 200, 120) : OPEN) : CHIP);
-			dot.setOutlineColor(EDGE); dot.setOutlineThickness(1); w->draw(dot);
-			dx += 18;
+		float t = card(206, "Items and clues", "BINARY SEARCH TREE");
+		const int MAXN = 32;
+		int key[MAXN], depth[MAXN], parent[MAXN]; ItemRecord rec[MAXN]; int n = 0;
+		itemDB.walk([&](int k, const ItemRecord& r, int d, int p) {
+			if (n < MAXN) { key[n] = k; rec[n] = r; depth[n] = d; parent[n] = p; ++n; }
 		});
-		std::snprintf(b, sizeof b, "%d of %d found  -  %d clue%s read  -  tree height %d", found, total, read, read == 1 ? "" : "s", itemDB.height());
-		txt(b, fontSerif, 13, BONE, 22, t + 16);
+		const float R = 11.f, step = (W - 36) / std::max(1, n), ystep = 25.f;
+		auto at = [&](int i) { return sf::Vector2f(18 + step * (i + 0.5f), t + R + 2 + depth[i] * ystep); };
+		auto indexOf = [&](int k) { for (int i = 0; i < n; ++i) if (key[i] == k) return i; return -1; };
+		int path[MAXN]; int pn = g_lastLookup >= 0 ? itemDB.pathTo(g_lastLookup, path, MAXN) : 0;
+		auto onPath = [&](int k) { for (int i = 0; i < pn; ++i) if (path[i] == k) return true; return false; };
+		const sf::Color GOLD(240, 200, 120), PATH(255, 70, 90);
+		for (int i = 0; i < n; ++i) {
+			int pi = indexOf(parent[i]);
+			if (pi < 0) continue;
+			bool lit = onPath(key[i]) && onPath(parent[i]);
+			sf::Vector2f a = at(pi), c = at(i);
+			lineTo(a, c, lit ? PATH : EDGE);
+			if (lit) lineTo(a + sf::Vector2f(1, 0), c + sf::Vector2f(1, 0), PATH);
+		}
+		int found = 0, read = 0;
+		for (int i = 0; i < n; ++i) {
+			const ItemRecord& r = rec[i];
+			bool clue = ITEMS[r.id].isClue;
+			if (r.collected) ++found;
+			if (r.discovered && clue) ++read;
+			sf::Color fill = !r.collected ? CHIP : clue ? GOLD : OPEN;
+			sf::CircleShape c(R); c.setOrigin({ R, R }); c.setPosition(at(i));
+			c.setFillColor(fill);
+			bool lit = onPath(key[i]);
+			c.setOutlineColor(lit ? PATH : EDGE); c.setOutlineThickness(lit ? 2.f : 1.f);
+			w->draw(c);
+			txt(std::to_string(key[i]), fontMono, 11, r.collected ? sf::Color(20, 6, 8) : TAG, at(i).x, at(i).y - 7, true);
+		}
+		float ly = t + R + 2 + (itemDB.height() - 1) * ystep + R + 14;
+		rect(18, ly - 6, W - 36, 1, EDGE);   // divider between the tree and its text
+		ly += 4;
+		if (pn > 0) {
+			std::string s = std::string("search(") + ITEMS[g_lastLookup].name + ")  ";
+			for (int i = 0; i < pn; ++i) s += std::to_string(path[i]) + (i + 1 < pn ? " > " : "");
+			std::snprintf(b, sizeof b, "   %d step%s", pn, pn == 1 ? "" : "s");
+			txt(s + b, fontSerif, 14, sf::Color(255, 150, 160), 18, ly);
+		} else txt("search() path lights up when you pick something up", fontItalic, 13, TAG, 18, ly);
+		ly += 28;
+		float lx = 18;
+		auto key2 = [&](sf::Color c, const std::string& s) {
+			sf::CircleShape d(5.f); d.setOrigin({ 5.f, 5.f }); d.setPosition({ lx + 5, ly + 8 }); d.setFillColor(c);
+			d.setOutlineColor(EDGE); d.setOutlineThickness(1); w->draw(d);
+			lx += 14 + txt(s, fontSerif, 13, BONE, lx + 14, ly) + 22;
+		};
+		std::snprintf(b, sizeof b, "found %d/%d", found, n); key2(OPEN, b);
+		std::snprintf(b, sizeof b, "clues read %d", read); key2(GOLD, b);
+		key2(CHIP, "not yet");
+		std::snprintf(b, sizeof b, "tree height %d", itemDB.height()); txt(b, fontMono, 10, TAG, W - 18 - width(b, fontMono, 10), ly + 4);
 	}
 
 	// ---- BFS + DFS: searching the house
 	{
-		float t = card(76, "Finding the way", "BFS  /  DFS");
+		float t = card(70, "Finding the way", "BFS  /  DFS");
 		if (hintText.empty()) txt("route appears with the hint  (press H)", fontItalic, 13, TAG, 22, t);
 		else if (lastRouteLen <= 1) { std::snprintf(b, sizeof b, "goal is in this room  -  %d steps of blood", trailLen); txt(b, fontSerif, 13, BONE, 22, t); }
 		else {
@@ -576,7 +655,18 @@ void Game::drawConsole(sf::RenderWindow* w) {
 				if (i + 1 < lastRouteLen) { arrow(x + 4, t + 9, TAG); x += 18; }
 			}
 		}
-		if (lastDfsLen == 0) txt("hidden rooms: not searched yet (read the Hymn Page)", fontItalic, 12, TAG, 22, t + 26);
-		else { std::snprintf(b, sizeof b, "hidden rooms: searched %d rooms through secret doors", lastDfsLen); txt(b, fontItalic, 12, TAG, 22, t + 26); }
+		if (lastDfsLen == 0) txt("DFS: hidden rooms not searched yet (read the Hymn Page)", fontItalic, 12, TAG, 22, t + 24);
+		else { std::snprintf(b, sizeof b, "DFS: searched %d rooms through secret doors", lastDfsLen); txt(b, fontItalic, 12, TAG, 22, t + 24); }
 	}
+	// Scroll bar (mouse wheel or Page Up / Page Down over the panel).
+	g_consoleContentH = y;
+	w->setView(fixedV);
+	if (g_consoleContentH > PH) {
+		float trackH = PH - 16, barH = std::max(40.f, trackH * PH / g_consoleContentH);
+		float barY = 8 + (trackH - barH) * g_consoleScroll / (g_consoleContentH - PH);
+		rect(pw - 8, 8, 4, trackH, sf::Color(40, 12, 18));
+		rect(pw - 8, barY, 4, barH, sf::Color(170, 40, 60));
+	}
+	w->setView(w->getDefaultView());
 }
+

@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <algorithm>
 #include "globals.h"
 #include "game.h"
 #include "screens.h"
@@ -136,6 +137,8 @@ int main() {
 		consoleToggled.restart();
 	};
 	if (env("CS_CONSOLE")) toggleConsole();
+	if (env("CS_DIAG")) g_diag = true;
+	if (env("CS_SCROLL")) g_consoleScroll = (float)std::atof(env("CS_SCROLL"));
 
 	sf::Clock frameClock;
 	int frame = 0;
@@ -149,6 +152,7 @@ int main() {
 				key_record(key->code);
 				if (key->code == sf::Keyboard::Key::Tab) toggleConsole();
 				if (key->code == sf::Keyboard::Key::M) audio.toggleMute();
+				if (key->code == sf::Keyboard::Key::F9) g_diag = !g_diag;
 				if (key->code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
 			}
 			else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
@@ -164,7 +168,12 @@ int main() {
 		if (console.isOpen()) {
 			while (const std::optional<sf::Event> ce = console.pollEvent()) {
 				if (ce->is<sf::Event::Closed>()) console.close();
-				else if (const auto* k = ce->getIf<sf::Event::KeyPressed>()) { if (k->code == sf::Keyboard::Key::Tab) console.close(); }
+				else if (const auto* k = ce->getIf<sf::Event::KeyPressed>()) {
+					if (k->code == sf::Keyboard::Key::Tab) console.close();
+					if (k->code == sf::Keyboard::Key::PageDown) g_consoleScroll += 300.f;   // clamped when drawn
+					if (k->code == sf::Keyboard::Key::PageUp) g_consoleScroll = std::max(0.f, g_consoleScroll - 300.f);
+				}
+				else if (const auto* ws = ce->getIf<sf::Event::MouseWheelScrolled>()) g_consoleScroll = std::max(0.f, g_consoleScroll - ws->delta * 48.f);
 			}
 			if (console.isOpen()) {
 				console.clear(sf::Color(8, 2, 4));

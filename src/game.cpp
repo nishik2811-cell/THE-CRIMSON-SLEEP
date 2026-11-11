@@ -49,6 +49,7 @@ static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX
 
 // ------------------------------------------------------------------ setup
 Game::Game(Audio& a) : audio(a) {
+	g_lastLookup = -1; g_consoleScroll = 0;
 	(void)tileset.loadFromFile(asset("graphics/texture.png"));
 	for (int r = 1; r < ROOM_COUNT; ++r) maps[r].initializeMap(ROOMS[r].mapFile, tileset);
 	buildHouse(house);
@@ -79,6 +80,7 @@ void Game::devStartAt(int r) {
 	for (int i = 0; i < 4; ++i) if (need[r][i]) {
 		player.give(need[r][i]);
 		if (ItemRecord* rec = itemDB.search(need[r][i])) { rec->collected = true; rec->discovered = true; }
+		g_lastLookup = need[r][i];
 	}
 	if (r == HIDDEN_TUNNEL || r == OSSUARY) house.reveal(CHAPEL, HIDDEN_TUNNEL);
 	// Open every door whose key the dev start handed over.
@@ -292,6 +294,7 @@ void Game::pickUp(int item, const std::string& msg, bool clearTile) {
 	bool isKey = item == RUSTY_KEY || item == BRASS_KEY || item == CHAPEL_KEY || item == IRON_KEY;
 	audio.play(item == CRIMSON_LOCKET ? SFX_CHIME : ITEMS[item].isClue ? SFX_PAPER : isKey ? SFX_KEYS : SFX_PICKUP, 85);
 	ItemRecord* rec = itemDB.search(item);
+	g_lastLookup = item;
 	if (rec && !rec->collected) { rec->collected = true; runStats.itemsFound++; }
 	if (ITEMS[item].isClue) { if (rec) rec->discovered = true; }
 	player.give(item);
