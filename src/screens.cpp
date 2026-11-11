@@ -408,10 +408,10 @@ int Screens::credits(sf::RenderWindow* w, float dt) {
 	};
 	crHorror.setVolume(crT < 12 ? ramp(crT, 0, 2.5f, 0, 90) : ramp(crT, 12, 22, 90, 0));
 	crSong.setVolume(ramp(crT, 10, 32, 0, 80));                          // builds up slowly
-	crStatic.setVolume(crT < 10 ? ramp(crT, 0, 3, 0, 38) : ramp(crT, 10, 36, 38, 7));
+	crStatic.setVolume(crT < 10 ? ramp(crT, 0, 3, 0, 14) : ramp(crT, 10, 36, 14, 4));   // a faint hiss under the music
 
 	w->setView(uiView(*w));
-	sf::RectangleShape black({ 1024.f, 768.f }); black.setFillColor(sf::Color(6, 5, 7)); w->draw(black);
+	sf::RectangleShape black({ 1024.f, 768.f }); black.setFillColor(sf::Color::Black); w->draw(black);   // pitch black
 	// static: fresh noise every other frame, stronger at the start
 	static int tick = 0;
 	if (++tick % 2 == 0) {
@@ -420,11 +420,12 @@ int Screens::credits(sf::RenderWindow* w, float dt) {
 		noiseTex.update(noiseImg);
 	}
 	noise.setScale({ 1024.f / 256, 768.f / 192 });
-	noise.setColor(sf::Color(255, 255, 255, (std::uint8_t)ramp(crT, 8, 36, 46, 14)));
+	noise.setColor(sf::Color(255, 255, 255, (std::uint8_t)ramp(crT, 8, 36, 14, 5)));   // barely-there static
 	w->draw(noise);
 
 	static const char* const LINES[] = {
 		"#THE CRIMSON SLEEP", "", "A 2D survival horror game", "", "",
+		"@CREATED BY", "Nishita", "Yashieta", "Anwita", "Aryan", "", "",
 		"Design, code, art and sound - built for this project",
 		"Every system and every data structure written by hand in C++17,", "on SFML 3 - with no STL.", "", "",
 		"@THE DATA STRUCTURES",
