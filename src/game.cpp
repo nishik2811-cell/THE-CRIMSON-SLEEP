@@ -188,7 +188,8 @@ void Game::spawnEnemies() {
 	child.speed = room == NURSERY ? 85.f : 115.f;
 	childRoom = crawl; childBanishT = 0;
 	// Spiders: dropped on random floor tiles well away from where you come in.
-	spiderCount = room == HIDDEN_TUNNEL ? 2 : (room == LIBRARY || room == OSSUARY || room == GRAND_CORRIDOR || room == CHAPEL) ? 1 : 0;
+	// 11 in the house: two in the Hidden Tunnel, one in every other room.
+	spiderCount = room == HIDDEN_TUNNEL ? 2 : (room >= ENTRANCE_HALL && room < ROOM_COUNT) ? 1 : 0;
 	spiderCount = maxOf(0, spiderCount - corpseCount[room]);        // squashed ones don't come back
 	for (int i = 0; i < 3; ++i) spiders[i].reset(false, {});
 	for (int i = 0; i < spiderCount; ++i) {
