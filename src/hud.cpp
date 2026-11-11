@@ -115,7 +115,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	if (flare > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(255, 210, 190, (std::uint8_t)(150 * flare))); w->draw(r); }
 
 	// Status panel.
-	panel(w, 12, 12, 270, 96);
+	panel(w, 12, 12, 270, 122);
 	bar(w, fontSerif, "Health", 22, 18, player.health, sf::Color(170, 16, 30));
 	bar(w, fontSerif, "Fear", 22, 44, player.fear, sf::Color(110, 60, 160));
 	char buf[64];
@@ -137,6 +137,22 @@ void Game::drawHud(sf::RenderWindow* w) {
 		tt.setOrigin({ lb.position.x + lb.size.x / 2.f, lb.position.y + lb.size.y / 2.f });
 		tt.setPosition({ 92.f + 90.f, 76.f + 6.f });
 		w->draw(tt);
+	}
+	// Stomp recharge: the same kind of bar, under the flare.
+	{
+		float ready = maxOf(0.f, minOf(1.f, 1.f - stompT / STOMP_COOLDOWN));
+		bool full = stompT <= 0;
+		float glow = full ? 0.75f + 0.25f * std::sin(t * 4 + 1.5f) : 1.f;
+		sf::Color fillCol = full ? sf::Color((std::uint8_t)(235 * glow), (std::uint8_t)(222 * glow), (std::uint8_t)(200 * glow)) : sf::Color(110, 95, 85);
+		bar(w, fontSerif, "Stomp", 22, 96, ready * 100.f, fillCol);
+		if (full) std::snprintf(buf, sizeof buf, "ready - press Q");
+		else std::snprintf(buf, sizeof buf, "%.0fs", std::ceil(stompT));
+		sf::Text st(fontMono, buf, 11);
+		st.setFillColor(full ? sf::Color(30, 12, 8) : BONE);
+		sf::FloatRect lb = st.getLocalBounds();
+		st.setOrigin({ lb.position.x + lb.size.x / 2.f, lb.position.y + lb.size.y / 2.f });
+		st.setPosition({ 92.f + 90.f, 102.f + 6.f });
+		w->draw(st);
 	}
 
 	// "[E] Talk" over Alfred's head when you're next to him.

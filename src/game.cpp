@@ -1084,8 +1084,12 @@ void Game::squash(Spider& s) {
 
 // Q: stamp on the nearest spider if it's right at your feet.  Miss, and it bites.
 void Game::stomp() {
-	if (hidden || stompT > 0) return;
-	stompT = 0.6f;                                 // you can't stamp again straight away
+	if (hidden) return;
+	if (stompT > 0) {                              // still recovering from the last stomp
+		char b[48]; std::snprintf(b, sizeof b, "Stomp ready in %.0fs", std::ceil(stompT));
+		showToast(b); return;
+	}
+	stompT = STOMP_COOLDOWN;                       // hit or miss, you need a moment to stomp again
 	player.startStomp();                           // lift... (the hit lands on the STAMP frame)
 	stompHitT = Player::STOMP_FRAME;
 }
