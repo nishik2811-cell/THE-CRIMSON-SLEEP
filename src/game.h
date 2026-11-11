@@ -1,6 +1,6 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include <string>
+#include "ds/Str.h"
 #include "globals.h"
 #include "world.h"
 #include "player.h"
@@ -17,7 +17,7 @@
 #include "ds/PriorityQueue.h"
 
 // Active danger, ranked in the Priority Queue (higher = more urgent).
-enum ThreatKind { TH_CALM, TH_DARK, TH_HAZARD, TH_GHOST, TH_BRIDE_NEAR, TH_CHILD, TH_DEVIL, TH_BRIDE_ATTACK };
+enum ThreatKind { TH_CALM, TH_DARK, TH_HAZARD, TH_GHOST, TH_BRIDE_NEAR, TH_CHILD, TH_DEVIL, TH_BRIDE_ATTACK, TH_SPIDER };
 struct Threat {
 	int priority;
 	int kind;
@@ -32,7 +32,7 @@ struct HauntEvent {
 };
 
 // Bestiary / survival tips shown the first time you meet each horror.
-enum TipId { TIP_SPIRITS, TIP_BRIDE, TIP_CHILD, TIP_DEVIL, TIP_HAZARDS, TIP_FEAR, TIP_COUNT };
+enum TipId { TIP_SPIRITS, TIP_BRIDE, TIP_CHILD, TIP_DEVIL, TIP_HAZARDS, TIP_FEAR, TIP_SPIDERS, TIP_COUNT };
 struct TipInfo { const char* title; const char* body; };
 extern const TipInfo TIPS[TIP_COUNT];
 
@@ -52,13 +52,14 @@ public:
 	void retryRoom();             // after death: wake up at the room's entrance
 	const RunStats& stats() const { return runStats; }
 	Track musicTrack() const { return chaseHold > 0 ? TRACK_CHASE : TRACK_GAME; }
-	std::string deathReason;
+	Str deathReason;
 	int deathTip = TIP_FEAR;
 
 	// --- dev / smoke-test hooks ---
 	void devStartAt(int room);
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
+	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; }
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
 	float devHealth() const { return player.health; }
@@ -68,7 +69,7 @@ public:
 	void devNoTips() { for (int i = 0; i < TIP_COUNT; ++i) tipSeen[i] = true; dialogue = ""; }
 	void devJumpscare() { jumpscare = 1.3f; }
 	void devFlareCooldown(float s) { flareCooldown = s; }
-	void devWrite(const char* w) { std::string s = w; if (!placeWallWriting(s)) { s = "GET OUT"; if (!placeWallWriting(s)) return; } wallText = s; wallT = 5.f; }
+	void devWrite(const char* w) { Str s = w; if (!placeWallWriting(s)) { s = "GET OUT"; if (!placeWallWriting(s)) return; } wallText = s; wallT = 5.f; }
 	void drawConsole(sf::RenderWindow* w);
 	// Demo mode: the game plays itself to the true ending (title screen option).
 	void startDemo();
@@ -85,6 +86,9 @@ private:
 	Enemy_boss boss;
 	Bride bride;
 	Crawler child;
+	Spider spiders[3];                    // the Weavers (creepy crawlers)
+	int spiderCount = 0;
+	float spiderFollowT = -1;             // >0: a spider that was chasing you comes through the door
 
 	sf::Texture tileset;
 	Map_loader maps[ROOM_COUNT];          // ARRAY of room maps, indexed by RoomId
@@ -97,9 +101,13 @@ private:
 	static const int DEMO_MAX_PATH = 256;
 	int demoGoal = 0, demoTries = 0, demoPath[DEMO_MAX_PATH] = {}, demoPathLen = 0, demoStep = 0, demoFace = 0;
 	int demoRoomPlanned = -1, demoTilePlanned = -1;
-	float demoWait = 0, demoTalkT = 0;
+	float demoWait = 0, demoTalkT = 0, demoReplanT = 0, demoBlockedT = 0;
 	void demoUpdate(float dt);
-	bool demoPlan(int tile);
+	bool demoPlan(int tile, bool avoid);
+	bool demoDanger(int c, int r);
+	bool demoEncounter(float dt);
+	int demoEnc = 0;          // 0 none, 1 Carrie, 2 Samara
+	float demoEncT = 0;
 	bool demoGoalDone(int g);
 
 	int room = ENTRANCE_HALL;
@@ -132,11 +140,11 @@ private:
 	bool updateAlfred(float dt, sf::RenderWindow* window, bool overlay);
 	void drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay);
 	// events / scares
-	std::string eventCaption; float eventCaptionT = 0;
-	std::string wallText; sf::Vector2f wallPos; float wallT = 0;
+	Str eventCaption; float eventCaptionT = 0;
+	Str wallText; sf::Vector2f wallPos; float wallT = 0;
 	static const unsigned WALL_TEXT_SIZE = 15;   // fits inside one 32px wall tile
-	float scrawlWidth(const std::string& word) const;
-	bool placeWallWriting(const std::string& word);
+	float scrawlWidth(const Str& word) const;
+	bool placeWallWriting(const Str& word);
 	float shake = 0, jumpscare = 0, flare = 0, flareCooldown = 0, hurtFlash = 0;
 	static constexpr float FLARE_COOLDOWN = 10.f;   // seconds between lantern flares
 	// digging (crypt)
@@ -145,7 +153,7 @@ private:
 	int objectiveKey = -1;
 	float objectiveTime = 0;
 	bool forceHint = false;
-	std::string hintText, objectiveText;
+	Str hintText, objectiveText;
 	int targetRoom = 0, targetTile = -1;
 	int trail[GRID_W * GRID_H]; int trailLen = 0; float trailT = 0;
 	int lastRoute[MAX_ROOMS]; int lastRouteLen = 0;
@@ -154,7 +162,7 @@ private:
 	bool showDebug = false, showInventory = false;
 	int tipOpen = -1; bool tipSeen[TIP_COUNT] = {};
 	int journalPage = -1;
-	std::string toast; float toastT = 0;
+	Str toast; float toastT = 0;
 	sf::Font fontTitle, fontSerif, fontItalic, fontMono, fontBlood;
 	sf::Texture jumpTex; sf::Sprite jumpSprite{ jumpTex };
 	sf::Texture decalTex; sf::Sprite decalSprite{ decalTex };   // blood decals (hint trail)
@@ -169,7 +177,7 @@ private:
 	void interact();
 	void tryDoor(int doorNo);
 	void goBack();
-	void pickUp(int item, const std::string& msg, bool clearTile);
+	void pickUp(int item, const Str& msg, bool clearTile);
 	void changeFacingTile(sf::Vector2i v);
 	bool edgeUsable(const Edge& e);
 	void flareLantern();
@@ -182,12 +190,12 @@ private:
 	void updateHints(float dt);
 	void computeTrail();
 	int trailDistance() const;
-	void hurt(float health, float fear, const std::string& why, int tip, bool respawn);
+	void hurt(float health, float fear, const Str& why, int tip, bool respawn);
 	void knockBack(sf::Vector2f from);
-	void die(const std::string& why, int tip);
+	void die(const Str& why, int tip);
 	void openTip(int tip, bool force = false);
-	void say(const std::string& s) { dialogue = s; }
-	void showToast(const std::string& s) { toast = s; toastT = 3.f; }
+	void say(const Str& s) { dialogue = s; }
+	void showToast(const Str& s) { toast = s; toastT = 3.f; }
 	// drawing
 	void drawWorldOverlays(sf::RenderWindow* w);
 	void drawHud(sf::RenderWindow* w);

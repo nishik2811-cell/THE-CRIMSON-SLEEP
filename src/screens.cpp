@@ -1,4 +1,5 @@
 #include "screens.h"
+#include "ds/MinMax.h"
 #include "audio.h"
 #include <cmath>
 #include <cstdlib>
@@ -7,7 +8,7 @@
 namespace {
 const sf::Color CRIMSON(176, 30, 58), BONE(236, 224, 204), ASH(160, 146, 140);
 float frand(float a, float b) { return a + (b - a) * (std::rand() / (float)RAND_MAX); }
-bool fileExists(const std::string& p) { FILE* f = std::fopen(p.c_str(), "rb"); if (f) std::fclose(f); return f != nullptr; }
+bool fileExists(const Str& p) { FILE* f = std::fopen(p.c_str(), "rb"); if (f) std::fclose(f); return f != nullptr; }
 bool anyKey() { return key_any(); }
 // Gradient rectangle (corner colours: top-left, top-right, bottom-right, bottom-left).
 void quad(sf::RenderWindow* w, float x0, float y0, float x1, float y1, sf::Color tl, sf::Color tr, sf::Color br, sf::Color bl,
@@ -49,7 +50,7 @@ void Screens::drawBackdrop(sf::RenderWindow* w, sf::Color tint) {
 	// Slow "breathing" zoom so the scene never feels still.
 	float s = 1.03f + 0.02f * std::sin(t * 0.25f);
 	sf::Vector2u sz = bgTex.getSize();
-	float base = std::max(1024.f / sz.x, 768.f / sz.y);
+	float base = maxOf(1024.f / sz.x, 768.f / sz.y);
 	bg.setOrigin({ (float)(sz.x / 2.f), (float)(sz.y / 2.f) });
 	bg.setScale({ (float)(base * s), (float)(base * s) });
 	bg.setPosition({ (float)(512 + 6 * std::sin(t * 0.13f)), (float)(384) });
@@ -109,7 +110,7 @@ void Screens::drawLogo(sf::RenderWindow* w, float x, float y, float height, floa
 	}
 }
 
-void Screens::centered(sf::RenderWindow* w, const sf::Font& f, const std::string& s, unsigned size, sf::Color c, float y, float cx) {
+void Screens::centered(sf::RenderWindow* w, const sf::Font& f, const Str& s, unsigned size, sf::Color c, float y, float cx) {
 	sf::Text tx(f, s, size);
 	tx.setFillColor(c);
 	sf::FloatRect b = tx.getLocalBounds();
@@ -127,7 +128,7 @@ int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx
 	int chosen = -1;
 	for (int i = 0; i < n; ++i) {
 		bool sel = i == menuIndex;
-		std::string s = sel ? std::string("\xE2\x80\x94  ") + items[i] + "  \xE2\x80\x94" : items[i];
+		Str s = sel ? Str("\xE2\x80\x94  ") + items[i] + "  \xE2\x80\x94" : items[i];
 		sf::Text tx(fontSerif, sf::String::fromUtf8(s.begin(), s.end()), (unsigned)size);
 		sf::FloatRect b = tx.getLocalBounds();
 		tx.setPosition({ (float)(std::floor(cx - b.size.x / 2 - b.position.x)), (float)(std::floor(y + i * size * 1.25f)) });
@@ -261,17 +262,17 @@ int Screens::retry(sf::RenderWindow* w, float dt, const Game& g) {
 		if (age < 0.09f || (age > 0.2f && age < 0.25f)) { sf::RectangleShape f(sf::Vector2f(1024, 768)); f.setFillColor(sf::Color(200, 0, 20, 110)); w->draw(f); }
 		return ST_RETRY;                                    // no menu input during the scare
 	}
-	float fadeIn = std::min(1.f, (deathT - SCARE) / 0.6f);
+	float fadeIn = minOf(1.f, (deathT - SCARE) / 0.6f);
 	sf::RectangleShape r(sf::Vector2f(1024, 768)); r.setFillColor(sf::Color(18, 0, 3)); w->draw(r);
 	drawMotes(w, dt, sf::Color(150, 10, 20), false);
 	bool mind = g.deathTip == TIP_FEAR;
 	centered(w, fontTitle, mind ? "Your Mind Breaks" : "You Died", 86, CRIMSON, 150);
 	centered(w, fontItalic, g.deathReason, 28, BONE, 270);
-	centered(w, fontSerif, std::string("Remember - ") + TIPS[g.deathTip].title + ":", 22, ASH, 330);
-	std::string body = TIPS[g.deathTip].body;
-	size_t nl = body.find('\n');
-	std::string first = nl == std::string::npos ? body : body.substr(nl + 1);
-	nl = first.find('\n'); if (nl != std::string::npos) first = first.substr(0, nl);
+	centered(w, fontSerif, Str("Remember - ") + TIPS[g.deathTip].title + ":", 22, ASH, 330);
+	Str body = TIPS[g.deathTip].body;
+	int nl = body.find('\n');
+	Str first = nl == Str::npos ? body : body.substr(nl + 1);
+	nl = first.find('\n'); if (nl != Str::npos) first = first.substr(0, nl);
 	centered(w, fontSerif, first, 22, sf::Color(220, 170, 170), 360);
 	const char* items[] = { "Dream again", "Leave to the title" };
 	int c = menu(w, items, 2, 512, 460, 36);
@@ -301,7 +302,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 
 	// Sky: the crimson moon slowly gives way to dawn on the good endings,
 	// stays red for the secret one, turns to fire for the trapped one.
-	float dawn = (e == END_TRUE ? 1.f : e == END_ESCAPE ? 0.45f : 0.f) * std::min(1.f, endT / 14.f);
+	float dawn = (e == END_TRUE ? 1.f : e == END_ESCAPE ? 0.45f : 0.f) * minOf(1.f, endT / 14.f);
 	sf::Color tint(255, (std::uint8_t)(255 * (0.6f + 0.4f * dawn)), (std::uint8_t)(255 * (0.55f + 0.45f * dawn)));
 	drawBackdrop(w, tint);
 	if (dawn > 0) {
@@ -340,14 +341,14 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	for (int i = 0; i < n; ++i) {
 		float lt = endT - 1.f - i * per;
 		if (lt <= 0) continue;
-		float a = std::min(1.f, lt / 1.2f);
-		if (endT > 1.f + n * per + 2) a *= std::max(0.f, 1 - (endT - (3.f + n * per)) / 1.5f);
+		float a = minOf(1.f, lt / 1.2f);
+		if (endT > 1.f + n * per + 2) a *= maxOf(0.f, 1 - (endT - (3.f + n * per)) / 1.5f);
 		centered(w, fontItalic, sc.lines[i], 30, sf::Color(240, 228, 214, (std::uint8_t)(255 * a)), 170 + i * 52.f);
 	}
 	// ...then the verdict, run statistics and credits.
 	float tail = endT - (4.5f + n * per);
 	if (tail > 0) {
-		float a = std::min(1.f, tail / 1.5f);
+		float a = minOf(1.f, tail / 1.5f);
 		if (e == END_TRUE) centered(w, fontTitle, "The Crimson Sleep is Over", 60, sf::Color(255, 210, 190, (std::uint8_t)(255 * a)), 110);
 		else drawLogo(w, 512 - 120, 70, 190, a);
 		centered(w, fontSerif, sc.name, 34, sf::Color(CRIMSON.r + 40, CRIMSON.g + 20, CRIMSON.b + 20, (std::uint8_t)(255 * a)), 300);
@@ -369,7 +370,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		if (tail > 3) for (int i = 0; i < 10; ++i) {
 			float y = cy + i * 34;
 			if (y < 480 || y > 700) continue;
-			float fa = std::min(1.f, std::min((y - 480) / 60, (700 - y) / 40));
+			float fa = minOf(1.f, minOf((y - 480) / 60, (700 - y) / 40));
 			centered(w, i == 0 ? fontTitle : fontSerif, credits[i], i == 0 ? 30 : 21, sf::Color(230, 215, 200, (std::uint8_t)(255 * fa)), y);
 		}
 		if (tail > 2) centered(w, fontItalic, "Enter to return to the title", 18, sf::Color(170, 150, 150, (std::uint8_t)(160 + 60 * std::sin(t * 3))), 738);

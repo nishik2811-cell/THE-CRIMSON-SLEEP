@@ -30,8 +30,8 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 Audio::Audio() {
 	g_audio = this;
 	for (int s = 0; s < SFX_COUNT; ++s) {
-		std::string list = SFX_FILES[s], name;
-		for (size_t i = 0; i <= list.size(); ++i) {
+		Str list = SFX_FILES[s], name;
+		for (int i = 0; i <= list.size(); ++i) {
 			if (i == list.size() || list[i] == ' ') {
 				if (!name.empty() && takes[s] < MAX_TAKES && buffers[s][takes[s]].loadFromFile(asset("audio/" + name))) takes[s]++;
 				name.clear();
@@ -49,20 +49,20 @@ Audio::Audio() {
 	};
 	const char* themeFiles[3] = { "theme_calm.ogg", "theme_dread.ogg", "theme_nursery.ogg" };
 	for (int i = 0; i < 3; ++i)
-		if (themes[i].openFromFile(asset(std::string("audio/") + themeFiles[i]))) { themes[i].setLooping(true); themes[i].setVolume(60); }
+		if (themes[i].openFromFile(asset(Str("audio/") + themeFiles[i]))) { themes[i].setLooping(true); themes[i].setVolume(60); }
 	if (pauseMusic.openFromFile(asset("audio/pause_music.ogg"))) { pauseMusic.setLooping(true); pauseMusic.setVolume(65); }
 	for (auto& e : list) {
-		if (tracks[e.t].openFromFile(asset(std::string("audio/") + e.file))) { tracks[e.t].setLooping(e.loop); tracks[e.t].setVolume(e.vol); }
+		if (tracks[e.t].openFromFile(asset(Str("audio/") + e.file))) { tracks[e.t].setLooping(e.loop); tracks[e.t].setVolume(e.vol); }
 		trackVolume[e.t] = e.vol;
 	}
 }
 
 void Audio::play(Sfx s, float volume, float pitch) {
 	if (takes[s] == 0) return;
-	std::optional<sf::Sound>& ch = channels[nextChannel];
+	sf::Sound*& ch = channels[nextChannel];
 	nextChannel = (nextChannel + 1) % CHANNELS;
-	if (ch) ch->stop();
-	ch.emplace(buffers[s][std::rand() % takes[s]]);
+	if (ch) { ch->stop(); delete ch; }
+	ch = new sf::Sound(buffers[s][std::rand() % takes[s]]);
 	ch->setVolume(volume);
 	ch->setPitch(pitch * (0.95f + 0.1f * (std::rand() / (float)RAND_MAX)));   // tiny variation
 	ch->play();
@@ -84,12 +84,12 @@ void Audio::setRoom(const char* amb, const char* layer, int theme) {
 	if (ambName != amb) {
 		ambName = amb;
 		roomAmb.stop();
-		if (roomAmb.openFromFile(asset(std::string("audio/") + amb))) roomAmb.setLooping(true);
+		if (roomAmb.openFromFile(asset(Str("audio/") + amb))) roomAmb.setLooping(true);
 	}
 	if (layerName != layer) {
 		layerName = layer;
 		roomLayer.stop();
-		if (*layer && roomLayer.openFromFile(asset(std::string("audio/") + layer))) { roomLayer.setLooping(true); roomLayer.setVolume(30); }
+		if (*layer && roomLayer.openFromFile(asset(Str("audio/") + layer))) { roomLayer.setLooping(true); roomLayer.setVolume(30); }
 	}
 	if (current == TRACK_GAME) startRoom();
 }

@@ -1,7 +1,6 @@
 #pragma once
 #include <SFML/Audio.hpp>
-#include <optional>
-#include <string>
+#include "ds/Str.h"
 
 // Every sound effect may have several takes; one is picked at random.
 enum Sfx {
@@ -20,7 +19,7 @@ class Audio {
 	sf::SoundBuffer buffers[SFX_COUNT][MAX_TAKES];
 	int takes[SFX_COUNT] = {};
 	static const int CHANNELS = 12;
-	std::optional<sf::Sound> channels[CHANNELS];
+	sf::Sound* channels[CHANNELS] = {};    // reused round-robin (sf::Sound needs a buffer to exist)
 	int nextChannel = 0;
 
 	sf::Music tracks[TRACK_COUNT];          // title / chase / death / endings
@@ -32,13 +31,16 @@ class Audio {
 	bool inPause = false;
 	bool muted = false;
 	sf::Music roomAmb, roomLayer;           // the current room's ambience + optional extra loop
-	std::string ambName, layerName;
+	Str ambName, layerName;
 	Track current = TRACK_NONE;
 	float tension = 0;
 	void startRoom();
 	void stopRoom();
 public:
 	Audio();
+	~Audio() { for (int i = 0; i < CHANNELS; ++i) delete channels[i]; }
+	Audio(const Audio&) = delete;
+	Audio& operator=(const Audio&) = delete;
 	void play(Sfx s, float volume = 100.f, float pitch = 1.f);
 	void music(Track t);
 	enum Theme { THEME_CALM, THEME_DREAD, THEME_NURSERY };

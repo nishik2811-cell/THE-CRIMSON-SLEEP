@@ -1,39 +1,242 @@
-# The Crimson Sleep
+<p align="center">
+  <img src="docs/images/title.png" alt="The Crimson Sleep title screen" width="760">
+</p>
 
-*A 2D pixelated horror escape, written in C++17 with SFML 3. Every core mechanic runs on a hand-written data structure.*
+<h1 align="center">The Crimson Sleep</h1>
 
-> some dreams don't let you wake up
+<p align="center"><i>some dreams don't let you wake up</i></p>
 
-You wake on the floor of a mansion that has been "sleeping in crimson" since **June 26, 1953**, the night ten people were murdered there. Find the keys, read the clues and survive the dead. Then decide how the nightmare ends.
-
-The game features custom tile maps, retro horror sprites, puzzles, a crimson atmosphere, a boot page and title screen, custom ghosts and stalker entities, a health and fear system, a blood trail hint system, a mini-map, two secret rooms, and four distinct endings.
+<p align="center">
+A 2D pixel-art horror escape in <b>C++17 + SFML 3</b> where every mechanic runs on a
+<b>hand-written data structure</b>, and you can watch those structures change live while you play.
+</p>
 
 ---
 
-## Build & run
+On **June 26, 1953** ten people were murdered in a mansion. Since then the house has slept in crimson.
+You wake on its floor. Find the keys, read the clues and survive the dead: Samara, Carrie, the
+spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 
-Requires **SFML 3** (Graphics, Window, System, Audio).
+**Highlights**
 
-### Linux (Ubuntu / Debian)
-```bash
-sudo apt-get install -y g++ make libsfml-dev   # must be SFML 3.x
-make            # builds ./crimson_sleep
-# SFML 3 installed somewhere custom?  make SFML_DIR=/path/to/sfml3
-make run        # run it (must be started from this folder: it loads ./assets)
-make test       # unit tests for every data structure (no window needed)
+- **Ten rooms** joined in a **graph**, with locked doors, a hidden passage found by **DFS**, and a **BFS** hint route plus a trail of blood to your goal.
+- **Enemy AI** with a **state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
+- **Live data-structure console**: press **TAB** and the window widens with a panel that draws every structure as the game changes it.
+- **Watch the dream**: a self-playing demo that finishes the whole game, with the console open beside it.
+- **No STL.** No `std::vector`, `std::string`, `std::map`, `std::queue` or `<algorithm>`: stack, queue, heap, list, tree, graph, grid and even the string class are all written by hand in [`src/ds/`](src/ds).
+- **Four endings**, survival notes for every horror, a fear system, jump scares and a mini-map.
+
+---
+
+## Contents
+1. [See it](#see-it)
+2. [The data structures](#the-data-structures)
+3. [Enemy AI: how the Weavers hunt](#enemy-ai-how-the-weavers-hunt)
+4. [Watch the dream (demo mode)](#watch-the-dream-demo-mode)
+5. [The house](#the-house)
+6. [Horrors, and how to survive them](#horrors-and-how-to-survive-them)
+7. [Endings](#endings)
+8. [Controls](#controls)
+9. [Build & run](#build--run)
+10. [Project layout & tools](#project-layout--tools)
+11. [Credits](#credits)
+
+---
+
+## See it
+
+<p align="center">
+  <img src="docs/images/console_ai.png" alt="Gameplay with the live data-structure console open" width="900"><br>
+  <sub>The Library with the console open (TAB). A Weaver has <b>seen</b> the player: its state machine shows <code>CHASE</code>, and its <b>A*</b> path is drawn as red dots on the floor.</sub>
+</p>
+
+| | |
+|---|---|
+| <img src="docs/images/bfs_hint.png" alt="BFS hint"><br><sub>Stuck for 30 s? The hint names the goal and the <b>BFS</b> route to it.</sub> | <img src="docs/images/samara.png" alt="Samara"><br><sub>Samara hunts by sound. Stand still and she loses your trail.</sub> |
+| <img src="docs/images/bedroom.png" alt="Collapsed Bedroom"><br><sub>The Collapsed Bedroom: pits, fire, spikes and a lever.</sub> | <img src="docs/images/crypt.png" alt="The Crimson Crypt"><br><sub>The Crimson Crypt. The EMF meter screams when the Devil is close.</sub> |
+
+---
+
+## The data structures
+
+Every structure lives in [`src/ds/`](src/ds). They are header-only and independent of SFML, and each one is
+unit-tested by `make test`. Each one does a real job in the game: take it away and a mechanic breaks.
+
+<img align="right" src="docs/images/console.png" alt="Live data-structure console" width="330">
+
+**Live console (TAB).** Press TAB in-game and the window widens: the game keeps its full view on the
+left and a console strip opens on the right. Each card *draws* its structure from the live game
+state, so you can watch keys move through the linked list, rooms stack up as you walk, and the
+threat heap reorder as something closes in. TAB or the graph icon (bottom-right) closes it again.
+In fullscreen the game is letterboxed and the console takes the right-hand strip.
+
+| Structure | File | What it does in the game |
+|---|---|---|
+| **Graph** (adjacency list) | [`ds/Graph.h`](src/ds/Graph.h), [`world.cpp`](src/world.cpp) | **The house.** Rooms are nodes and doors are edges. Each edge stores its door number, whether it's locked, the item that opens it, and a *hidden* flag for secret passages. Every door you use goes through the graph. |
+| **Stack** | [`ds/Stack.h`](src/ds/Stack.h) | **Where you've been.** Entering a room pushes it. **B** pops the current room and takes you back through the door to the previous one. |
+| **Queue** | [`ds/Queue.h`](src/ds/Queue.h) | **The haunting timeline.** Each room schedules its scares (whispers, door slams, cracking floors, blood writing) and they fire first-in, first-out. Queues are also the frontier of every BFS. |
+| **Priority Queue** (max-heap) | [`ds/PriorityQueue.h`](src/ds/PriorityQueue.h) | **Danger right now.** Every frame each threat is inserted with a priority, from Samara's attack (100) and the Devil (90) down to "something heard your footsteps" (45), darkness (20) and calm (0). The top one drives the warning text, the fear rate and the chase music. It is also the open set of **A\***. |
+| **Linked List** | [`ds/LinkedList.h`](src/ds/LinkedList.h) | **Inventory.** Items are inserted at the front when picked up and removed when used: a key leaves the list when it opens its door. |
+| **Binary Search Tree** | [`ds/BST.h`](src/ds/BST.h) | **Item and clue database**, keyed by item id, with *collected* and *read* flags. Puzzle gates query it: the Ossuary door opens only once the 1953 newspaper has been **read**. The console draws the actual tree and lights up the path `search()` takes. |
+| **BFS** | [`Graph::bfsPath`](src/ds/Graph.h), [`ai.cpp`](src/ai.cpp) | Shortest room route for hints, the tile-level **trail of blood** to your goal, the spiders' **escape routes**, and the demo's walking. |
+| **DFS** | [`Graph::dfsExplore`](src/ds/Graph.h) | Reading the Hymn Page runs a DFS over **every** edge, hidden ones included. It "senses" the secret Hidden Tunnel and opens it. |
+| **A\*** | [`ai.cpp`](src/ai.cpp) | The spiders' **chase and investigate** paths (Manhattan heuristic, with the hand-written heap as the open set). |
+| **Array / grid** | [`ds/TileGrid.h`](src/ds/TileGrid.h), `ROOMS[]`, `ITEMS[]` | Fixed room facts (name, map, danger, darkness), base item data, and each room's 32×24 tile grid with O(1) lookup. |
+| **String** | [`ds/Str.h`](src/ds/Str.h) | Our own growable string, used instead of `std::string` for all story text, names and file paths. |
+
+<br clear="right">
+
+<p align="center">
+  <img src="docs/images/card_bst.png" alt="BST card" width="460"><br>
+  <sub>The BST card: green = collected, gold = clue read. The red path is <code>search(Iron Key)</code> visiting <code>6</code>, which takes 1 step.</sub>
+</p>
+
+### Complexity
+
+| Operation | Structure | Cost |
+|---|---|---|
+| push / pop / top | Stack | O(1) |
+| enqueue / dequeue | Queue | O(1) |
+| insert / extractMax / peek | Priority Queue (binary heap) | O(log n) / O(log n) / O(1) |
+| insert front · find / remove | Linked List | O(1) · O(n) |
+| search / insert | BST | O(log n) average, O(n) worst |
+| BFS / DFS over rooms | Graph | O(V + E) |
+| BFS / A\* over a room | 32×24 tile grid | O(W·H) / O((W·H) log(W·H)) |
+| tile lookup | Array / grid | O(1) |
+
+`make test` runs [`tests/ds_tests.cpp`](tests/ds_tests.cpp), with 28 checks covering:
+- LIFO and FIFO order;
+- heap order with late, high-priority inserts;
+- list deletion;
+- sorted BST traversal;
+- BFS detouring around a locked door;
+- DFS finding a hidden room.
+
+---
+
+## Enemy AI: how the Weavers hunt
+
+<img align="right" src="docs/images/spider_walk.gif" alt="Spider walk cycle" width="160">
+
+The **Weavers** are spiders the size of a spread hand, and they don't move at random. Each one runs a
+**state machine** and has two senses:
+
+- **Hearing:** every step you take makes noise that carries about 5 tiles, and a flare can be heard across the room. **Standing still is silent.**
+- **Sight:** a **line-of-sight** ray is stepped across the tile grid inside a 120° cone in front of the spider. Walls block it.
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> ALERT : hears footsteps / a flare
+    IDLE --> CHASE : sees you
+    ALERT --> CHASE : sees you
+    ALERT --> SEARCH : reached the noise, nothing there
+    CHASE --> ATTACK : close enough
+    CHASE --> SEARCH : lost sight of you
+    ATTACK --> FLEE : after the lunge / bite
+    SEARCH --> CHASE : sees you
+    SEARCH --> IDLE : gives up after 3 looks
+    FLEE --> IDLE : safe again
+    IDLE --> FLEE : flare
+    CHASE --> FLEE : flare
 ```
 
-### Windows
-* **MSYS2 / MinGW:** `pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-sfml make`, then `make` in the MSYS2 MinGW shell.
-* **Visual Studio + CMake:** install SFML 3, then:
-  ```powershell
-  cmake -B build -DSFML_DIR="C:/SFML/lib/cmake/SFML"
-  cmake --build build --config Release
-  ```
-  CMake copies `assets/` next to the executable.
+| State | What it does | Algorithm |
+|---|---|---|
+| IDLE | Skitters in short bursts, then freezes | — |
+| ALERT | Goes to where it heard the sound | **A\*** |
+| CHASE | Re-plans a route to you every 0.35 s | **A\*** |
+| ATTACK | A short lunge | straight line |
+| FLEE | Runs to the reachable tile farthest from you | **BFS** |
+| SEARCH | Picks spots around where it last saw you | **BFS** + **A\*** |
 
-### macOS
-`brew install sfml`, then `make SFML_DIR=$(brew --prefix sfml)` (point `CXXFLAGS`/`LIBS` at Homebrew's include and lib dirs if needed).
+A Weaver that is chasing you **follows you through the door** into the next room. With the console
+open, the *Enemy AI* card shows each spider's current state, what it sensed, which algorithm planned
+its path, and how many nodes A\* explored. Its planned path is also drawn as dots on the floor.
+
+<p align="center"><img src="docs/images/card_ai.png" alt="Enemy AI card" width="460"></p>
+
+The walk cycle is generated from a single drawing by [`tools/make_spider.py`](tools/make_spider.py):
+- each of the 8 legs is cut out (a multi-source BFS from the joints decides which pixel belongs to which leg);
+- each leg swings around its joint, in the alternating sets real spiders use;
+- the result is 6 frames, rotated into 4 directions.
+
+---
+
+## Watch the dream (demo mode)
+
+Pick **Watch the dream** on the title screen and the game plays itself from the first room to the
+**true ending** in about four minutes, at normal walking speed. The live console is open the whole
+time. **TAB** hides or shows it, **M** mutes, and **Esc** pauses it (you can leave to the title from the pause menu).
+
+<p align="center"><img src="docs/images/demo.png" alt="Demo mode" width="900"></p>
+
+The demo plays by the real rules: it walks to each object, faces it, and uses it exactly as a player
+pressing **E** would. It finds its way with the project's own structures:
+- **Between rooms:** BFS over the house graph.
+- **Inside a room:** BFS over the tiles with the Queue. Tiles next to ghosts, spiders or the Devil are treated as blocked, and it waits for a ghost to pass if one is in the way.
+- **Meeting the horrors:** it uses each one's survival rule. It turns to **face Carrie** so she freezes, **stands still** while Samara hunts, and **flares** spiders and spirits when they get close.
+
+The demo is also the game's end-to-end test: if any room couldn't be solved, the demo would get stuck.
+
+---
+
+## The house
+
+```mermaid
+graph LR
+    Hall[Entrance Hall] -- lantern --> Corridor[Grand Corridor]
+    Hall -. locket .-> Outside((The night outside))
+    Corridor --> Library
+    Library -- Rusty Key --> Bedroom[Collapsed Bedroom]
+    Library -- Brass Key --> Nursery[Nursery of Whispers]
+    Corridor -- Chapel Key --> Chapel[Chapel of Ash]
+    Chapel -. hidden: found by DFS .-> Tunnel[Hidden Tunnel]
+    Tunnel -- newspaper read --> Ossuary[The Ossuary]
+    Corridor -- Iron Key --> Ante[Ritual Antechamber]
+    Ante -- Blessed Sword --> Crypt[The Crimson Crypt]
+```
+
+This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** at the top of the screen draws it:
+- unvisited rooms show as `?`;
+- locked doors are dark red;
+- the secret passage stays invisible until the DFS reveals it;
+- the BFS hint route glows.
+
+---
+
+## Horrors, and how to survive them
+
+| | Horror | Behaviour | How to survive |
+|---|---|---|---|
+| 👻 | **Restless Spirits** | Walk the same patrol, over and over | Watch the pattern, then cross. A **flare** freezes them. |
+| 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
+| 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking | **Face her** and she freezes. A **flare** drives her away for a while. |
+| 🕷️ | **The Weavers** | Hear your steps, see you, chase with A\*, bite, flee, search | **Stand still** so they can't hear you. **Flare** to scatter them. |
+| 😈 | **The Devil** | Hunts you through the crypt; the EMF meter beeps when he's near | Dig at the crypt's heart with a mattock (stand still), then strike his corpse with the Blessed Sword. A flare stuns him. |
+| 🔥 | **The house** | Spikes, fire, open graves | Time your steps. **Levers** lower the spikes. |
+| 😱 | **Fear** | Rises in the dark, near the dead and with every scare | At 100 your mind breaks. Keep the lantern lit and flare to steady your nerves. |
+
+The first time you meet each horror, a **survival note** explains it. **J** reopens all of them.
+If you go 30 seconds without progress, the hint bar names your next goal and the BFS route to it,
+and a trail of blood leads you there.
+
+---
+
+## Endings
+
+<img align="right" src="docs/images/ending_true.png" alt="True ending" width="360">
+
+| Ending | How |
+|---|---|
+| **True** | Open the Hidden Tunnel, return Samara's locket, *then* destroy the Devil's corpse. The crimson moon fades to dawn and the house sleeps without dreaming. |
+| **Escape** | Destroy the corpse without the locket. |
+| **Secret** | Walk out of the front door carrying the locket. |
+| **Trapped** | Choose the petrol in the Antechamber. |
+
+Each ending closes with your run stats (time, rooms, items, spirits banished, deaths, peak fear), a rank and the credits.
+
+<br clear="right">
 
 ---
 
@@ -43,124 +246,97 @@ make test       # unit tests for every data structure (no window needed)
 |---|---|
 | Arrows / WASD | Walk |
 | E / Enter | Interact: pick up, open, read, use doors |
-| **F** | Flare the lantern: banishes or stuns ghosts (10 s cooldown) |
+| **F** | Flare the lantern (10 s cooldown, shown on the HUD) |
 | **B** | Go back one room (Stack) |
-| **H** | Ask for a hint now (BFS) |
+| **H** | Hint now (BFS) |
 | I | Inventory (Linked List) |
-| J | Notes on the dead: ghost tips |
-| **TAB** | Open / close the live data-structure console (a separate window - for the viva / demo) |
-| Space | Dismiss story text |
+| J | Notes on the dead (survival tips) |
+| **TAB** | Open / close the live data-structure console |
+| Mouse wheel / PgUp PgDn | Scroll the console |
+| **M** | Mute / unmute (or click the speaker, bottom-right) |
+| Space | Next line / dismiss story text · X skips Alfred's talk |
+| F9 | Movement diagnostics (for bug reports) |
 | Esc | Pause |
 
 ---
 
-## Data structures: where each one lives and what breaks without it
+## Build & run
 
-Press **TAB** to open the live data-structure console: a separate window beside the game that shows each structure's contents updating in real time, and closes again with TAB.
+Requires **SFML 3** (Graphics, Window, System, Audio) and a C++17 compiler.
 
-Every structure is written from scratch in `src/ds/`. No `std::vector`, `std::map`, `std::stack`, `std::queue`, `std::priority_queue` or `std::list` is used in the game logic.
-
-| Structure | File | Gameplay role |
-|---|---|---|
-| **Graph (adjacency list)** | `ds/Graph.h`, `world.cpp` | The house. Rooms are nodes and doors are edges. Each edge carries its door number, its lock, the item that unlocks it, and a *hidden* flag for secret passages. Every door you open goes through `Game::tryDoor`, which checks the graph. |
-| **Stack** | `ds/Stack.h`, `Player::history` | Movement history. Entering a room pushes it. **B (Go Back)** pops the current room and walks you through the door to the previous one. |
-| **Queue** | `ds/Queue.h`, `Game::events` | The haunted-event timeline: flickering lights, whispers, door slams, cold breath, cracking floorboards and blood writing. They are scheduled when you enter a room and fire strictly first-in, first-out. Queues also power the BFS frontiers and the boot-screen slide sequence. |
-| **Priority Queue (max-heap)** | `ds/PriorityQueue.h`, `Game::updateThreats` | Active threats, ranked by danger: Bride attack 100 > Devil 90 > Hollow Child 80 > Bride near 75 > spirit 60 > darkness 20 > calm 0. The top threat drives the on-screen warning, the fear rate and the jump scare. |
-| **Linked List** | `ds/LinkedList.h`, `Player::inventory` | Inventory. Items are inserted on pickup and deleted when used: a key is removed from the list when it opens its door. |
-| **Binary Search Tree** | `ds/BST.h`, `Game::itemDB` | Item and clue database, keyed by item id, with *collected* and *discovered* flags. Puzzle gates query it: the Ossuary door opens only if the 1953 newspaper record is marked *read*. |
-| **BFS** | `Graph::bfsPath`, `Game::computeTrail` | (1) The room-level shortest route shown in hints. (2) A tile-level BFS over the room grid that draws a **trail of blood** from you to the objective. |
-| **DFS** | `Graph::dfsExplore` | Reading the Hymn Page in the Chapel runs a DFS over *all* edges, hidden ones included. The DFS "senses" the secret Hidden Tunnel and reveals it. |
-| **Array** | `world.cpp` (`ROOMS[]`, `ITEMS[]`), `ds/TileGrid.h`, `Game::maps[]` | Static room properties (name, map, danger level, darkness), baseline item metadata, and each room's fixed 32×24 tile grid (O(1) lookup). |
-
-### Complexity
-
-| Operation | Structure | Cost |
-|---|---|---|
-| BFS / DFS | Graph | O(V + E) |
-| Tile trail BFS | 32×24 grid | O(W·H) |
-| push / pop / top | Stack | O(1) |
-| enqueue / dequeue | Queue | O(1) |
-| insert / extractMax | Priority Queue | O(log n) |
-| insert front · find / remove | Linked List | O(1) · O(n) |
-| search / insert | BST | O(log n) average, O(n) worst |
-| index | Array | O(1) |
-
-`make test` runs `tests/ds_tests.cpp`, which checks each structure: LIFO/FIFO order, heap ordering with late high-priority inserts, list deletion, sorted BST in-order traversal, BFS detouring around a locked door, and DFS finding a hidden room.
-
----
-
-## The house (10 rooms)
-
-Entrance Hall → Grand Corridor → Library → Collapsed Bedroom / Nursery of Whispers → Chapel of Ash → Ritual Antechamber → **The Crimson Crypt**, plus the secret **Hidden Tunnel** and **The Ossuary** below the chapel. The mini-map at the top of the screen draws this graph. Unvisited rooms show as `?`, locked doors appear in dark red, and the BFS hint route lights up.
-
-## Horrors, and how to beat them
-
-| Horror | Behaviour | How to survive |
-|---|---|---|
-| **Restless Spirits** | Walk fixed patrol paths | Watch the pattern, then cross. A flare freezes them. |
-| **The Weeping Bride** | Drifts *through walls* toward you, hunting by sound | **Stand still** and she loses you. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
-| **The Hollow Child** | Crawls faster than you can run, but only when unseen | **Face it** and it freezes. Back toward the door. A flare drives it away. |
-| **The Devil** | Hunts you through the crypt; EMF beeps when he's near | Dig the cracked ground with a mattock (stand still), then strike the corpse with the Blessed Sword. A flare stuns him. |
-| **The house** | Spikes, fire, open graves; blood on the walls | Time your steps. Levers silence the spikes. |
-| **Fear** | Rises in the dark, near the dead, and with every scare. At 100 your mind breaks. | Keep the lantern lit, rest in quiet rooms, and flare to steady your nerves. |
-
-The first time you meet each horror, a **survival note** explains it. **J** reopens all the notes.
-
-### Hints when you're stuck
-If you go **30 seconds** without progress, the hint bar names your next objective and the BFS route to it. Once you're in the right room, a trail of blood leads you to it. After **1 minute**, the objective itself starts to pulse. Press **H** for a hint at any time.
-
-## Endings
-
-| Ending | How |
-|---|---|
-| **True** | Find the Hidden Tunnel, return the Bride's locket, *then* destroy the Devil's corpse. The crimson moon fades to dawn, ten souls rise, and the house finally sleeps without dreaming. |
-| **Escape** | Destroy the corpse without the locket. |
-| **Secret** | Walk out of the front door carrying the locket. |
-| **Trapped** | Choose the petrol in the Antechamber. |
-
-Each ending closes with your run stats (time, rooms, items, spirits banished, deaths, peak fear), a rank and the credits.
-
----
-
-## Project layout
-
-```
-src/            game code (SFML layer + logic)
-src/ds/         hand-written data structures (header-only, no SFML)
-tests/          data-structure unit tests
-assets/maps/    room tile maps (map9/map10 generated by tools/make_maps.py)
-assets/graphics/  crimson-themed sprites, logo, backdrop, jump scare
-assets/audio/   music and sound effects
-assets/fonts/   Grenze Gotisch, Cormorant Garamond (SIL OFL), DejaVu Sans
-tools/          Python scripts that regenerate the art, maps and backdrop
-```
-
-### Regenerating assets (Python 3 + Pillow + NumPy)
+**Linux (Ubuntu / Debian)**
 ```bash
-python3 tools/make_art.py          # crimson tileset/floor + pixel-art ghosts
-python3 tools/make_dead_alfred.py  # Alfred after the house takes him
-python3 tools/make_blood_decals.py blood.webp   # hint-trail blood decals from the team's sheet
-python3 tools/make_fire.py         # brazier fire tiles
-python3 tools/adjust_hero.py       # hero recolour (blue coat, brown hair) from the original sprite
+sudo apt-get install -y g++ make libsfml-dev   # must be SFML 3.x
+make            # builds ./crimson_sleep
+make run        # start it from this folder (it loads ./assets)
+make test       # unit tests for every data structure (no window needed)
+```
+Using an SFML 3 install in a custom place? Use `make SFML_DIR=/path/to/sfml3`.
+
+**Windows**
+* **MSYS2 / MinGW:** `pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-sfml make`, then `make` in the MinGW shell.
+* **Visual Studio + CMake:**
+  ```powershell
+  cmake -B build -DSFML_DIR="C:/SFML/lib/cmake/SFML"
+  cmake --build build --config Release
+  ```
+
+**macOS:** `brew install sfml`, then `make SFML_DIR=$(brew --prefix sfml)`.
+
+---
+
+## Project layout & tools
+
+```
+src/              game code: SFML layer + game logic
+src/ds/           hand-written data structures (header-only, no STL)
+src/ai.cpp        enemy AI toolkit: A*, BFS escape/search, line of sight
+src/demo.cpp      "Watch the dream" - the self-playing demo
+tests/            data-structure unit tests
+assets/           maps, sprites, music, fonts
+tools/            Python scripts that generate art, maps and sprite sheets
+docs/images/      screenshots used in this README
+```
+
+**Regenerating assets** (Python 3 + Pillow):
+```bash
+python3 tools/make_spider.py raw-assets/spider_source.png assets/graphics/spider.png   # spider walk cycle
+python3 tools/make_art.py          # crimson tileset + pixel-art ghosts
 python3 tools/make_maps.py         # Hidden Tunnel + Ossuary maps
-python3 tools/make_backdrop.py     # fallback blood-moon title backdrop
-python3 tools/make_logo.py logo.png              # title logo -> transparent crimson
-python3 tools/make_jumpscare_from.py art.png     # your art -> crimson jump scare
+python3 tools/make_blood_decals.py blood.webp   # hint-trail blood decals
+python3 tools/make_fire.py         # brazier fire tiles
+python3 tools/make_logo.py logo.png              # title logo
+python3 tools/make_jumpscare_from.py art.png     # crimson jump scare
 ```
-To use your own title backdrop, drop it in as `assets/graphics/title_bg.jpg` (or `.png`). It takes priority over the generated one.
 
-### Headless screenshots (for docs and CI)
+**Headless screenshots** (how the pictures above were made):
 ```bash
-CS_STATE=title CS_FRAMES=60 CS_SHOT=title.png ./crimson_sleep
-CS_ROOM=3 CS_HINT=1 CS_FRAMES=40 CS_SHOT=hint.png ./crimson_sleep
+CS_STATE=title CS_FRAMES=240 CS_SHOT=title.png ./crimson_sleep
+CS_ROOM=3 CS_CONSOLE=1 CS_SPIDER=1 CS_FRAMES=24 CS_SHOT=ai.png ./crimson_sleep
 ```
-`CS_ROOM=n` starts in room *n*. Also available: `CS_BRIDE=1`, `CS_JUMP=1`, `CS_OPEN=1` (data-structure panel), and `CS_STATE=ending:4`.
+- `CS_ROOM=n` starts the game in room *n*.
+- `CS_CONSOLE=1` opens the console.
+- `CS_DEMO=1` starts the demo.
+- `CS_BRIDE=1` / `CS_SPIDER=1` spawn a horror next to you.
+- `CS_STATE=ending_4` shows an ending.
 
 ---
 
 ## Credits
 
-* Pixel art & sprites: Retro horror pixel sprites, custom walk/attack animations, and dark atmosphere.
-* Music (chosen by the team): *Title Music* (title screen), *Ambient Horror* by Alex Morgan (calm rooms), a music-box lullaby (the Nursery), a music box on the pause menu, *Creep* (dangerous rooms), *Chase* (when something hunts you), *Wrong* (death screen and the trapped ending), *Apartments* (true ending), *Moonlit Lullaby for the Lost* (escape and secret endings). Room ambiences and sound effects come from the team's sound library (`raw-assets/Audio`, converted by `tools/make_audio.py`).
-* Sound effects from Pixabay: *scream* and *scary breath* (freesound_community), *scary loud screaming* (judgecruz1 / remusic), *scary bells* (Dragon Studio), *scary sound effect* (hgoliya08). The heartbeat, whisper and door slam are synthesised in-house.
-* Fonts: Grenze Gotisch, Cormorant Garamond and Nosifer (blood writing) - all SIL Open Font License, `assets/fonts/OFL.txt` - and DejaVu Sans.
+* **Pixel art & sprites:** retro horror pixel sprites, the team's hero, ghost and spider art, and custom walk and attack animations.
+* **Music:**
+  * *Title Music* (title screen)
+  * *Ambient Horror* by Alex Morgan (calm rooms)
+  * a music-box lullaby (the Nursery)
+  * *Creep* (dangerous rooms)
+  * *Chase* (when something hunts you)
+  * *Wrong* (death screen and the trapped ending)
+  * *Apartments* (true ending)
+  * *Moonlit Lullaby for the Lost* (escape and secret endings)
+* **Sound:** room ambiences and effects come from the team's sound library (converted by `tools/make_audio.py`), plus Pixabay effects:
+  * *scream* and *scary breath* (freesound_community)
+  * *scary loud screaming* (judgecruz1 / remusic)
+  * *scary bells* (Dragon Studio)
+  * *scary sound effect* (hgoliya08)
+* **Fonts:** Grenze Gotisch, Cormorant Garamond and Nosifer (SIL Open Font License, `assets/fonts/OFL.txt`), and DejaVu Sans.

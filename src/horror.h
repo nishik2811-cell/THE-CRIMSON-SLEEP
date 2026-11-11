@@ -1,6 +1,7 @@
 #pragma once
 #include <SFML/Graphics.hpp>
 #include "collision.h"
+#include "ds/TileGrid.h"
 
 // ---------------------------------------------------------------------
 // New horrors for The Crimson Sleep.
@@ -57,3 +58,41 @@ public:
 	bool watched(sf::Vector2f player, int facing) const;
 };
 
+// The Weaver: a spider the size of a hand-spread, with a real hunting brain
+// (see ai.h).  A state machine drives it:
+//   IDLE    skitters about in short bursts
+//   ALERT   heard you (footsteps, a flare) -> A* to where the sound came from
+//   CHASE   sees you (line of sight inside its view cone) -> A* straight at you
+//   ATTACK  close enough: a lunge
+//   FLEE    after a bite or a flare -> BFS to the tile farthest from you
+//   SEARCH  lost you -> BFS picks spots around where you were last seen
+class Spider {
+public:
+	enum State { IDLE, ALERT, CHASE, ATTACK, FLEE, SEARCH };
+	sf::Texture tex;
+	sf::Sprite sprite{ tex };
+	sf::Vector2f pos;            // centre, in room pixels
+	bool active = false;
+	int dir = 0;                 // facing: Down, Left, Right, Up (sheet rows)
+	State state = IDLE;
+	float stateT = 0, burst = 0, rest = 1, frameT = 0, flee = 0, bite = 0, repathT = 0, lostT = 0;
+	int searches = 0;
+	sf::Vector2f lastKnown;      // where it last saw / heard you
+	bool sawYou = false, heardYou = false;
+	int path[96] = {}, pathLen = 0, pathStep = 0, expanded = 0;
+	const char* algo = "";       // which algorithm planned the current path (for the console)
+	Spider();
+	void reset(bool on, sf::Vector2f at);
+	void hear(sf::Vector2f at, float radius);   // a noise at `at`, audible within `radius`
+	void update(float dt, sf::Vector2f player, const TileGrid& map);
+	void scatter() { enter(FLEE); flee = 4.f; }
+	void startChase(sf::Vector2f target) { lastKnown = target; enter(CHASE); }
+	void draw(sf::RenderWindow* w);
+	static const char* stateName(State s);
+private:
+	void enter(State s) { state = s; stateT = 0; pathLen = 0; pathStep = 0; }
+	bool canSee(sf::Vector2f player, const TileGrid& map) const;
+	void planTo(const TileGrid& map, sf::Vector2f target);
+	bool followPath(float dt, float speed, const TileGrid& map);   // false when the path is used up
+	void stepTowards(sf::Vector2f target, float speed, float dt, const TileGrid& map);
+};

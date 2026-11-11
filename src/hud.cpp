@@ -1,13 +1,13 @@
-#include <algorithm>
 // Graphics & UI handler: translates the data structures into pixels.
 #include "game.h"
+#include "ds/MinMax.h"
 #include <cmath>
 #include <cstdio>
 
 namespace {
 const sf::Color CRIMSON(176, 30, 58), BLOOD(120, 6, 18), BONE(232, 220, 200), ASH(150, 140, 136), INK(8, 2, 4);
 
-sf::Text label(const sf::Font& f, const std::string& s, unsigned size, sf::Color c, float x, float y) {
+sf::Text label(const sf::Font& f, const Str& s, unsigned size, sf::Color c, float x, float y) {
 	sf::Text t(f, s, size);
 	t.setFillColor(c);
 	t.setPosition({ (float)(std::floor(x)), (float)(std::floor(y)) });
@@ -73,12 +73,13 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 		float a = wallT > 6 ? (7 - wallT) : wallT / 6;
 		float x = std::floor(wallPos.x);
 		unsigned seed = (unsigned)(wallPos.x * 13 + wallPos.y * 7);
-		for (size_t k = 0; k < wallText.size(); ++k) {
+		for (int k = 0; k < wallText.size(); ++k) {
 			unsigned h = seed * 2654435761u + (unsigned)k * 40503u;
 			float tilt = (float)((int)(h % 25) - 12);                    // -12 .. 12 degrees
 			float bob = (float)((int)((h >> 5) % 5) - 2);                 // -2 .. 2 px
 			unsigned size = WALL_TEXT_SIZE + (unsigned)((h >> 9) % 4) - 1;  // a bit uneven
-			sf::Text letter(fontBlood, std::string(1, wallText[k]), size);
+			char one[2] = { wallText[k], 0 };
+			sf::Text letter(fontBlood, Str(one), size);
 			sf::FloatRect lb = letter.getLocalBounds();
 			letter.setOrigin({ lb.position.x + lb.size.x / 2, lb.position.y + lb.size.y / 2 });
 			letter.setRotation(sf::degrees(tilt));
@@ -122,7 +123,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	if (!player.has(LANTERN)) w->draw(label(fontSerif, "No light", 17, ASH, 22, 72));
 	else {
 		float ready = 1.f - flareCooldown / FLARE_COOLDOWN;
-		ready = std::max(0.f, std::min(1.f, ready));
+		ready = maxOf(0.f, minOf(1.f, ready));
 		bool full = flareCooldown <= 0;
 		float glow = full ? 0.75f + 0.25f * std::sin(t * 4) : 1.f;
 		sf::Color fillCol = full ? sf::Color((std::uint8_t)(255 * glow), (std::uint8_t)(200 * glow), (std::uint8_t)(110 * glow)) : sf::Color(150, 110, 60);
@@ -300,7 +301,7 @@ void Game::drawInventory(sf::RenderWindow* w) {
 	float y = 156;
 	if (player.inventory.empty()) w->draw(label(fontItalic, "Your pockets are empty.", 18, ASH, 28, y));
 	player.inventory.forEach([&](const InventoryItem& it) {
-		w->draw(label(fontSerif, std::string("- ") + ITEMS[it.id].name, 19, BONE, 28, y));
+		w->draw(label(fontSerif, Str("- ") + ITEMS[it.id].name, 19, BONE, 28, y));
 		y += 26;
 	});
 }
@@ -308,18 +309,18 @@ void Game::drawInventory(sf::RenderWindow* w) {
 void Game::drawDebug(sf::RenderWindow* w) {
 	panel(w, 520, 56, 492, 610, 235);
 	float x = 532, y = 62;
-	auto line = [&](const std::string& s, sf::Color c = BONE, unsigned size = 13) { w->draw(label(fontMono, s, size, c, x, y)); y += size + 5; };
-	auto head = [&](const std::string& s) { y += 4; line(s, sf::Color(255, 90, 110), 14); };
+	auto line = [&](const Str& s, sf::Color c = BONE, unsigned size = 13) { w->draw(label(fontMono, s, size, c, x, y)); y += size + 5; };
+	auto head = [&](const Str& s) { y += 4; line(s, sf::Color(255, 90, 110), 14); };
 	char b[160];
 
-	head("GRAPH  adjacency list of " + std::string(ROOMS[room].name));
+	head("GRAPH  adjacency list of " + Str(ROOMS[room].name));
 	for (const Edge* e = house.neighbours(room); e; e = e->next) {
-		std::snprintf(b, sizeof b, "  door %d -> %-20s %s%s", e->doorNo, ROOMS[e->to].name, e->hidden ? "[hidden] " : "", e->locked ? (std::string("[locked: ") + ITEMS[e->requiredItem].name + "]").c_str() : "[open]");
+		std::snprintf(b, sizeof b, "  door %d -> %-20s %s%s", e->doorNo, ROOMS[e->to].name, e->hidden ? "[hidden] " : "", e->locked ? (Str("[locked: ") + ITEMS[e->requiredItem].name + "]").c_str() : "[open]");
 		line(b);
 	}
 	head("STACK  movement history (top first)");
 	int hist[32]; int hn = player.history.toArray(hist, 32);
-	std::string s = "  ";
+	Str s = "  ";
 	for (int i = 0; i < hn && i < 6; ++i) { s += ROOMS[hist[i]].name; if (i + 1 < hn && i < 5) s += " | "; }
 	if (hn > 6) s += " ...";
 	line(s);
@@ -332,7 +333,7 @@ void Game::drawDebug(sf::RenderWindow* w) {
 	head("PRIORITY QUEUE  active threats (max-heap)");
 	for (int i = 0; i < threats.size(); ++i) {
 		std::snprintf(b, sizeof b, "  [%3d] %s", threats.at(i).priority, threats.at(i).label[0] ? threats.at(i).label : "calm");
-		line(std::string(b).substr(0, 62), i == 0 ? sf::Color(255, 160, 160) : BONE);
+		line(Str(b).substr(0, 62), i == 0 ? sf::Color(255, 160, 160) : BONE);
 	}
 	head("LINKED LIST  inventory");
 	s = "  ";
@@ -354,7 +355,7 @@ void Game::drawDebug(sf::RenderWindow* w) {
 	line(b);
 	head("DFS  last exploration (Hymn Page)");
 	s = "  ";
-	for (int i = 0; i < lastDfsLen; ++i) { s += std::to_string(lastDfs[i]); if (i + 1 < lastDfsLen) s += " > "; }
+	for (int i = 0; i < lastDfsLen; ++i) { s += Str::num(lastDfs[i]); if (i + 1 < lastDfsLen) s += " > "; }
 	line(lastDfsLen ? s : "  (not run yet)");
 	head("ARRAY  ROOMS[] / ITEMS[]");
 	std::snprintf(b, sizeof b, "  ROOMS[%d] danger=%d dark=%d bride=%d", room, ROOMS[room].danger, ROOMS[room].dark, ROOMS[room].wraith);
@@ -436,9 +437,9 @@ void Game::drawConsole(sf::RenderWindow* w) {
 	// scroll bar, and one moved down by g_consoleScroll for the cards.
 	const float pw = CONSOLE_PANEL_W, PH = 768.f;   // the strip beside the game
 	sf::View fixedV(sf::FloatRect({ 0.f, 0.f }, { pw, PH }));
-	fixedV.setViewport(sf::FloatRect({ g_gameFrac, 0.f }, { 1.f - g_gameFrac, 1.f }));
+	fixedV.setViewport(g_panelVP);
 	sf::View scrollV = fixedV;
-	g_consoleScroll = std::clamp(g_consoleScroll, 0.f, std::max(0.f, g_consoleContentH - PH));
+	g_consoleScroll = clampTo(g_consoleScroll, 0.f, maxOf(0.f, g_consoleContentH - PH));
 	scrollV.move({ 0.f, std::floor(g_consoleScroll) });
 	w->setView(fixedV);
 	const float W = pw - 10;   // leave a strip on the right for the scroll bar
@@ -447,14 +448,14 @@ void Game::drawConsole(sf::RenderWindow* w) {
 	sf::RectangleShape bg({ pw, PH }); bg.setFillColor(BG); w->draw(bg);
 	w->setView(scrollV);
 
-	auto txt = [&](const std::string& str, const sf::Font& f, unsigned size, sf::Color c, float x, float y, bool centre = false) {
+	auto txt = [&](const Str& str, const sf::Font& f, unsigned size, sf::Color c, float x, float y, bool centre = false) {
 		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); t.setFillColor(c);
 		sf::FloatRect b = t.getLocalBounds();
 		t.setPosition({ std::floor(centre ? x - b.size.x / 2 - b.position.x : x), std::floor(y) });
 		w->draw(t);
 		return b.size.x;
 	};
-	auto width = [&](const std::string& str, const sf::Font& f, unsigned size) {
+	auto width = [&](const Str& str, const sf::Font& f, unsigned size) {
 		sf::Text t(f, sf::String::fromUtf8(str.begin(), str.end()), size); return t.getLocalBounds().size.x;
 	};
 	auto rect = [&](float x, float y, float wd, float h, sf::Color fill, sf::Color line = sf::Color::Transparent) {
@@ -467,14 +468,14 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		lineTo({ x, y }, { x + 10, y }, c); lineTo({ x + 10, y }, { x + 6, y - 3 }, c); lineTo({ x + 10, y }, { x + 6, y + 3 }, c);
 	};
 	// a chip: rounded-looking label box; returns its width
-	auto chip = [&](float x, float y, const std::string& str, sf::Color fill, sf::Color ink, sf::Color line = sf::Color::Transparent) {
+	auto chip = [&](float x, float y, const Str& str, sf::Color fill, sf::Color ink, sf::Color line = sf::Color::Transparent) {
 		float wd = width(str, fontSerif, 14) + 14;
 		rect(x, y, wd, 22, fill, line);
 		txt(str, fontSerif, 14, ink, x + 7, y + 2);
 		return wd;
 	};
 	float y = 10;
-	auto card = [&](float h, const std::string& title, const std::string& tag) {
+	auto card = [&](float h, const Str& title, const Str& tag) {
 		rect(10, y, W - 20, h, CARD, EDGE);
 		txt(title, fontSerif, 16, TITLE, 20, y + 4);
 		float tw = width(tag, fontMono, 10);
@@ -508,17 +509,17 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		txt(ROOMS[room].name, fontSerif, 14, sf::Color::White, cx, t + 3, true);
 		const Edge* list[6]; int n = 0;
 		for (const Edge* e = house.neighbours(room); e && n < 6; e = e->next) if (!e->hidden) list[n++] = e;
-		float slot = (W - 40) / std::max(1, n);
+		float slot = (W - 40) / maxOf(1, n);
 		for (int i = 0; i < n; ++i) {
 			const Edge* e = list[i];
 			float nx = 20 + slot * i + slot / 2, ny = t + 46;
-			std::string name = e->to == OUTSIDE ? "Outside" : SHORT[e->to];
+			Str name = e->to == OUTSIDE ? "Outside" : SHORT[e->to];
 			unsigned fs = width(name, fontSerif, 13) > slot - 10 ? 11 : 13;
-			float nw = std::min(slot - 4, width(name, fontSerif, fs) + 12);
+			float nw = minOf(slot - 4, width(name, fontSerif, fs) + 12);
 			lineTo({ cx, t + 24 }, { nx, ny }, e->locked ? LOCK : OPEN);
 			rect(nx - nw / 2, ny, nw, 22, CHIP, e->locked ? LOCK : OPEN);
 			txt(name, fontSerif, fs, BONE, nx, ny + 3, true);
-			std::string st = e->locked ? std::string("needs ") + ITEMS[e->requiredItem].name : "open";
+			Str st = e->locked ? Str("needs ") + ITEMS[e->requiredItem].name : "open";
 			float sy = ny + 25 + ((n > 3 && i % 2) ? 14 : 0);    // stagger so neighbours' labels never collide
 			txt(st, fontItalic, 11, e->locked ? LOCK : OPEN, nx, sy, true);
 		}
@@ -534,7 +535,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 			txt(ROOMS[hist[i]].name, fontSerif, 13, i == 0 ? sf::Color::White : BONE, bx + 8, by + 2);
 		}
 		txt("TOP  -  you are here", fontItalic, 12, TAG, 192, t + 3);
-		if (hn > 1) txt(std::string("B goes back one room"), fontItalic, 12, TAG, 192, t + 25);
+		if (hn > 1) txt(Str("B goes back one room"), fontItalic, 12, TAG, 192, t + 25);
 		if (hn > 2) { std::snprintf(b, sizeof b, "+%d more below", hn - 2); txt(b, fontItalic, 11, TAG, W - 22 - width(b, fontItalic, 11), t + 25); }
 	}
 
@@ -546,7 +547,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		float x = 22;
 		if (en == 0) txt("none left - the room is quiet", fontItalic, 13, TAG, 22, t + 2);
 		for (int i = 0; i < en && i < 4; ++i) {
-			float in = std::max(0.f, ev[i].at - roomTime);
+			float in = maxOf(0.f, ev[i].at - roomTime);
 			std::snprintf(b, sizeof b, "%s  %.0fs", what[ev[i].kind], in);
 			float cw = width(b, fontSerif, 14) + 14;
 			if (x + cw > W - 30) break;
@@ -566,7 +567,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 			float by = t + shown * 20, maxw = W - 90;
 			rect(24, by + 4, maxw, 12, CHIP);
 			rect(24, by + 4, maxw * th.priority / 100.f, 12, shown == 0 ? sf::Color(200, 40, 60) : sf::Color(130, 50, 60));
-			std::string lbl = th.label; if (lbl.size() > 44) lbl = lbl.substr(0, 42) + "...";
+			Str lbl = th.label; if (lbl.size() > 44) lbl = lbl.substr(0, 42) + "...";
 			std::snprintf(b, sizeof b, "%d", th.priority);
 			txt(b, fontMono, 11, BONE, W - 56, by + 3);
 			txt(lbl, fontSerif, 12, shown == 0 ? sf::Color::White : BONE, 30, by + 1);
@@ -590,6 +591,35 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		txt(overflow ? "..." : "null", fontMono, 12, TAG, x, t + 4);
 	}
 
+	// ---- ENEMY AI: the spiders' state machines, senses and pathfinding
+	{
+		float t = card(spiderCount ? 34.f + 46.f * spiderCount : 40.f, "Enemy AI - the Weavers", "STATE MACHINE  /  A*");
+		if (!spiderCount) txt("no spiders in this room", fontItalic, 13, TAG, 22, t);
+		const char* names[] = { "IDLE", "ALERT", "CHASE", "ATTACK", "FLEE", "SEARCH" };
+		const sf::Color stateCol[] = { sf::Color(110, 100, 100), sf::Color(240, 190, 90), sf::Color(240, 70, 80),
+		                               sf::Color(255, 40, 60), sf::Color(120, 160, 230), sf::Color(200, 150, 220) };
+		for (int i = 0; i < spiderCount; ++i) {
+			const Spider& s = spiders[i];
+			float y0 = t + i * 46.f;
+			std::snprintf(b, sizeof b, "Weaver %d", i + 1);
+			txt(b, fontSerif, 13, BONE, 22, y0 + 2);
+			float x = 90;
+			for (int k = 0; k < 6; ++k) {                       // the state machine, current state lit
+				bool on = (int)s.state == k;
+				float cw = width(names[k], fontMono, 10) + 10;
+				rect(x, y0 + 2, cw, 17, on ? stateCol[k] : CHIP, on ? sf::Color::Transparent : EDGE);
+				txt(names[k], fontMono, 10, on ? sf::Color(20, 6, 8) : TAG, x + 5, y0 + 4);
+				x += cw + 4;
+			}
+			const char* sense = s.sawYou ? "SEES you (line of sight)" : s.heardYou ? "HEARD you (footsteps / flare)" : "senses nothing";
+			if (s.pathLen > 0 && s.algo[0]) std::snprintf(b, sizeof b, "%s   -   %s path %d tiles%s", sense, s.algo, s.pathLen - s.pathStep,
+				s.expanded ? "" : "");
+			else std::snprintf(b, sizeof b, "%s", sense);
+			txt(b, fontItalic, 12, s.sawYou ? sf::Color(255, 140, 150) : s.heardYou ? sf::Color(240, 200, 130) : TAG, 22, y0 + 22);
+			if (s.expanded && s.algo[0] == 'A') { std::snprintf(b, sizeof b, "%d nodes", s.expanded); txt(b, fontMono, 10, TAG, W - 22 - width(b, fontMono, 10), y0 + 24); }
+		}
+	}
+
 	// ---- BST: the item / clue database drawn as the actual tree.
 	// x = in-order position, y = depth; lines join each node to its parent.
 	// The path search() walked for the last item you picked up is lit red.
@@ -600,7 +630,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		itemDB.walk([&](int k, const ItemRecord& r, int d, int p) {
 			if (n < MAXN) { key[n] = k; rec[n] = r; depth[n] = d; parent[n] = p; ++n; }
 		});
-		const float R = 11.f, step = (W - 36) / std::max(1, n), ystep = 25.f;
+		const float R = 11.f, step = (W - 36) / maxOf(1, n), ystep = 25.f;
 		auto at = [&](int i) { return sf::Vector2f(18 + step * (i + 0.5f), t + R + 2 + depth[i] * ystep); };
 		auto indexOf = [&](int k) { for (int i = 0; i < n; ++i) if (key[i] == k) return i; return -1; };
 		int path[MAXN]; int pn = g_lastLookup >= 0 ? itemDB.pathTo(g_lastLookup, path, MAXN) : 0;
@@ -626,20 +656,20 @@ void Game::drawConsole(sf::RenderWindow* w) {
 			bool lit = onPath(key[i]);
 			c.setOutlineColor(lit ? PATH : EDGE); c.setOutlineThickness(lit ? 2.f : 1.f);
 			w->draw(c);
-			txt(std::to_string(key[i]), fontMono, 11, r.collected ? sf::Color(20, 6, 8) : TAG, at(i).x, at(i).y - 7, true);
+			txt(Str::num(key[i]), fontMono, 11, r.collected ? sf::Color(20, 6, 8) : TAG, at(i).x, at(i).y - 7, true);
 		}
 		float ly = t + R + 2 + (itemDB.height() - 1) * ystep + R + 14;
 		rect(18, ly - 6, W - 36, 1, EDGE);   // divider between the tree and its text
 		ly += 4;
 		if (pn > 0) {
-			std::string s = std::string("search(") + ITEMS[g_lastLookup].name + ")  ";
-			for (int i = 0; i < pn; ++i) s += std::to_string(path[i]) + (i + 1 < pn ? " > " : "");
+			Str s = Str("search(") + ITEMS[g_lastLookup].name + ")  ";
+			for (int i = 0; i < pn; ++i) s += Str::num(path[i]) + (i + 1 < pn ? " > " : "");
 			std::snprintf(b, sizeof b, "   %d step%s", pn, pn == 1 ? "" : "s");
 			txt(s + b, fontSerif, 14, sf::Color(255, 150, 160), 18, ly);
 		} else txt("search() path lights up when you pick something up", fontItalic, 13, TAG, 18, ly);
 		ly += 28;
 		float lx = 18;
-		auto key2 = [&](sf::Color c, const std::string& s) {
+		auto key2 = [&](sf::Color c, const Str& s) {
 			sf::CircleShape d(5.f); d.setOrigin({ 5.f, 5.f }); d.setPosition({ lx + 5, ly + 8 }); d.setFillColor(c);
 			d.setOutlineColor(EDGE); d.setOutlineThickness(1); w->draw(d);
 			lx += 14 + txt(s, fontSerif, 13, BONE, lx + 14, ly) + 22;
@@ -658,7 +688,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		else {
 			float x = 22;
 			for (int i = 0; i < lastRouteLen; ++i) {
-				std::string nm = ROOMS[lastRoute[i]].name;
+				Str nm = ROOMS[lastRoute[i]].name;
 				float cw = width(nm, fontSerif, 14) + 14;
 				if (x + cw > W - 30) { txt("...", fontMono, 12, TAG, x, t + 4); break; }
 				x += chip(x, t - 2, nm, i == lastRouteLen - 1 ? HI : CHIP, BONE);
@@ -672,7 +702,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 	g_consoleContentH = y;
 	w->setView(fixedV);
 	if (g_consoleContentH > PH) {
-		float trackH = PH - 16, barH = std::max(40.f, trackH * PH / g_consoleContentH);
+		float trackH = PH - 16, barH = maxOf(40.f, trackH * PH / g_consoleContentH);
 		float barY = 8 + (trackH - barH) * g_consoleScroll / (g_consoleContentH - PH);
 		rect(pw - 8, 8, 4, trackH, sf::Color(40, 12, 18));
 		rect(pw - 8, barY, 4, barH, sf::Color(170, 40, 60));

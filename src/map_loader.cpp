@@ -2,7 +2,7 @@
 #include "map_parser.h"
 #include <cstdlib>
 
-void Map_loader::initializeMap(const std::string& mapFile, sf::Texture& tex) {
+void Map_loader::initializeMap(const Str& mapFile, sf::Texture& tex) {
 	Map_parser parser;
 	parser.parseMap(mapFile, map);
 	tileset = &tex;

@@ -70,9 +70,8 @@ void Player::movement(sf::RenderWindow* window) {
 	}
 	if (isMoving()) animate(); else clock.restart();
 
-	scale_x = (4.f / 3 * window->getSize().y / (window->getSize().x * g_gameFrac));
-	if (scale_x > 1.f) scale_x = 1.f;
-	view.setViewport(sf::FloatRect({ (1 - scale_x) / 2 * g_gameFrac, 0.f }, { scale_x * g_gameFrac, 1.f }));
+	scale_x = g_gameVP.size.x;                 // the 4:3 game area (see layoutScreen)
+	view.setViewport(g_gameVP);
 	view.setCenter(characterImage.getPosition());
 	window->setView(view);
 	setFrame();

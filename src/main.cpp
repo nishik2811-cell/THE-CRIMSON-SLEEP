@@ -1,13 +1,13 @@
 // The Crimson Sleep - a 2D pixelated horror escape (SFML 3).
 // The Crimson Sleep (SFML 2D Horror RPG)
 #include <SFML/Graphics.hpp>
+#include "ds/MinMax.h"
 #include <SFML/Audio.hpp>
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <cmath>
-#include <algorithm>
 #include "globals.h"
 #include "game.h"
 #include "screens.h"
@@ -102,6 +102,7 @@ int main() {
 		game_state = ST_PLAYING;
 		if (env("CS_HINT")) game->devForceHint();
 		if (env("CS_BRIDE")) game->devSpawnBride();
+		if (env("CS_SPIDER")) game->devSpawnSpider();
 		if (env("CS_JUMP")) game->devJumpscare();
 		if (env("CS_NOTIPS")) game->devNoTips();
 		if (env("CS_ALFRED")) game->devAlfredDead();
@@ -130,17 +131,19 @@ int main() {
 	sf::Font consoleFont;
 	(void)consoleFont.openFromFile(asset("fonts/DejaVuSans.ttf"));
 	auto toggleConsole = [&]() {
-		consoleOpen = !consoleOpen;
+		// Widen (or narrow) the window by the console strip when the window
+		// manager allows it; if it's maximised/fullscreen it can't change size
+		// and layoutScreen() simply splits the space it has.
 		sf::Vector2u sz = window.getSize();
-		float gameW = sz.x * g_gameFrac;                                   // current game area in pixels
-		float scale = gameW / 1024.f;                                        // keep the user's window scale
-		unsigned newW = (unsigned)std::lround(consoleOpen ? gameW + CONSOLE_PANEL_W * scale : gameW);
-		g_gameFrac = consoleOpen ? gameW / newW : 1.f;
-		window.setSize({ newW, sz.y });
-		// keep the wider window on screen
-		sf::Vector2i p = window.getPosition();
+		unsigned strip = (unsigned)std::lround(CONSOLE_PANEL_W * sz.y / 768.f);
+		consoleOpen = !consoleOpen;
+		unsigned newW = consoleOpen ? sz.x + strip : (sz.x > strip + 320 ? sz.x - strip : sz.x);
 		int desk = (int)sf::VideoMode::getDesktopMode().size.x;
-		if (p.x + (int)newW > desk) window.setPosition({ std::max(0, desk - (int)newW), p.y });
+		if ((int)newW <= desk) {
+			window.setSize({ newW, sz.y });
+			sf::Vector2i p = window.getPosition();
+			if (p.x + (int)newW > desk) window.setPosition({ maxOf(0, desk - (int)newW), p.y });
+		}
 	};
 	if (env("CS_CONSOLE")) toggleConsole();
 	if (env("CS_DEMO")) { game_state = ST_DEMO; }
@@ -154,40 +157,38 @@ int main() {
 	while (window.isOpen()) {
 		int stateAtFrameStart = game_state;
 		key_reset();
-		while (const std::optional<sf::Event> event = window.pollEvent()) {
-			if (event->is<sf::Event::Closed>()) window.close();
-			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
-				key_record(key->code);
-				key_set_held(key->code, true);
-				if (key->code == sf::Keyboard::Key::Tab) toggleConsole();
-				if (key->code == sf::Keyboard::Key::M) audio.toggleMute();
-				if (key->code == sf::Keyboard::Key::F9) g_diag = !g_diag;
-				if (consoleOpen && key->code == sf::Keyboard::Key::PageDown) g_consoleScroll += 300.f;   // clamped when drawn
-				if (consoleOpen && key->code == sf::Keyboard::Key::PageUp) g_consoleScroll = std::max(0.f, g_consoleScroll - 300.f);
-				if (key->code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
-			}
-			else if (const auto* kr = event->getIf<sf::Event::KeyReleased>()) key_set_held(kr->code, false);
-			else if (const auto* ws = event->getIf<sf::Event::MouseWheelScrolled>()) {
-				if (consoleOpen && ws->position.x > (int)(window.getSize().x * g_gameFrac)) g_consoleScroll = std::max(0.f, g_consoleScroll - ws->delta * 48.f);
-			}
-			else if (const auto* r = event->getIf<sf::Event::Resized>()) {
-				(void)r;   // views use fractions of the window, nothing to update
-			}
-			else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
-				sf::Vector2f p = window.mapPixelToCoords(mb->position, uiView(window));
-				if (mb->button == sf::Mouse::Button::Left && muteButton().contains(p)) audio.toggleMute();
+		// SFML 3's handleEvents: one handler per event type (no std::optional in our code).
+		window.handleEvents(
+			[&](const sf::Event::Closed&) { window.close(); },
+			[&](const sf::Event::KeyPressed& key) {
+				key_record(key.code);
+				key_set_held(key.code, true);
+				if (key.code == sf::Keyboard::Key::Tab) toggleConsole();
+				if (key.code == sf::Keyboard::Key::M) audio.toggleMute();
+				if (key.code == sf::Keyboard::Key::F9) g_diag = !g_diag;
+				if (consoleOpen && key.code == sf::Keyboard::Key::PageDown) g_consoleScroll += 300.f;   // clamped when drawn
+				if (consoleOpen && key.code == sf::Keyboard::Key::PageUp) g_consoleScroll = maxOf(0.f, g_consoleScroll - 300.f);
+				if (key.code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
+			},
+			[&](const sf::Event::KeyReleased& kr) { key_set_held(kr.code, false); },
+			[&](const sf::Event::MouseWheelScrolled& ws) {
+				if (consoleOpen && ws.position.x > (int)g_gameAreaPx) g_consoleScroll = maxOf(0.f, g_consoleScroll - ws.delta * 48.f);
+			},
+			[&](const sf::Event::MouseButtonPressed& mb) {
+				sf::Vector2f p = window.mapPixelToCoords(mb.position, uiView(window));
+				if (mb.button == sf::Mouse::Button::Left && muteButton().contains(p)) audio.toggleMute();
 				bool inGame = game_state == ST_PLAYING || game_state == ST_PAUSED;
-				if (mb->button == sf::Mouse::Button::Left && inGame && consoleButton().contains(p)) toggleConsole();
-			}
-			else if (event->is<sf::Event::FocusLost>()) {
+				if (mb.button == sf::Mouse::Button::Left && inGame && consoleButton().contains(p)) toggleConsole();
+			},
+			[&](const sf::Event::FocusLost&) {
 				key_release_all();   // no KeyReleased arrives while unfocused - don't leave keys stuck down
 				if (game_state == ST_PLAYING && shotFrame < 0) game_state = ST_PAUSED;
-			}
-		}
+			});
 		if (!window.isOpen()) break;
 		float dt = frameClock.restart().asSeconds();
 		if (dt > 0.1f) dt = 0.1f;
 		if (simDt > 0) dt = simDt;
+		layoutScreen(window.getSize(), consoleOpen);   // follow the real window size every frame
 		window.clear(sf::Color::Black);
 
 		switch (game_state) {
@@ -258,7 +259,7 @@ int main() {
 			if (live) game->drawConsole(&window);
 			else {
 				sf::View cv(sf::FloatRect({ 0.f, 0.f }, { CONSOLE_PANEL_W, 768.f }));
-				cv.setViewport(sf::FloatRect({ g_gameFrac, 0.f }, { 1.f - g_gameFrac, 1.f }));
+				cv.setViewport(g_panelVP);
 				window.setView(cv);
 				sf::RectangleShape bg({ CONSOLE_PANEL_W, 768.f }); bg.setFillColor(sf::Color(12, 4, 6)); window.draw(bg);
 				sf::Text msg(consoleFont, "Start a game to see the live\ndata structures here.\n\nTAB closes this panel.", 16);

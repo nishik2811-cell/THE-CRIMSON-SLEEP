@@ -39,5 +39,5 @@ private:
 	void drawMotes(sf::RenderWindow* w, float dt, sf::Color c, bool rising);
 	void drawLogo(sf::RenderWindow* w, float x, float y, float height, float alpha);
 	int menu(sf::RenderWindow* w, const char* const* items, int n, float x, float y, float size);
-	void centered(sf::RenderWindow* w, const sf::Font& f, const std::string& s, unsigned size, sf::Color c, float y, float cx = 512);
+	void centered(sf::RenderWindow* w, const sf::Font& f, const Str& s, unsigned size, sf::Color c, float y, float cx = 512);
 };

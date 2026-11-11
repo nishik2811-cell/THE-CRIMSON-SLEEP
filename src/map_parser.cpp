@@ -13,8 +13,8 @@ static int parseField(const char* s, int len) {
 	return v;
 }
 
-bool Map_parser::parseMap(const std::string& filename, TileGrid& out) {
-	FILE* f = std::fopen(asset("maps/" + filename).c_str(), "rb");
+bool Map_parser::parseMap(const Str& filename, TileGrid& out) {
+	FILE* f = std::fopen(asset("maps/" + filename), "rb");
 	if (!f) return false;
 	for (int r = 0; r < GRID_H; ++r)
 		for (int c = 0; c < GRID_W; ++c) out.cell[r][c] = sf::Vector2i(0, 0);

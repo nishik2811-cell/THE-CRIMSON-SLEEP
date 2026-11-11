@@ -1,8 +1,8 @@
 #include "character.h"
 #include <cmath>
 
-void Character::loadSprite(const std::string& path) {
-	if (!cTexture.loadFromFile(path)) return;
+void Character::loadSprite(const Str& path) {
+	if (!cTexture.loadFromFile(path.c_str())) return;
 	characterImage.setTexture(cTexture, true);
 	characterImage.setOrigin({ 0.f, 24.f });
 }

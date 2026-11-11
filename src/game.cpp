@@ -1,4 +1,5 @@
 #include "game.h"
+#include "ds/MinMax.h"
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -38,6 +39,11 @@ const TipInfo TIPS[TIP_COUNT] = {
 	  "- At 100 fear your mind breaks.\n"
 	  "- Keep the lantern lit and rest in quiet rooms to calm down.\n"
 	  "- Flaring the lantern steadies your nerves." },
+	{ "The Weavers (Spiders)",
+	  "Too many legs, and they live in the dark between the lights.\n"
+	  "- They skitter in bursts, then freeze. When you come close, they RUSH.\n"
+	  "- A bite stings and spikes your fear, then the spider scuttles off.\n"
+	  "- A lantern FLARE (F) scatters every spider near you." },
 };
 
 // Per-room audio: ambience loop, optional extra loop, and footstep surface.
@@ -117,6 +123,10 @@ sf::Vector2i Game::spawnNearDoor(int inRoom, int fromRoom) {
 void Game::placePlayer(sf::Vector2i t) { player.setPosition({ (float)(t.x * 32 + 4), (float)(t.y * 32 + 4) }); }
 
 void Game::enterRoom(int to, int from, bool pushHistory) {
+	// A spider that was rushing you doesn't stop at the door.
+	bool chased = false;
+	for (int i = 0; i < spiderCount; ++i)
+		if (spiders[i].active && (spiders[i].state == Spider::CHASE || spiders[i].state == Spider::ATTACK)) chased = true;
 	room = to;
 	current_map = &maps[room].map;
 	entryTile = from < 0 ? sf::Vector2i(ROOMS[room].spawnX, ROOMS[room].spawnY) : spawnNearDoor(room, from);
@@ -125,6 +135,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	if (!roomVisited[room]) { roomVisited[room] = true; runStats.roomsSeen++; }
 	roomTime = 0; digT = 0; trailLen = 0;
 	spawnEnemies();
+	spiderFollowT = chased ? 1.2f : -1.f;    // it scuttles in behind you a moment later
 	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room], room == NURSERY ? Audio::THEME_NURSERY : ROOMS[room].danger >= 7 ? Audio::THEME_DREAD : Audio::THEME_CALM);
 
 	// Schedule this visit's haunted events (FIFO, in chronological order).
@@ -173,6 +184,22 @@ void Game::spawnEnemies() {
 	child.wake = room == NURSERY ? 25.f : 0.f;      // in the Nursery it waits a while before hunting
 	child.speed = room == NURSERY ? 85.f : 115.f;
 	childRoom = crawl; childBanishT = 0;
+	// Spiders: dropped on random floor tiles well away from where you come in.
+	spiderCount = room == LIBRARY ? 2 : room == HIDDEN_TUNNEL ? 2 : room == OSSUARY ? 2 : room == GRAND_CORRIDOR ? 1 : room == CHAPEL ? 1 : 0;
+	for (int i = 0; i < 3; ++i) spiders[i].reset(false, {});
+	for (int i = 0; i < spiderCount; ++i) {
+		const TileGrid& m = maps[room].map;
+		sf::Vector2f at = pp() + sf::Vector2f(12, 12);
+		for (int tries = 0; tries < 60; ++tries) {
+			int col = std::rand() % GRID_W, row = std::rand() % GRID_H;
+			sf::Vector2i t = m.at(col, row);
+			if (m.solid(col, row) || (t.x == 0 && t.y == 0)) continue;
+			sf::Vector2f p(col * 32.f + 16, row * 32.f + 16);
+			if (dist(p, pp()) < 200) continue;
+			at = p; break;
+		}
+		spiders[i].reset(true, at);
+	}
 	ghostStun = bossStun = 0;
 	chaseHold = 0;
 }
@@ -238,6 +265,29 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 	if (!overlay) child.update(dt, pp(), player.source.y);
 	child.draw(window);
+	if (spiderFollowT > 0 && !overlay) {
+		spiderFollowT -= dt;
+		if (spiderFollowT <= 0 && spiderCount < 3) {
+			Spider& s = spiders[spiderCount++];
+			s.reset(true, sf::Vector2f(entryTile.x * 32.f + 16, entryTile.y * 32.f + 16));   // in through the door you used
+			s.startChase(pp() + sf::Vector2f(12, 12));   // it already knows where you are
+			audio.play(SFX_STING, 60, 1.6f);
+			showToast("Something followed you through the door...");
+		}
+	}
+	for (int i = 0; i < spiderCount; ++i) {
+		Spider& s = spiders[i];
+		if (!overlay) {
+			if (player.isMoving()) s.hear(pp() + sf::Vector2f(12, 12), 170.f);   // footsteps carry; standing still is silent
+			s.update(dt, pp() + sf::Vector2f(12, 12), maps[room].map);
+			if (s.active && s.bite <= 0 && s.state != Spider::FLEE && dist(s.pos, pp() + sf::Vector2f(12, 12)) < 20) {
+				audio.play(SFX_STING, 70, 1.4f);
+				hurt(8, 10, "A spider skitters up your arm and BITES!", TIP_SPIDERS, false);
+				s.bite = 3.f; s.scatter();
+			}
+		}
+		s.draw(window);
+	}
 
 	// --- player + lantern darkness ---
 	if (shake > 0) player.view.move({ (float)(0), (float)(0) });
@@ -251,7 +301,21 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		bride.update(dt, pp(), player.isMoving());
 	}
 	bride.draw(window);
-	drawWorldOverlays(window);   // hint trail, target marker, blood writing - drawn over the darkness so they can be followed
+	drawWorldOverlays(window);
+	for (int si = 0; si < spiderCount; ++si) {
+		const Spider& s = spiders[si];
+		// With the console open, show what the AI is planning: its path as dots on the floor.
+		if (g_panelVP.size.x > 0 && s.active && s.pathLen > s.pathStep) {
+			sf::Color pc = s.state == Spider::CHASE || s.state == Spider::ATTACK ? sf::Color(240, 60, 70, 170) :
+			               s.state == Spider::ALERT ? sf::Color(240, 190, 90, 160) : s.state == Spider::FLEE ? sf::Color(120, 160, 230, 150) : sf::Color(200, 150, 220, 140);
+			for (int k = s.pathStep; k < s.pathLen; ++k) {
+				sf::CircleShape dot(2.5f); dot.setOrigin({ 2.5f, 2.5f });
+				dot.setPosition(sf::Vector2f((s.path[k] % GRID_W) * 32.f + 16, (s.path[k] / GRID_W) * 32.f + 16));
+				dot.setFillColor(pc); window->draw(dot);
+			}
+		}
+	}
+   // hint trail, target marker, blood writing - drawn over the darkness so they can be followed
 
 	if (!overlay) {
 		// Story / interaction.
@@ -292,7 +356,7 @@ void Game::changeFacingTile(sf::Vector2i v) {
 	maps[room].map.set(f.x, f.y, v);
 }
 
-void Game::pickUp(int item, const std::string& msg, bool clearTile) {
+void Game::pickUp(int item, const Str& msg, bool clearTile) {
 	bool isKey = item == RUSTY_KEY || item == BRASS_KEY || item == CHAPEL_KEY || item == IRON_KEY;
 	audio.play(item == CRIMSON_LOCKET ? SFX_CHIME : ITEMS[item].isClue ? SFX_PAPER : isKey ? SFX_KEYS : SFX_PICKUP, 85);
 	ItemRecord* rec = itemDB.search(item);
@@ -300,7 +364,7 @@ void Game::pickUp(int item, const std::string& msg, bool clearTile) {
 	if (rec && !rec->collected) { rec->collected = true; runStats.itemsFound++; }
 	if (ITEMS[item].isClue) { if (rec) rec->discovered = true; }
 	player.give(item);
-	showToast(std::string("+ ") + ITEMS[item].name);
+	showToast(Str("+ ") + ITEMS[item].name);
 	say(msg);
 	if (clearTile) changeFacingTile(sf::Vector2i(-1, -1));
 }
@@ -415,14 +479,14 @@ void Game::tryDoor(int doorNo) {
 			if (room == ENTRANCE_HALL) say("It's about to be dark.\nTake the lantern before going any further.");
 			else if (room == ANTECHAMBER) say("Make your decision before proceeding.");
 			else if (e->requiredItem == NEWSPAPER) say("The door is engraved with a date, half scratched out: 'June 2_, 19_3'.\nSomewhere in this house is a record of that day.");
-			else say(std::string("Locked. It needs the ") + ITEMS[e->requiredItem].name + ".");
+			else say(Str("Locked. It needs the ") + ITEMS[e->requiredItem].name + ".");
 			return;
 		}
 		int req = e->requiredItem;
 		house.unlock(room, e->to);
 		audio.play(SFX_UNLOCK, 90);
 		bool isKey = req == RUSTY_KEY || req == BRASS_KEY || req == CHAPEL_KEY || req == IRON_KEY;
-		if (isKey) { player.take(req); showToast(std::string("- ") + ITEMS[req].name + " (used)"); }
+		if (isKey) { player.take(req); showToast(Str("- ") + ITEMS[req].name + " (used)"); }
 	}
 	audio.play(SFX_DOOR_OPEN, 80);
 	enterRoom(e->to, room, true);
@@ -438,7 +502,7 @@ void Game::goBack() {
 	if (room == CRIMSON_CRYPT) { player.history.push(current); say("You can't leave. Not now."); return; }
 	audio.play(SFX_DOOR_OPEN, 80);
 	enterRoom(previous, room, false);
-	showToast(std::string("Went back to ") + ROOMS[previous].name);
+	showToast(Str("Went back to ") + ROOMS[previous].name);
 }
 
 void Game::flareLantern() {
@@ -464,6 +528,10 @@ void Game::flareLantern() {
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("The Devil recoils from the light!"); }
+	for (int i = 0; i < spiderCount; ++i) {
+		if (spiders[i].active && dist(spiders[i].pos, c) < 170) spiders[i].scatter();   // too close to the light: run
+		else spiders[i].hear(c, 420.f);                                                 // farther off: it heard that
+	}
 	(void)c;
 }
 
@@ -474,7 +542,7 @@ void Game::finish(int ending) {
 }
 
 // ---------------------------------------------------------------- hazards
-void Game::hurt(float h, float f, const std::string& why, int tip, bool respawn) {
+void Game::hurt(float h, float f, const Str& why, int tip, bool respawn) {
 	if (player.invulnerable > 0) return;
 	player.health -= h; player.fear += f;
 	audio.play(SFX_HURT, 85); audio.play(SFX_GASP, 60);
@@ -485,7 +553,7 @@ void Game::hurt(float h, float f, const std::string& why, int tip, bool respawn)
 	if (respawn) placePlayer(entryTile);
 }
 
-void Game::die(const std::string& why, int tip) {
+void Game::die(const Str& why, int tip) {
 	if (demo) return;   // the demo dreamer can't die
 	player.dead_sound.play();
 	boss.beep_sound.stop();
@@ -551,7 +619,7 @@ void Game::updateEvents(float dt) {
 		case EV_BREATH: audio.play(SFX_BREATH, 60); eventCaption = "Someone whispers your name, right behind you."; player.fear += 3; break;
 		case EV_BLOODWRITE: {
 			const char* words[] = { "GET OUT", "SHE IS STILL HERE", "1953", "SLEEP", "BEHIND YOU" };
-			std::string word = words[std::rand() % 5];
+			Str word = words[std::rand() % 5];
 			// if the phrase is too long for any wall nearby, scrawl something shorter
 			const char* shorter[] = { "GET OUT", "SLEEP", "1953" };
 			bool placed = placeWallWriting(word);
@@ -590,6 +658,14 @@ void Game::updateThreats(float dt) {
 	}
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "A restless spirit walks its old path" });
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), p) < 90) threats.insert(Threat{ 60, TH_GHOST, "A restless spirit walks its old path" });
+	// Spiders: how dangerous depends on what their AI is doing.
+	for (int i = 0; i < spiderCount; ++i) {
+		const Spider& s = spiders[i];
+		if (!s.active) continue;
+		if (s.state == Spider::CHASE || s.state == Spider::ATTACK) { threats.insert(Threat{ 65, TH_SPIDER, "A spider has SEEN you - it's coming. FLARE (F)!" }); break; }
+		if (s.state == Spider::ALERT) { threats.insert(Threat{ 45, TH_SPIDER, "Something heard your footsteps... stand still" }); break; }
+		if (s.state != Spider::FLEE && dist(s.pos, p + sf::Vector2f(12, 12)) < 160) { threats.insert(Threat{ 40, TH_SPIDER, "Something with too many legs is close" }); break; }
+	}
 	if (ROOMS[room].dark && !player.has(LANTERN)) threats.insert(Threat{ 20, TH_DARK, "It is too dark here" });
 	threats.insert(Threat{ 0, TH_CALM, "" });
 
@@ -607,6 +683,7 @@ void Game::updateThreats(float dt) {
 	case TH_CHILD: rate = child.frozen ? 1 : 3.5f; break;
 	case TH_BRIDE_NEAR: rate = 2.5f; break;
 	case TH_GHOST: rate = 1.5f; break;
+	case TH_SPIDER: rate = 2.f; break;
 	case TH_DARK: rate = 1; break;
 	default: rate = (ROOMS[room].danger <= 3 ? -4.f : -2.f); break;   // calm down when nothing is near
 	}
@@ -614,6 +691,7 @@ void Game::updateThreats(float dt) {
 
 	if (topThreat.kind == TH_BRIDE_NEAR) openTip(TIP_BRIDE);
 	if (topThreat.kind == TH_GHOST) openTip(TIP_SPIRITS);
+	if (topThreat.kind == TH_SPIDER) openTip(TIP_SPIDERS);
 	if (topThreat.kind == TH_DEVIL) openTip(TIP_DEVIL);
 	if (topThreat.kind == TH_BRIDE_ATTACK && player.invulnerable <= 0) {
 		jumpscare = 1.3f;
@@ -672,12 +750,12 @@ void Game::updateHints(float dt) {
 	// Work out the current objective: first key not yet found, or found
 	// but its door still locked.
 	int key = 100; targetRoom = room; targetTile = -1;
-	std::string what;
+	Str what;
 	for (int i = 0; i < 6; ++i) {
 		const Step& s = STEPS[i];
 		Edge* e = house.edgeTo(s.lockFrom, s.lockTo);
-		if (!collected(s.item)) { key = i * 2; targetRoom = s.room; targetTile = s.tile; what = std::string("The ") + ITEMS[s.item].name + " is somewhere in the " + ROOMS[s.room].name + "."; break; }
-		if (e && e->locked) { key = i * 2 + 1; targetRoom = s.lockFrom; targetTile = 3 + e->doorNo; what = std::string("Use the ") + ITEMS[s.item].name + " on the door to the " + ROOMS[s.lockTo].name + "."; break; }
+		if (!collected(s.item)) { key = i * 2; targetRoom = s.room; targetTile = s.tile; what = Str("The ") + ITEMS[s.item].name + " is somewhere in the " + ROOMS[s.room].name + "."; break; }
+		if (e && e->locked) { key = i * 2 + 1; targetRoom = s.lockFrom; targetTile = 3 + e->doorNo; what = Str("Use the ") + ITEMS[s.item].name + " on the door to the " + ROOMS[s.lockTo].name + "."; break; }
 	}
 	if (key == 100) {
 		targetRoom = CRIMSON_CRYPT;
@@ -696,7 +774,7 @@ void Game::updateHints(float dt) {
 
 	// After 30 seconds without progress, the house "remembers" the way for you.
 	if (objectiveTime >= 30) {
-		std::string route;
+		Str route;
 		if (targetRoom != room) {
 			lastRouteLen = house.bfsPath(room, targetRoom, lastRoute, MAX_ROOMS, [this](const Edge& e) { return edgeUsable(e); });
 			if (lastRouteLen > 1) {
@@ -833,7 +911,7 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 		if (!overlay) alfredDeadT += dt;
 		int frame = (int)(alfredDeadT * 8) % 3;
 		alfredDeadSprite.setTextureRect(sf::IntRect({ frame * 24, 0 }, { 24, 48 }));   // facing you
-		float a = alfredDeadT < 1.4f ? 1.f : std::max(0.f, 1.f - (alfredDeadT - 1.4f) / 0.6f);
+		float a = alfredDeadT < 1.4f ? 1.f : maxOf(0.f, 1.f - (alfredDeadT - 1.4f) / 0.6f);
 		bool flick = alfredDeadT > 1.0f && std::rand() % 3 == 0;
 		alfredDeadSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(flick ? 60 : 255 * a)));
 		if (alfredDeadT > 2.0f) alfredDead = 3;
@@ -856,7 +934,7 @@ void Game::updateVoices(float dt) {
 			brideVoiceT -= dt;
 			if (brideVoiceT <= 0) {
 				float d = bride.distanceTo(pp());
-				audio.play(SFX_BRIDE, std::max(20.f, 85.f - d * 0.25f), 1.45f);   // pitched up: a woman weeping
+				audio.play(SFX_BRIDE, maxOf(20.f, 85.f - d * 0.25f), 1.45f);   // pitched up: a woman weeping
 				brideVoiceT = frand(5, 9);
 			}
 		}
@@ -893,7 +971,7 @@ void Game::alfredGiveLantern() {
 
 // Finds a stretch of wall face (tile 3,3) near the player that is long enough
 // for the words, and centres the writing on it.  False if there is none.
-bool Game::placeWallWriting(const std::string& word) {
+bool Game::placeWallWriting(const Str& word) {
 	float need = scrawlWidth(word) + 10.f;
 	sf::Vector2f me = pp() + sf::Vector2f(12.f, 12.f);
 	float best = 1e9f; bool found = false;
@@ -907,7 +985,7 @@ bool Game::placeWallWriting(const std::string& word) {
 			if (len < need) continue;
 			// slide the text along the run to the spot closest to the player
 			float x0 = start * 32.f, x1 = c * 32.f - need;
-			float x = std::max(x0, std::min(x1, me.x - need / 2));
+			float x = maxOf(x0, minOf(x1, me.x - need / 2));
 			float y = r * 32.f;
 			float dx = x + need / 2 - me.x, dy = y + 16 - me.y;
 			float d = std::sqrt(dx * dx + dy * dy) + frand(0, 40);   // a little variety
@@ -918,7 +996,7 @@ bool Game::placeWallWriting(const std::string& word) {
 }
 
 // Width of a word written in the blood font, letter by letter (as it is drawn).
-float Game::scrawlWidth(const std::string& word) const {
+float Game::scrawlWidth(const Str& word) const {
 	float x = 0;
 	for (char ch : word) x += fontBlood.getGlyph((unsigned char)ch, WALL_TEXT_SIZE, false).advance + (ch == ' ' ? 7.f : 1.f);
 	return x;

@@ -1,5 +1,5 @@
 #pragma once
-#include <string>
+#include "ds/Str.h"
 #include "ds/Graph.h"
 #include "ds/BST.h"
 #include "ds/LinkedList.h"

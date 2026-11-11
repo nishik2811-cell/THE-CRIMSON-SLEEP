@@ -15,6 +15,8 @@
 #include <cstdlib>
 #include <cmath>
 
+static float dist(sf::Vector2f a, sf::Vector2f b) { float x = a.x - b.x, y = a.y - b.y; return std::sqrt(x * x + y * y); }
+
 namespace {
 // What finishes a step (checked against the real game state).
 enum DemoDone { D_LANTERN, D_NEWSPAPER, D_RUSTY, D_DIARY, D_BRASS, D_LEVER, D_CHAPELKEY, D_HYMN, D_IRON,
@@ -28,6 +30,7 @@ const DemoGoal GOALS[] = {
 	{ LIBRARY,            0, D_RUSTY,     "find the rusty key" },
 	{ LIBRARY,           10, D_DIARY,     "read the diary" },
 	{ COLLAPSED_BEDROOM,  1, D_BRASS,     "open the chest" },
+	{ COLLAPSED_BEDROOM, 17, D_LEVER,     "pull the bedroom lever (a shorter way out)" },
 	{ NURSERY,           17, D_LEVER,     "pull the nursery lever" },
 	{ NURSERY,            1, D_CHAPELKEY, "take the Chapel Key" },
 	{ CHAPEL,            17, D_LEVER,     "pull the chapel lever" },
@@ -84,6 +87,66 @@ bool Game::demoGoalDone(int g) {
 	}
 }
 
+// Tiles at or next to anything that can hurt you right now (ghosts, Carrie,
+// Samara, the Devil).  The demo plans around them and waits for them to pass.
+bool Game::demoDanger(int c, int r) {
+	sf::Vector2f pts[12]; int n = 0;
+	for (int i = 0; i < easyCount; ++i) pts[n++] = ghostEasy[i].characterImage.getPosition() + sf::Vector2f(12, 12);
+	for (int i = 0; i < mediumCount; ++i) pts[n++] = ghostMedium[i].characterImage.getPosition() + sf::Vector2f(12, 12);
+	if (child.active && child.stun <= 0 && childBanishT <= 0) pts[n++] = child.pos;
+	if (bride.active && bride.visible() && !bride.pacified) pts[n++] = bride.pos;
+	if (bossActive && bossStun <= 0) pts[n++] = boss.characterImage.getPosition() + sf::Vector2f(12, 12);
+	// (Spiders aren't avoided: they only bite and run, so the demo flares them instead of waiting.)
+	for (int i = 0; i < n; ++i) {
+		int gc = (int)(pts[i].x / 32), gr = (int)(pts[i].y / 32);
+		if (std::abs(gc - c) <= 1 && std::abs(gr - r) <= 1) return true;
+	}
+	return false;
+}
+
+// Meeting the dead, each by its own rule from the survival notes.  Returns
+// true while an encounter needs the dreamer to stop and deal with it.
+bool Game::demoEncounter(float dt) {
+	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
+	bool canFlare = flareCooldown <= 0 && player.has(LANTERN);
+	int was = demoEnc;
+	demoEnc = 0;
+
+	// Carrie: turn and LOOK at her - she freezes while watched - then flare her away.
+	if (child.active && childBanishT <= 0 && child.stun <= 0 && child.distanceTo(pp()) < 180) {
+		demoEnc = 1;
+		sf::Vector2f d = child.pos - me;
+		player.source.y = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left)
+		                                                  : (d.y > 0 ? Character::Down : Character::Up);
+		if (was != 1) { demoEncT = 0; showToast("Carrie! Face her - she can't move while you watch her."); }
+		demoEncT += dt;
+		float d2 = child.distanceTo(pp());
+		if (demoEncT > 1.5f && d2 < 120 && canFlare) flareLantern();
+		else if (demoEncT > 1.5f && d2 >= 110 && !player.col.isCollisionMap(pp(), player.source.y))
+			player.forcedDir = player.source.y;      // step toward her, eyes locked - she stays frozen
+		if (demoEncT > 12.f) { childBanishT = 0.01f; child.active = false; }   // never stall the show
+		return true;
+	}
+	// Samara: she hunts by sound - stand perfectly still until she loses the trail.
+	if (bride.active && bride.state == Bride::HUNT && !bride.pacified && bride.distanceTo(pp()) < 210) {
+		demoEnc = 2;
+		if (was != 2) { demoEncT = 0; showToast("Samara... stand still. She hunts by sound."); }
+		demoEncT += dt;
+		if (demoEncT > 6.f && canFlare && bride.distanceTo(pp()) < 125) flareLantern();   // she won't leave: drive her off
+		return true;
+	}
+	// Wandering spirits and the Devil: a flare stuns them when they get close.
+	if (canFlare) {
+		bool near = bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), pp()) < 120;
+		for (int i = 0; i < easyCount && !near; ++i) near = ghostStun <= 0 && dist(ghostEasy[i].characterImage.getPosition(), pp()) < 75;
+		for (int i = 0; i < mediumCount && !near; ++i) near = ghostStun <= 0 && dist(ghostMedium[i].characterImage.getPosition(), pp()) < 75;
+		bool spider = false;
+		for (int i = 0; i < spiderCount && !near; ++i) spider = near = spiders[i].active && spiders[i].state != Spider::FLEE && dist(spiders[i].pos, me) < 110;
+		if (near) { flareLantern(); showToast(spider ? "A spider rushes in - a flare sends it scuttling." : "A flare - the dead recoil from the light."); }
+	}
+	return false;
+}
+
 static bool walkable(const TileGrid& m, int c, int r) {
 	if (!m.inside(c, r)) return false;
 	sf::Vector2i t = m.at(c, r);
@@ -93,7 +156,7 @@ static bool walkable(const TileGrid& m, int c, int r) {
 // BFS over the room's floor tiles (QUEUE) from the player's tile to any floor
 // tile next to a tile with interaction id `tile`.  Fills demoPath (next tile
 // first) and demoFace (the direction to face at the end).  False = no way.
-bool Game::demoPlan(int tile) {
+bool Game::demoPlan(int tile, bool avoid) {
 	const TileGrid& m = maps[room].map;
 	sf::Vector2f p = pp();
 	int sc = (int)((p.x + 12) / 32), sr = (int)((p.y + 12) / 32);
@@ -114,6 +177,7 @@ bool Game::demoPlan(int tile) {
 		for (int d = 0; d < 4; ++d) {
 			int nc = c + dc[d], nr = r + dr[d];
 			if (!walkable(m, nc, nr) || parent[nr * GRID_W + nc] != -2) continue;
+			if (avoid && demoDanger(nc, nr)) continue;
 			parent[nr * GRID_W + nc] = cur;
 			q.enqueue(nr * GRID_W + nc);
 		}
@@ -136,8 +200,7 @@ void Game::demoUpdate(float dt) {
 	if (journalPage >= 0) journalPage = -1;
 	if (!dialogue.empty()) { demoTalkT += dt; if (demoTalkT > 4.5f) { dialogue = ""; demoTalkT = 0; } }
 	else demoTalkT = 0;
-	// Show off the lantern: flare when something is hunting close by.
-	if (flareCooldown <= 0 && player.has(LANTERN) && topThreat.priority >= 75) flareLantern();
+	if (demoEncounter(dt)) return;            // a horror is close: deal with it first
 
 	if (demoWait > 0) { demoWait -= dt; return; }
 	if (demoGoal >= GOAL_COUNT) return;
@@ -158,9 +221,12 @@ void Game::demoUpdate(float dt) {
 		const Edge* e = house.edgeTo(room, route[1]);
 		tile = 3 + e->doorNo;
 	}
-	if (demoRoomPlanned != room || demoTilePlanned != tile || demoPathLen == 0) {
-		demoRoomPlanned = room; demoTilePlanned = tile;
-		if (!demoPlan(tile)) {
+	demoReplanT += dt;
+	if (demoRoomPlanned != room || demoTilePlanned != tile || demoPathLen == 0 || demoReplanT > 0.35f) {
+		demoRoomPlanned = room; demoTilePlanned = tile; demoReplanT = 0;
+		// Plan around the dead first; if they block every way, plan straight
+		// and wait for them to move (below).
+		if (!demoPlan(tile, true) && !demoPlan(tile, false)) {
 			if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "DEMO can't reach tile %d in room %d\n", tile, room);
 			demoWait = 1.f; demoPathLen = 0;
 			if (++demoTries > 5) { ++demoGoal; demoTries = 0; }   // never get stuck forever
@@ -175,6 +241,15 @@ void Game::demoUpdate(float dt) {
 		sf::Vector2f p = pp();
 		float dx = target.x - p.x, dy = target.y - p.y;
 		if (std::fabs(dx) < 0.5f && std::fabs(dy) < 0.5f) { player.setPosition(target); ++demoStep; return; }
+		// Something deadly on the next tile: hold still and let it pass; if it
+		// lingers, flare the lantern at it; after a while just go.
+		bool startTile = demoStep == 0;
+		if (!startTile && demoDanger(t % GRID_W, t / GRID_W) && demoBlockedT < 5.f) {
+			demoBlockedT += dt;
+			if (demoBlockedT > 2.f && flareCooldown <= 0 && player.has(LANTERN)) flareLantern();
+			return;
+		}
+		demoBlockedT = 0;
 		if (std::fabs(dx) > 8 * 32 || std::fabs(dy) > 8 * 32) { demoPathLen = 0; return; }   // pushed away: re-plan
 		if (std::fabs(dx) >= 0.5f) player.forcedDir = dx > 0 ? Character::Right : Character::Left;
 		else player.forcedDir = dy > 0 ? Character::Down : Character::Up;

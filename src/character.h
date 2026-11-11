@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 #include "collision.h"
+#include "ds/Str.h"
 
 class Character {
 public:
@@ -19,7 +20,7 @@ public:
 	Collision col;
 	Character() : beep_sound(soundbuffer_beep), dead_sound(soundbuffer_dead), characterImage(cTexture) {}
 	virtual ~Character() {}
-	void loadSprite(const std::string& path);   // loads the sheet and binds it to the sprite
+	void loadSprite(const Str& path);   // loads the sheet and binds it to the sprite
 	void setPosition(int, int);
 	void setPosition(sf::Vector2f p) { characterImage.setPosition(p); }
 	virtual void movement(sf::RenderWindow*);

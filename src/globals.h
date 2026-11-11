@@ -1,6 +1,6 @@
 #pragma once
 #include <SFML/Graphics.hpp>
-#include <string>
+#include "ds/Str.h"
 #include "ds/TileGrid.h"
 
 // Screen / flow states (explicit, so new screens never fall through).
@@ -23,7 +23,7 @@ enum EndingType { END_NONE, END_ESCAPE, END_TRAPPED, END_SECRET, END_TRUE };
 extern TileGrid* current_map;   // map of the room the player is in
 extern int game_state;
 extern int ending_type;
-extern std::string dialogue;    // story text box (Space dismisses)
+extern Str dialogue;    // story text box (Space dismisses)
 
 // Edge-triggered key presses collected from the event loop this frame.
 bool key_hit(sf::Keyboard::Key k);
@@ -38,17 +38,23 @@ bool key_held(sf::Keyboard::Key k);
 void key_set_held(sf::Keyboard::Key k, bool down);
 void key_release_all();
 
-// Resolves a path inside the assets/ folder.
-std::string asset(const std::string& rel);
+// Resolves a path inside the assets/ folder.  Returns a C string that stays
+// valid for the next few calls (a small ring of buffers) - enough to pass
+// straight into SFML's loadFromFile / openFromFile.
+const char* asset(const Str& rel);
 
 // Live data-structure console state, kept outside Game so its layout is unchanged.
 extern float g_consoleScroll, g_consoleContentH;   // console window scrolling
 extern int g_lastLookup;        // last item searched in the BST (lit as a path)
 extern bool g_diag;             // F9: on-screen movement diagnostics
 
-// When the console is open the window is widened and the game keeps the left
-// g_gameFrac of it, drawn exactly as at 1024x768.  uiView() is the 1024x768
-// screen-space view for that area (use it instead of getDefaultView()).
-extern float g_gameFrac;
-const float CONSOLE_PANEL_W = 560.f;   // width of the console strip, in game pixels
+// Screen layout, recomputed every frame from the real window size (it may be
+// maximised or fullscreen).  The game always keeps a 4:3 area (g_gameVP, as
+// fractions of the window, letterboxed if needed); with the console open it
+// gets a strip on the right (g_panelVP).  uiView() is the 1024x768 screen
+// view for the game area - use it instead of getDefaultView().
+const float CONSOLE_PANEL_W = 560.f;   // width of the console strip, in game pixels at 768 high
+extern sf::FloatRect g_gameVP, g_panelVP;
+extern float g_gameAreaPx;      // width in pixels of the part left of the console
+void layoutScreen(sf::Vector2u window, bool consoleOpen);
 sf::View uiView(const sf::RenderTarget& t);
