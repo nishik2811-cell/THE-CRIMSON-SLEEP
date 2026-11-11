@@ -79,7 +79,6 @@ void Game::devStartAt(int r) {
 	for (int i = 0; i < 4; ++i) if (need[r][i]) {
 		player.give(need[r][i]);
 		if (ItemRecord* rec = itemDB.search(need[r][i])) { rec->collected = true; rec->discovered = true; }
-		lastLookup = need[r][i];
 	}
 	if (r == HIDDEN_TUNNEL || r == OSSUARY) house.reveal(CHAPEL, HIDDEN_TUNNEL);
 	// Open every door whose key the dev start handed over.
@@ -293,7 +292,6 @@ void Game::pickUp(int item, const std::string& msg, bool clearTile) {
 	bool isKey = item == RUSTY_KEY || item == BRASS_KEY || item == CHAPEL_KEY || item == IRON_KEY;
 	audio.play(item == CRIMSON_LOCKET ? SFX_CHIME : ITEMS[item].isClue ? SFX_PAPER : isKey ? SFX_KEYS : SFX_PICKUP, 85);
 	ItemRecord* rec = itemDB.search(item);
-	lastLookup = item;
 	if (rec && !rec->collected) { rec->collected = true; runStats.itemsFound++; }
 	if (ITEMS[item].isClue) { if (rec) rec->discovered = true; }
 	player.give(item);

@@ -13,7 +13,6 @@
 class Player : public Character {
 public:
 	sf::View view;
-	float camShift = 0;   // screen pixels: pushes the camera so the hero stays centred left of the console panel
 	float scale_x = 1.f;
 	sf::SoundBuffer soundbuffer_object, soundbuffer_door, soundbuffer_end;
 	sf::Sound object_sound, door_sound, end_sound;
