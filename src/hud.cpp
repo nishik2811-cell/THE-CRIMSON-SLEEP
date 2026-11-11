@@ -95,7 +95,7 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 }
 
 void Game::drawHud(sf::RenderWindow* w) {
-	w->setView(w->getDefaultView());
+	w->setView(uiView(*w));
 	const float W = 1024, H = 768;
 	float t = runStats.time;
 
@@ -141,7 +141,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	// "[E] Talk" over Alfred's head when you're next to him.
 	if (room == ENTRANCE_HALL && npc.state == Npc::standing && npc.near(&player)) {
 		sf::Vector2i px = w->mapCoordsToPixel(npc.characterImage.getPosition() + sf::Vector2f(12.f, -30.f), player.view);
-		sf::Vector2f sp = w->mapPixelToCoords(px, w->getDefaultView());
+		sf::Vector2f sp = w->mapPixelToCoords(px, uiView(*w));
 		sf::Text tt(fontSerif, "[E] Talk to Alfred", 20);
 		tt.setFillColor(BONE);
 		tt.setOutlineColor(sf::Color(0, 0, 0)); tt.setOutlineThickness(2);
@@ -239,7 +239,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	// F9 diagnostics: what the game thinks the player is doing right now.
 	if (g_diag) {
 		using K = sf::Keyboard::Key;
-		auto k = [](K a, K b) { return sf::Keyboard::isKeyPressed(a) || sf::Keyboard::isKeyPressed(b); };
+		auto k = [](K a, K b) { return key_held(a) || key_held(b); };
 		static sf::Clock fc; static int frames = 0; static float fps = 0;
 		++frames; if (fc.getElapsedTime().asSeconds() >= 0.5f) { fps = frames / fc.restart().asSeconds(); frames = 0; }
 		sf::Vector2f p = pp();
@@ -425,8 +425,9 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 void Game::drawConsole(sf::RenderWindow* w) {
 	// Two views over the console window: a fixed one for the background and
 	// scroll bar, and one moved down by g_consoleScroll for the cards.
-	const float pw = (float)w->getSize().x, PH = (float)w->getSize().y;
+	const float pw = CONSOLE_PANEL_W, PH = 768.f;   // the strip beside the game
 	sf::View fixedV(sf::FloatRect({ 0.f, 0.f }, { pw, PH }));
+	fixedV.setViewport(sf::FloatRect({ g_gameFrac, 0.f }, { 1.f - g_gameFrac, 1.f }));
 	sf::View scrollV = fixedV;
 	g_consoleScroll = std::clamp(g_consoleScroll, 0.f, std::max(0.f, g_consoleContentH - PH));
 	scrollV.move({ 0.f, std::floor(g_consoleScroll) });
@@ -476,7 +477,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 
 	// ---- header: the current room + its fixed facts (ARRAY)
 	txt(ROOMS[room].name, fontTitle, 26, CRIMSON, 14, y - 2);
-	txt("scroll: wheel / PgUp PgDn", fontItalic, 12, TAG, W - 14 - width("scroll: wheel / PgUp PgDn", fontItalic, 12), y + 10);
+	txt("TAB closes  -  wheel scrolls", fontItalic, 12, TAG, W - 14 - width("TAB closes  -  wheel scrolls", fontItalic, 12), y + 10);
 	y += 34;
 	{
 		float x = 14;
@@ -667,6 +668,6 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		rect(pw - 8, 8, 4, trackH, sf::Color(40, 12, 18));
 		rect(pw - 8, barY, 4, barH, sf::Color(170, 40, 60));
 	}
-	w->setView(w->getDefaultView());
+	w->setView(uiView(*w));
 }
 

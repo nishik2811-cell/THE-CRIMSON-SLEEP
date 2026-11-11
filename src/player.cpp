@@ -1,7 +1,7 @@
 #include "player.h"
 #include "globals.h"
 
-static bool down(sf::Keyboard::Key k) { return sf::Keyboard::isKeyPressed(k); }
+static bool down(sf::Keyboard::Key k) { return key_held(k); }
 
 Player::Player() : object_sound(soundbuffer_object), door_sound(soundbuffer_door), end_sound(soundbuffer_end) {
 	loadSprite(asset("graphics/player.png"));
@@ -69,9 +69,9 @@ void Player::movement(sf::RenderWindow* window) {
 	}
 	if (isMoving()) animate(); else clock.restart();
 
-	scale_x = (4.f / 3 * window->getSize().y / window->getSize().x);
+	scale_x = (4.f / 3 * window->getSize().y / (window->getSize().x * g_gameFrac));
 	if (scale_x > 1.f) scale_x = 1.f;
-	view.setViewport(sf::FloatRect({ (1 - scale_x) / 2, 0.f }, { scale_x, 1.f }));
+	view.setViewport(sf::FloatRect({ (1 - scale_x) / 2 * g_gameFrac, 0.f }, { scale_x * g_gameFrac, 1.f }));
 	view.setCenter(characterImage.getPosition());
 	window->setView(view);
 	setFrame();

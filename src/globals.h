@@ -30,6 +30,12 @@ bool key_any();
 using Key = sf::Keyboard::Key;
 void key_reset();
 void key_record(sf::Keyboard::Key k);
+// Held keys, tracked from KeyPressed/KeyReleased events.  Used instead of
+// sf::Keyboard::isKeyPressed, which on some Linux desktops stops reporting
+// keys after the window is resized (the console opening).
+bool key_held(sf::Keyboard::Key k);
+void key_set_held(sf::Keyboard::Key k, bool down);
+void key_release_all();
 
 // Resolves a path inside the assets/ folder.
 std::string asset(const std::string& rel);
@@ -38,3 +44,10 @@ std::string asset(const std::string& rel);
 extern float g_consoleScroll, g_consoleContentH;   // console window scrolling
 extern int g_lastLookup;        // last item searched in the BST (lit as a path)
 extern bool g_diag;             // F9: on-screen movement diagnostics
+
+// When the console is open the window is widened and the game keeps the left
+// g_gameFrac of it, drawn exactly as at 1024x768.  uiView() is the 1024x768
+// screen-space view for that area (use it instead of getDefaultView()).
+extern float g_gameFrac;
+const float CONSOLE_PANEL_W = 560.f;   // width of the console strip, in game pixels
+sf::View uiView(const sf::RenderTarget& t);

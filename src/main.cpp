@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <cmath>
 #include <algorithm>
 #include "globals.h"
 #include "game.h"
@@ -19,7 +20,7 @@
 static sf::FloatRect muteButton() { return sf::FloatRect({ 1024.f - 46.f, 768.f - 46.f }, { 34.f, 34.f }); }
 static void drawMuteButton(sf::RenderWindow& w, bool muted) {
 	sf::View keep = w.getView();
-	w.setView(w.getDefaultView());
+	w.setView(uiView(w));
 	sf::FloatRect r = muteButton();
 	sf::Vector2f mouse = w.mapPixelToCoords(sf::Mouse::getPosition(w));
 	bool hover = r.contains(mouse);
@@ -59,7 +60,7 @@ static void drawMuteButton(sf::RenderWindow& w, bool muted) {
 static sf::FloatRect consoleButton() { return sf::FloatRect({ 1024.f - 86.f, 768.f - 46.f }, { 34.f, 34.f }); }
 static void drawConsoleButton(sf::RenderWindow& w, bool open) {
 	sf::View keep = w.getView();
-	w.setView(w.getDefaultView());
+	w.setView(uiView(w));
 	sf::FloatRect r = consoleButton();
 	bool hover = r.contains(w.mapPixelToCoords(sf::Mouse::getPosition(w)));
 	sf::RectangleShape bg(r.size); bg.setPosition(r.position);
@@ -121,20 +122,24 @@ int main() {
 	}
 	float simDt = env("CS_DT") ? (float)std::atof(env("CS_DT")) : 0.f;
 
-	// Live data-structure console: a separate window toggled with TAB, so it
-	// never covers the game.  Focus is handed straight back to the game.
-	sf::RenderWindow console;
+	// Live data-structure console: TAB (or the console button) widens the game
+	// window and draws the console in the new strip beside the game.  The game
+	// itself keeps its 1024x768 area and is drawn exactly as before.
+	bool consoleOpen = false;
 	sf::Font consoleFont;
 	(void)consoleFont.openFromFile(asset("fonts/DejaVuSans.ttf"));
-	sf::Clock consoleToggled;
 	auto toggleConsole = [&]() {
-		if (console.isOpen()) { console.close(); return; }
-		console.create(sf::VideoMode({ 560u, window.getSize().y }), "The Crimson Sleep - Live Data Structures", sf::Style::Titlebar | sf::Style::Close);   // same height as the game
-		console.setFramerateLimit(30);
+		consoleOpen = !consoleOpen;
+		sf::Vector2u sz = window.getSize();
+		float gameW = sz.x * g_gameFrac;                                   // current game area in pixels
+		float scale = gameW / 1024.f;                                        // keep the user's window scale
+		unsigned newW = (unsigned)std::lround(consoleOpen ? gameW + CONSOLE_PANEL_W * scale : gameW);
+		g_gameFrac = consoleOpen ? gameW / newW : 1.f;
+		window.setSize({ newW, sz.y });
+		// keep the wider window on screen
 		sf::Vector2i p = window.getPosition();
-		console.setPosition({ p.x + (int)window.getSize().x + 8, p.y });
-		window.requestFocus();
-		consoleToggled.restart();
+		int desk = (int)sf::VideoMode::getDesktopMode().size.x;
+		if (p.x + (int)newW > desk) window.setPosition({ std::max(0, desk - (int)newW), p.y });
 	};
 	if (env("CS_CONSOLE")) toggleConsole();
 	if (env("CS_DIAG")) g_diag = true;
@@ -150,45 +155,33 @@ int main() {
 			if (event->is<sf::Event::Closed>()) window.close();
 			else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {
 				key_record(key->code);
+				key_set_held(key->code, true);
 				if (key->code == sf::Keyboard::Key::Tab) toggleConsole();
 				if (key->code == sf::Keyboard::Key::M) audio.toggleMute();
 				if (key->code == sf::Keyboard::Key::F9) g_diag = !g_diag;
+				if (consoleOpen && key->code == sf::Keyboard::Key::PageDown) g_consoleScroll += 300.f;   // clamped when drawn
+				if (consoleOpen && key->code == sf::Keyboard::Key::PageUp) g_consoleScroll = std::max(0.f, g_consoleScroll - 300.f);
 				if (key->code == sf::Keyboard::Key::Escape && game_state == ST_PLAYING) { game_state = ST_PAUSED; key_reset(); }
 			}
+			else if (const auto* kr = event->getIf<sf::Event::KeyReleased>()) key_set_held(kr->code, false);
+			else if (const auto* ws = event->getIf<sf::Event::MouseWheelScrolled>()) {
+				if (consoleOpen && ws->position.x > (int)(window.getSize().x * g_gameFrac)) g_consoleScroll = std::max(0.f, g_consoleScroll - ws->delta * 48.f);
+			}
+			else if (const auto* r = event->getIf<sf::Event::Resized>()) {
+				(void)r;   // views use fractions of the window, nothing to update
+			}
 			else if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
-				sf::Vector2f p = window.mapPixelToCoords(mb->position, window.getDefaultView());
+				sf::Vector2f p = window.mapPixelToCoords(mb->position, uiView(window));
 				if (mb->button == sf::Mouse::Button::Left && muteButton().contains(p)) audio.toggleMute();
 				bool inGame = game_state == ST_PLAYING || game_state == ST_PAUSED;
 				if (mb->button == sf::Mouse::Button::Left && inGame && consoleButton().contains(p)) toggleConsole();
 			}
-			else if (event->is<sf::Event::FocusLost>() && game_state == ST_PLAYING && shotFrame < 0 &&
-				!(console.isOpen() && (console.hasFocus() || consoleToggled.getElapsedTime().asSeconds() < 1.f))) game_state = ST_PAUSED;
+			else if (event->is<sf::Event::FocusLost>()) {
+				key_release_all();   // no KeyReleased arrives while unfocused - don't leave keys stuck down
+				if (game_state == ST_PLAYING && shotFrame < 0) game_state = ST_PAUSED;
+			}
 		}
 		if (!window.isOpen()) break;
-		if (console.isOpen()) {
-			while (const std::optional<sf::Event> ce = console.pollEvent()) {
-				if (ce->is<sf::Event::Closed>()) console.close();
-				else if (const auto* k = ce->getIf<sf::Event::KeyPressed>()) {
-					if (k->code == sf::Keyboard::Key::Tab) console.close();
-					if (k->code == sf::Keyboard::Key::PageDown) g_consoleScroll += 300.f;   // clamped when drawn
-					if (k->code == sf::Keyboard::Key::PageUp) g_consoleScroll = std::max(0.f, g_consoleScroll - 300.f);
-				}
-				else if (const auto* ws = ce->getIf<sf::Event::MouseWheelScrolled>()) g_consoleScroll = std::max(0.f, g_consoleScroll - ws->delta * 48.f);
-			}
-			if (console.isOpen()) {
-				console.clear(sf::Color(8, 2, 4));
-				bool live = game && (game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY || game_state == ST_CONTROLS);
-				if (live) game->drawConsole(&console);
-				else {
-					console.setView(console.getDefaultView());
-					sf::Text msg(consoleFont, "Start a game to see the live\ndata structures here.\n\nTAB closes this window.", 16);
-					msg.setFillColor(sf::Color(200, 180, 172));
-					msg.setPosition({ 24.f, 24.f });
-					console.draw(msg);
-				}
-				console.display();
-			}
-		}
 		float dt = frameClock.restart().asSeconds();
 		if (dt > 0.1f) dt = 0.1f;
 		if (simDt > 0) dt = simDt;
@@ -246,17 +239,29 @@ int main() {
 		}
 		prevState = stateAtFrameStart;   // the state this frame ran, so "just died" is detected once
 		if (!window.isOpen()) break;
+		if (consoleOpen) {
+			sf::View keep = window.getView();   // the game's camera - must survive into the next frame
+			bool live = game && (game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY || game_state == ST_CONTROLS);
+			if (live) game->drawConsole(&window);
+			else {
+				sf::View cv(sf::FloatRect({ 0.f, 0.f }, { CONSOLE_PANEL_W, 768.f }));
+				cv.setViewport(sf::FloatRect({ g_gameFrac, 0.f }, { 1.f - g_gameFrac, 1.f }));
+				window.setView(cv);
+				sf::RectangleShape bg({ CONSOLE_PANEL_W, 768.f }); bg.setFillColor(sf::Color(12, 4, 6)); window.draw(bg);
+				sf::Text msg(consoleFont, "Start a game to see the live\ndata structures here.\n\nTAB closes this panel.", 16);
+				msg.setFillColor(sf::Color(200, 180, 172));
+				msg.setPosition({ 24.f, 24.f });
+				window.draw(msg);
+			}
+			window.setView(keep);
+		}
 		drawMuteButton(window, audio.isMuted());
-		if (game_state == ST_PLAYING || game_state == ST_PAUSED) drawConsoleButton(window, console.isOpen());
+		if (game_state == ST_PLAYING || game_state == ST_PAUSED) drawConsoleButton(window, consoleOpen);
 		window.display();
 		if (++frame == shotFrame && shotPath) {
 			sf::Texture cap(window.getSize());
 			cap.update(window);
 			(void)cap.copyToImage().saveToFile(shotPath);
-			if (console.isOpen() && env("CS_SHOT2")) {
-				sf::Texture c2(console.getSize()); c2.update(console);
-				(void)c2.copyToImage().saveToFile(env("CS_SHOT2"));
-			}
 			if (game && env("CS_PRINTPOS")) std::fprintf(stderr, "POS %.1f %.1f HP %.0f\n", game->devPos().x, game->devPos().y, game->devHealth());
 			window.close();
 		}

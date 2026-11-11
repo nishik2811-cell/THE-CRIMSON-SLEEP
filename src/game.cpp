@@ -210,6 +210,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 	player.frozen = overlay || jumpscare > 0.25f;
 
+	window->setView(player.view);   // the room always follows the camera
 	// Camera shake.
 	if (shake > 0) {
 		sf::View v = player.view;
@@ -576,7 +577,8 @@ void Game::updateThreats(float dt) {
 	// Insert every active danger with its priority...
 	if (bride.active && bride.visible() && !bride.pacified) {
 		float d = bride.distanceTo(p);
-		if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "SAMARA HAS YOU" });
+		if (bride.lostTrail()) { if (d < 240) threats.insert(Threat{ 45, TH_BRIDE_NEAR, "Samara has lost your trail - keep still" }); }
+		else if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "SAMARA HAS YOU" });
 		else if (d < 240) threats.insert(Threat{ 75, TH_BRIDE_NEAR, "Samara drifts toward you - stand still, or FLARE (F)" });
 	}
 	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "The Devil is close - the EMF meter screams" });

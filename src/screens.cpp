@@ -45,7 +45,7 @@ void Screens::startBoot() {
 }
 
 void Screens::drawBackdrop(sf::RenderWindow* w, sf::Color tint) {
-	w->setView(w->getDefaultView());
+	w->setView(uiView(*w));
 	// Slow "breathing" zoom so the scene never feels still.
 	float s = 1.03f + 0.02f * std::sin(t * 0.25f);
 	sf::Vector2u sz = bgTex.getSize();
@@ -148,7 +148,7 @@ int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx
 // ------------------------------------------------------------------ boot
 int Screens::boot(sf::RenderWindow* w, float dt) {
 	t += dt; slideT += dt;
-	w->setView(w->getDefaultView());
+	w->setView(uiView(*w));
 	Slide s;
 	if (!slides.front(&s)) return ST_TITLE;
 	float fade = slideT < 0.8f ? slideT / 0.8f : (s.seconds - slideT < 0.8f ? (s.seconds - slideT) / 0.8f : 1.f);
@@ -236,7 +236,7 @@ int Screens::pause(sf::RenderWindow* w, float dt) {
 int Screens::retry(sf::RenderWindow* w, float dt, const Game& g) {
 	t += dt;
 	deathT += dt;
-	w->setView(w->getDefaultView());
+	w->setView(uiView(*w));
 	const float SCARE = 1.4f;
 	if (deathT < SCARE) {
 		// The face slams in: punch zoom, violent shake, red/cyan split, static, blood flash.
@@ -286,7 +286,7 @@ int Screens::retry(sf::RenderWindow* w, float dt, const Game& g) {
 // ---------------------------------------------------------------- ending
 int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	t += dt; endT += dt;
-	w->setView(w->getDefaultView());
+	w->setView(uiView(*w));
 	const int e = ending_type;
 	struct Script { const char* lines[6]; const char* name; };
 	static const Script scripts[] = {
