@@ -185,6 +185,15 @@ void Game::drawHud(sf::RenderWindow* w) {
 		w->draw(label(fontSerif, hintText, 19, sf::Color(255, 120, 130), 22, H - 89));
 	}
 
+	// Demo banner.
+	if (demo) {
+		sf::Text dm(fontSerif, "WATCHING THE DREAM  -  a full playthrough  -  ESC to stop", 18);
+		dm.setFillColor(sf::Color(255, 200, 200, (std::uint8_t)(170 + 60 * std::sin(t * 2.f))));
+		dm.setOutlineColor(sf::Color::Black); dm.setOutlineThickness(2);
+		dm.setPosition({ std::floor((W - dm.getLocalBounds().size.x) / 2), H - 56.f });
+		w->draw(dm);
+	}
+
 	// Controls strip.
 	w->draw(label(fontSerif, "E interact   F flare   B go back   H hint   I items   J tips   TAB data structures   M mute   ESC pause", 16, ASH, 22, H - 26));
 

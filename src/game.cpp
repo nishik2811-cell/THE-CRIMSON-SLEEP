@@ -190,6 +190,7 @@ void Game::retryRoom() {
 // ------------------------------------------------------------ main update
 void Game::update(sf::RenderWindow* window, float dt) {
 	lastDt = dt;
+	if (demo) demoUpdate(dt);
 	bool overlay = tipOpen >= 0 || journalPage >= 0;
 	if (!overlay) {
 		runStats.time += dt;
@@ -485,6 +486,7 @@ void Game::hurt(float h, float f, const std::string& why, int tip, bool respawn)
 }
 
 void Game::die(const std::string& why, int tip) {
+	if (demo) return;   // the demo dreamer can't die
 	player.dead_sound.play();
 	boss.beep_sound.stop();
 	runStats.deaths++;
@@ -926,6 +928,7 @@ float Game::scrawlWidth(const std::string& word) const {
 // stopping at anything solid (walls, pits, fire), so a hit never throws you
 // into danger or back to the room's entrance.
 void Game::knockBack(sf::Vector2f from) {
+	if (demo) return;
 	sf::Vector2f d = pp() - from;
 	bool horiz = std::fabs(d.x) >= std::fabs(d.y);
 	int dir = horiz ? (d.x >= 0 ? Character::Right : Character::Left) : (d.y >= 0 ? Character::Down : Character::Up);

@@ -14,7 +14,8 @@ enum GameState {
 	ST_QUIT = 4,
 	ST_ENDING = 5,
 	ST_CONTROLS = 6,
-	ST_NEW_GAME = 7     // request: rebuild the Game object then play
+	ST_NEW_GAME = 7,    // request: rebuild the Game object then play
+	ST_DEMO = 8         // like NEW_GAME, but the game plays itself
 };
 
 enum EndingType { END_NONE, END_ESCAPE, END_TRAPPED, END_SECRET, END_TRUE };

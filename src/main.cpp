@@ -109,6 +109,7 @@ int main() {
 		if (env("CS_FLARECD")) game->devFlareCooldown((float)std::atof(env("CS_FLARECD")));
 		if (env("CS_WRITE")) game->devWrite(env("CS_WRITE"));
 		if (env("CS_HOLD")) game->devHold(std::atoi(env("CS_HOLD")));
+
 		if (env("CS_TALK")) game->devAlfredTalk((float)std::atof(env("CS_TALK")));
 		if (env("CS_OPEN")) game->devOpen(std::atoi(env("CS_OPEN")));
 	}
@@ -142,6 +143,8 @@ int main() {
 		if (p.x + (int)newW > desk) window.setPosition({ std::max(0, desk - (int)newW), p.y });
 	};
 	if (env("CS_CONSOLE")) toggleConsole();
+	if (env("CS_DEMO")) { game_state = ST_DEMO; }
+	if (game && env("CS_DEMO_GOAL")) { game->devDemoFrom(std::atoi(env("CS_DEMO_GOAL"))); if (!consoleOpen) toggleConsole(); }
 	if (env("CS_DIAG")) g_diag = true;
 	if (env("CS_SCROLL")) g_consoleScroll = (float)std::atof(env("CS_SCROLL"));
 
@@ -210,7 +213,15 @@ int main() {
 			game = new Game(audio);
 			game_state = ST_PLAYING;
 			break;
+		case ST_DEMO:
+			delete game;
+			game = new Game(audio);
+			game->startDemo();
+			if (!consoleOpen) toggleConsole();   // the demo shows the live data structures alongside
+			game_state = ST_PLAYING;
+			break;
 		case ST_PLAYING:
+			if (!game) { game_state = ST_TITLE; break; }
 			audio.setPaused(false);
 			audio.music(game->musicTrack());
 			audio.pauseAll(false);
@@ -224,6 +235,7 @@ int main() {
 			if (game_state == ST_CONTROLS) controlsReturn = ST_PAUSED;
 			break;
 		case ST_RETRY:
+			if (!game) { game_state = ST_TITLE; break; }
 			if (prevState != ST_RETRY) { screens.startDeath(); audio.play(SFX_JUMPSCARE, 100); }
 			audio.music(TRACK_DEATH);
 			game_state = screens.retry(&window, dt, *game);
@@ -237,6 +249,7 @@ int main() {
 			game_state = ST_TITLE;
 			break;
 		}
+		if (game_state == ST_ENDING && env("CS_DEMO_LOG")) { std::fprintf(stderr, "DEMO ENDING %d after %d frames\n", ending_type, frame); window.close(); }
 		prevState = stateAtFrameStart;   // the state this frame ran, so "just died" is detected once
 		if (!window.isOpen()) break;
 		if (consoleOpen) {

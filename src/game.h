@@ -69,7 +69,11 @@ public:
 	void devJumpscare() { jumpscare = 1.3f; }
 	void devFlareCooldown(float s) { flareCooldown = s; }
 	void devWrite(const char* w) { std::string s = w; if (!placeWallWriting(s)) { s = "GET OUT"; if (!placeWallWriting(s)) return; } wallText = s; wallT = 5.f; }
-	void drawConsole(sf::RenderWindow* w);   // live data structures, in the separate console window
+	void drawConsole(sf::RenderWindow* w);
+	// Demo mode: the game plays itself to the true ending (title screen option).
+	void startDemo();
+	void devDemoFrom(int g) { startDemo(); demoGoal = g; }
+	bool demo = false;   // live data structures, in the separate console window
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
 private:
@@ -88,6 +92,15 @@ private:
 	BST<ItemRecord> itemDB;               // BST item / clue database
 	Queue<HauntEvent> events;             // QUEUE of upcoming haunted events
 	PriorityQueue<Threat> threats;        // PRIORITY QUEUE of active threats
+
+	// Demo-mode state (see demo.cpp).
+	static const int DEMO_MAX_PATH = 256;
+	int demoGoal = 0, demoTries = 0, demoPath[DEMO_MAX_PATH] = {}, demoPathLen = 0, demoStep = 0, demoFace = 0;
+	int demoRoomPlanned = -1, demoTilePlanned = -1;
+	float demoWait = 0, demoTalkT = 0;
+	void demoUpdate(float dt);
+	bool demoPlan(int tile);
+	bool demoGoalDone(int g);
 
 	int room = ENTRANCE_HALL;
 	sf::Vector2i entryTile;

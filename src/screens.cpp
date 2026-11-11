@@ -181,11 +181,12 @@ int Screens::title(sf::RenderWindow* w, float dt) {
 	float logoW = hasLogo ? logoH * logoTex.getSize().x / logoTex.getSize().y : 380;
 	drawLogo(w, cx - logoW / 2, 70, logoH, 1.f);
 	centered(w, fontItalic, "some dreams don't let you wake up", 24, sf::Color(222, 206, 196), 424, cx);
-	const char* items[] = { "Begin the dream", "Controls", "Wake up" };
-	int c = menu(w, items, 3, cx, 480, 38);
+	const char* items[] = { "Begin the dream", "Watch the dream", "Controls", "Wake up" };
+	int c = menu(w, items, 4, cx, 470, 34);
 	if (c == 0) return ST_NEW_GAME;
-	if (c == 1) { menuIndex = 0; return ST_CONTROLS; }
-	if (c == 2) w->close();
+	if (c == 1) return ST_DEMO;
+	if (c == 2) { menuIndex = 0; return ST_CONTROLS; }
+	if (c == 3) w->close();
 	return ST_TITLE;
 }
 
