@@ -57,6 +57,22 @@ static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX
 Game::Game(Audio& a) : audio(a) {
 	g_lastLookup = -1; g_consoleScroll = 0;
 	if (deadTex.loadFromFile(asset("graphics/spider_dead.png"))) deadSprite.setTexture(deadTex, true);
+	// The card's blood: find where each thin strip of the drip image ends, so the
+	// strips can be revealed downwards one by one - the blood runs down the card.
+	{
+		sf::Image bi;
+		if (bi.loadFromFile(asset("graphics/blood_drip.png"))) {
+			(void)bloodTex.loadFromImage(bi);
+			bloodSprite.setTexture(bloodTex, true);
+			for (unsigned s = 0; s < 128 && s * 3 < bi.getSize().x; ++s) {
+				int last = 0;
+				for (unsigned yy = 0; yy < bi.getSize().y; ++yy)
+					for (unsigned xx = s * 3; xx < s * 3 + 3 && xx < bi.getSize().x; ++xx)
+						if (bi.getPixel({ xx, yy }).a > 60) last = (int)yy;
+				bloodTip[s] = last;
+			}
+		}
+	}
 	deadSprite.setOrigin({ 32.f, 32.f }); deadSprite.setScale({ 0.6f, 0.6f });
 	(void)tileset.loadFromFile(asset("graphics/texture.png"));
 	for (int r = 1; r < ROOM_COUNT; ++r) maps[r].initializeMap(ROOMS[r].mapFile, tileset);
@@ -228,6 +244,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		roomTime += dt;
 		if (player.invulnerable > 0) player.invulnerable -= dt;
 		if (flareCooldown > 0) flareCooldown -= dt;
+		if (tipCardT > 0) tipCardT -= dt;
 		if (stompT > 0) stompT -= dt;
 		if (swingT > 0) swingT -= dt;
 		if (bossHitT > 0) bossHitT -= dt;
@@ -797,10 +814,14 @@ void Game::updateThreats(float dt) {
 	}
 }
 
+// The first time you meet a horror its survival note slides in at the side -
+// the game keeps going.  (force: open the full page, e.g. from the notes.)
 void Game::openTip(int tip, bool force) {
 	if (!force && tipSeen[tip]) return;
 	tipSeen[tip] = true;
-	tipOpen = tip;
+	if (force) { tipOpen = tip; return; }
+	tipCard = tip; tipCardT = TIP_CARD_TIME;
+	audio.play(SFX_PAPER, 60);
 }
 
 // ------------------------------------------------------------------ hints

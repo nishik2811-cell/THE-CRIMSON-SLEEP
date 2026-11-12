@@ -312,8 +312,125 @@ void Game::drawHud(sf::RenderWindow* w) {
 		dt.setPosition({ 16.f, 300.f });
 		w->draw(dt);
 	}
+	drawTipCard(w);
 	if (tipOpen >= 0) drawTip(w, tipOpen);
 	if (journalPage >= 0) drawJournal(w);
+}
+
+// Word-wraps `text` (keeping its own line breaks) to fit `maxW` pixels.
+static Str wrapText(const sf::Font& f, unsigned size, const Str& text, float maxW) {
+	Str out, line, word;
+	auto width = [&](const Str& s) { sf::Text t(f, s, size); return t.getLocalBounds().size.x; };
+	auto flushWord = [&]() {
+		if (word.empty()) return;
+		Str trial = line.empty() ? word : line + " " + word;
+		if (!line.empty() && width(trial) > maxW) { out += line; out += '\n'; line = Str("  ") + word; }   // indent the run-on
+		else line = trial;
+		word.clear();
+	};
+	for (int i = 0; i <= text.size(); ++i) {
+		char ch = i < text.size() ? text[i] : '\n';
+		if (ch == '\n' && i + 1 < text.size() && text[i + 1] == ' ') ch = ' ';   // an indented next line continues this one
+		if (ch == ' ') flushWord();
+		else if (ch == '\n') { flushWord(); out += line; if (i < text.size()) out += '\n'; line.clear(); }
+		else word += ch;
+	}
+	return out;
+}
+
+// A survival note as an ornate card at the left, under the status panel: dark
+// crimson glass, a double border with corner diamonds, blood dripping from the
+// top edge.  It slides in, stays ~10 s while you keep playing, and fades.
+void Game::drawTipCard(sf::RenderWindow* w) {
+	if (tipCard < 0 || tipCardT <= 0) return;
+	float age = TIP_CARD_TIME - tipCardT;
+	float in = minOf(1.f, age / 0.35f), out = minOf(1.f, tipCardT / 0.8f);
+	float a = minOf(in, out);
+	auto A = [&](float v) { return (std::uint8_t)maxOf(0.f, minOf(255.f, v * a)); };
+	const float wd = 350, x = 12 - (1 - in) * (wd + 20);
+	Str body = wrapText(fontSerif, 15, TIPS[tipCard].body, wd - 34);
+	sf::Text bodyT(fontSerif, body, 15);
+	float h = 70 + bodyT.getLocalBounds().size.y + 26;
+	const float y = std::floor((768.f - h) / 2);          // at the left side, centred vertically
+
+	// glass: a translucent gradient, darker at the bottom
+	sf::Vertex g[4] = {
+		{ { x, y }, sf::Color(26, 4, 9, A(200)) }, { { x + wd, y }, sf::Color(26, 4, 9, A(200)) },
+		{ { x, y + h }, sf::Color(6, 1, 3, A(225)) }, { { x + wd, y + h }, sf::Color(6, 1, 3, A(225)) } };
+	w->draw(g, 4, sf::PrimitiveType::TriangleStrip);
+	// double border
+	sf::RectangleShape outer({ wd, h }); outer.setPosition({ x, y }); outer.setFillColor(sf::Color::Transparent);
+	outer.setOutlineColor(sf::Color(170, 22, 40, A(230))); outer.setOutlineThickness(1.5f); w->draw(outer);
+	sf::RectangleShape inner({ wd - 10, h - 10 }); inner.setPosition({ x + 5, y + 5 }); inner.setFillColor(sf::Color::Transparent);
+	inner.setOutlineColor(sf::Color(120, 70, 50, A(120))); inner.setOutlineThickness(1.f); w->draw(inner);
+	// corner diamonds
+	auto diamond = [&](float cx, float cy, float r, sf::Color c) {
+		sf::Vertex d[4] = { { { cx, cy - r }, c }, { { cx + r, cy }, c }, { { cx - r, cy }, c }, { { cx, cy + r }, c } };
+		w->draw(d, 4, sf::PrimitiveType::TriangleStrip);
+	};
+	sf::Color gem(200, 30, 50, A(255));
+	diamond(x, y, 5, gem); diamond(x + wd, y, 5, gem); diamond(x, y + h, 5, gem); diamond(x + wd, y + h, 5, gem);
+	// Blood running down the card (the team's drip photo, cut out): drawn in thin
+	// strips, each revealed downwards at its own pace - the pooled band first,
+	// then the runs creep down and the long ones keep stretching.  A bead swells
+	// at the end of each run and now and then lets go.
+	if (bloodTex.getSize().x > 0) {
+		const float sx = wd / bloodTex.getSize().x, sy = minOf(1.f, (h * 0.78f) / bloodTex.getSize().y);
+		const int strips = (int)(bloodTex.getSize().x / 3);
+		for (int s = 0; s < strips && s < 128; ++s) {
+			float seed = std::fabs(std::sin(s * 12.9898f) * 43758.5453f); seed -= std::floor(seed);   // 0..1 per strip
+			float speed = 26.f + 40.f * seed;                                       // px per second, before scaling
+			float shown = minOf((float)bloodTip[s] + 2, 10.f + speed * age * (0.6f + 0.4f * minOf(1.f, age)));
+			if (shown <= 0) continue;
+			bloodSprite.setTextureRect(sf::IntRect({ s * 3, 0 }, { 3, (int)shown }));
+			bloodSprite.setScale({ sx, sy });
+			bloodSprite.setPosition({ x + s * 3 * sx, y });
+			bloodSprite.setColor(sf::Color(175, 160, 160, A(140)));   // dulled: it sits behind the text
+			w->draw(bloodSprite);
+			// the run has reached its full length: a bead hangs there and sometimes drops
+			if (shown >= bloodTip[s] && bloodTip[s] > 40 && seed > 0.55f) {
+				float cyc = std::fmod(age * (0.5f + seed) + seed * 7.f, 3.f);
+				float tipY = y + bloodTip[s] * sy, cx = x + (s * 3 + 1.5f) * sx;
+				float r = 1.2f + 1.3f * minOf(1.f, cyc / 1.8f);
+				if (cyc < 2.2f) {
+					sf::CircleShape bead(r); bead.setOrigin({ r, r }); bead.setPosition({ cx, tipY + r * 0.6f });
+					bead.setFillColor(sf::Color(100, 8, 16, A(170))); w->draw(bead);
+				}
+				else {
+					float t = cyc - 2.2f, fy = tipY + t * t * 160.f;
+					if (fy < y + h - 10) {
+						sf::CircleShape drop(r); drop.setOrigin({ r, r }); drop.setScale({ 0.75f, 1.3f });
+						drop.setPosition({ cx, fy }); drop.setFillColor(sf::Color(120, 8, 18, A(220 * (1 - t / 0.8f)))); w->draw(drop);
+					}
+				}
+			}
+		}
+	}
+	// header: "survival note", the title, an ornamental rule
+	sf::Text tag(fontItalic, "survival note", 14); tag.setFillColor(sf::Color(220, 190, 180, A(235)));
+	tag.setOutlineColor(sf::Color(0, 0, 0, A(200))); tag.setOutlineThickness(1.f);
+	tag.setPosition({ x + 16, y + 9 }); w->draw(tag);
+	sf::Text more(fontItalic, "J - all notes", 13); more.setFillColor(sf::Color(210, 170, 165, A(220)));
+	more.setOutlineColor(sf::Color(0, 0, 0, A(200))); more.setOutlineThickness(1.f);
+	more.setPosition({ x + wd - 16 - more.getLocalBounds().size.x, y + 10 }); w->draw(more);
+	sf::Text title(fontTitle, TIPS[tipCard].title, 24);
+	while (title.getLocalBounds().size.x > wd - 32 && title.getCharacterSize() > 14) title.setCharacterSize(title.getCharacterSize() - 1);
+	title.setFillColor(sf::Color(CRIMSON.r, CRIMSON.g, CRIMSON.b, A(255)));
+	title.setOutlineColor(sf::Color(0, 0, 0, A(200))); title.setOutlineThickness(1.5f);
+	title.setPosition({ std::floor(x + (wd - title.getLocalBounds().size.x) / 2), y + 26 }); w->draw(title);
+	float ry = y + 60;
+	sf::Vertex rule[2] = { { { x + 30, ry }, sf::Color(170, 22, 40, A(0)) }, { { x + wd / 2, ry }, sf::Color(170, 22, 40, A(220)) } };
+	sf::Vertex rule2[2] = { { { x + wd / 2, ry }, sf::Color(170, 22, 40, A(220)) }, { { x + wd - 30, ry }, sf::Color(170, 22, 40, A(0)) } };
+	w->draw(rule, 2, sf::PrimitiveType::Lines); w->draw(rule2, 2, sf::PrimitiveType::Lines);
+	diamond(x + wd / 2, ry, 3.5f, gem);
+	// the rules themselves, wrapped to fit
+	bodyT.setFillColor(sf::Color(BONE.r, BONE.g, BONE.b, A(250)));
+	bodyT.setOutlineColor(sf::Color(0, 0, 0, A(220))); bodyT.setOutlineThickness(1.2f);
+	bodyT.setPosition({ x + 17, y + 68 }); w->draw(bodyT);
+	// time left: a thin glowing line along the bottom
+	float tl = (wd - 24) * tipCardT / TIP_CARD_TIME;
+	sf::RectangleShape glow({ tl, 3.f }); glow.setPosition({ x + 12, y + h - 9 }); glow.setFillColor(sf::Color(200, 30, 50, A(90))); w->draw(glow);
+	sf::RectangleShape line({ tl, 1.f }); line.setPosition({ x + 12, y + h - 8 }); line.setFillColor(sf::Color(255, 90, 110, A(230))); w->draw(line);
 }
 
 void Game::drawTip(sf::RenderWindow* w, int tip) {

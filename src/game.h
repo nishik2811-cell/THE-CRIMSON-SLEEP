@@ -183,6 +183,11 @@ private:
 	// UI
 	bool showDebug = false, showInventory = false;
 	int tipOpen = -1; bool tipSeen[TIP_COUNT] = {};
+	int tipCard = -1; float tipCardT = 0;            // survival note shown at the side (non-blocking)
+	static constexpr float TIP_CARD_TIME = 10.f;
+	void drawTipCard(sf::RenderWindow* w);
+	sf::Texture bloodTex; sf::Sprite bloodSprite{ bloodTex };   // blood dripping down the note card
+	int bloodTip[128] = {};                                       // per 3-px strip: where its run ends (px)
 	int journalPage = -1;
 	Str toast; float toastT = 0;
 	sf::Font fontTitle, fontSerif, fontItalic, fontMono, fontBlood;
