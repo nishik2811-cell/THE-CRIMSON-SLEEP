@@ -237,7 +237,8 @@ void Game::retryRoom() {
 // ------------------------------------------------------------ main update
 void Game::update(sf::RenderWindow* window, float dt) {
 	lastDt = dt;
-	if (demo) demoUpdate(dt);
+	updateDoor(dt);
+	if (demo && doorT < 0) demoUpdate(dt);
 	bool overlay = tipOpen >= 0 || journalPage >= 0;
 	if (!overlay) {
 		runStats.time += dt;
@@ -263,7 +264,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (jumpscare > 0) { jumpscare -= dt; player.frozen = jumpscare > 0.25f; }
 		player.light.flicker *= 0.92f;
 	}
-	player.frozen = overlay || jumpscare > 0.25f || hidden;
+	player.frozen = overlay || jumpscare > 0.25f || hidden || doorT >= 0 || (arriveT >= 0 && arriveT < WALK_OUT);
 
 	window->setView(player.view);   // the room always follows the camera
 	// Camera shake.
@@ -274,6 +275,10 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 
 	maps[room].drawMap(window);
+	if (doorT >= 0 && doorT < DOOR_OPEN + DOOR_FADE) drawDoorTile(window, doorTile, minOf(1.f, doorT / DOOR_OPEN), 0);   // swinging open
+	if (arriveT >= 0 && arriveT < WALK_OUT + DOOR_IN)                                                                  // open while you step out, then shuts behind you
+		drawDoorTile(window, arriveTile, arriveT < WALK_OUT ? 1.f : 1.f - (arriveT - WALK_OUT) / DOOR_IN, 0, false);
+	if (rattleT > 0) drawDoorTile(window, rattleTile, 0.04f * std::fabs(std::sin(rattleT * 45.f)), std::sin(rattleT * 90.f) * 1.4f);   // locked: it rattles in its frame
 
 	// --- characters drawn under the darkness ---
 	bool talkedToAlfred = updateAlfred(dt, window, overlay);
@@ -333,6 +338,20 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	if (shake > 0) player.view.move({ (float)(0), (float)(0) });
 	player.light.dim = lanternOn ? 1.f : 0.42f;
 	player.movement(window);
+	{                                              // stomp range: a faint ring at your feet when a spider is near
+		sf::Vector2f me = pp() + sf::Vector2f(12, 12);
+		float nearest = 1e9f;
+		for (int i = 0; i < spiderCount; ++i) if (spiders[i].active) nearest = minOf(nearest, dist(spiders[i].pos, me));
+		if (nearest < 140 && !hidden) {
+			bool inside = nearest < STOMP_REACH;
+			float k = 1.f - maxOf(0.f, (nearest - STOMP_REACH) / (140 - STOMP_REACH));
+			sf::CircleShape ring(STOMP_REACH); ring.setOrigin({ STOMP_REACH, STOMP_REACH }); ring.setPosition(me);
+			ring.setFillColor(inside ? sf::Color(200, 30, 50, 40) : sf::Color::Transparent);
+			ring.setOutlineThickness(1.5f);
+			ring.setOutlineColor(inside ? sf::Color(255, 70, 90, 220) : sf::Color(220, 200, 180, (std::uint8_t)(50 + 90 * k)));
+			window->draw(ring);
+		}
+	}
 	if (stompFxT > 0) {                            // dust ring kicked out by the stamp
 		float k = 1.f - stompFxT / 0.35f;
 		sf::CircleShape ring(6.f + 22.f * k); ring.setOrigin({ ring.getRadius(), ring.getRadius() });
@@ -555,6 +574,7 @@ void Game::tryDoor(int doorNo) {
 	if (e->locked) {
 		if (!edgeUsable(*e)) {
 			audio.play(SFX_DOOR_LOCKED, 85);
+			rattleT = 0.4f; rattleTile = player.col.facingTile(player.source.y);   // the door rattles in its frame
 			if (room == ENTRANCE_HALL) say("It's about to be dark.\nTake the lantern before going any further.");
 			else if (room == ANTECHAMBER) say("Make your decision before proceeding.");
 			else if (e->requiredItem == NEWSPAPER) say("The door is engraved with a date, half scratched out: 'June 2_, 19_3'.\nSomewhere in this house is a record of that day.");
@@ -567,8 +587,7 @@ void Game::tryDoor(int doorNo) {
 		bool isKey = req == RUSTY_KEY || req == BRASS_KEY || req == CHAPEL_KEY || req == IRON_KEY;
 		if (isKey) { player.take(req); showToast(Str("- ") + ITEMS[req].name + " (used)"); }
 	}
-	audio.play(SFX_DOOR_OPEN, 80);
-	enterRoom(e->to, room, true);
+	beginDoor(e->to, true, false);
 }
 
 void Game::goBack() {
@@ -579,9 +598,7 @@ void Game::goBack() {
 	Edge* e = house.edgeTo(room, previous);
 	if (!e || !edgeUsable(*e)) { player.history.push(current); say("The way back is sealed."); return; }
 	if (room == CRIMSON_CRYPT) { player.history.push(current); say("You can't leave. Not now."); return; }
-	audio.play(SFX_DOOR_OPEN, 80);
-	enterRoom(previous, room, false);
-	showToast(Str("Went back to ") + ROOMS[previous].name);
+	beginDoor(previous, false, true);
 }
 
 void Game::flareLantern() {
@@ -1135,7 +1152,7 @@ void Game::stompLand() {                           // the boot comes down
 	stompFxT = 0.35f;
 	audio.play(SFX_STEP_WOOD, 95, 0.7f);           // a heavy boot
 	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
-	Spider* best = nullptr; float bestD = 46.f;    // reach: about one and a half tiles
+	Spider* best = nullptr; float bestD = STOMP_REACH;   // reach: right at your feet (shown as a ring)
 	for (int i = 0; i < spiderCount; ++i)
 		if (spiders[i].active && dist(spiders[i].pos, me) < bestD) { bestD = dist(spiders[i].pos, me); best = &spiders[i]; }
 	if (best) squash(*best);
@@ -1188,4 +1205,111 @@ void Game::swordLand() {
 	for (int i = 0; i < easyCount; ++i) if (inReach(ghostEasy[i].characterImage.getPosition() + sf::Vector2f(12, 0), 50)) { ghostStun = 2.f; hit = true; }
 	for (int i = 0; i < mediumCount; ++i) if (inReach(ghostMedium[i].characterImage.getPosition() + sf::Vector2f(12, 0), 50)) { ghostStun = 2.f; hit = true; }
 	if (!hit) audio.play(SFX_STEP_STONE, 50, 1.5f);
+}
+
+// ------------------------------------------------------------------ doors
+static int findDoorTile(const TileGrid& m, int doorNo, sf::Vector2i* out) {
+	int c, r;
+	if (m.find(3 + doorNo, &c, &r)) { *out = sf::Vector2i(c, r); return 1; }
+	*out = sf::Vector2i(-1, -1); return 0;
+}
+void Game::beginDoor(int to, bool push, bool back) {
+	if (doorT >= 0) return;
+	doorTo = to; doorPush = push; doorBack = back; doorT = 0;
+	doorTile = player.col.facingTile(player.source.y);
+	if (back) {                                    // B: the door you walk back through
+		const Edge* e = house.edgeTo(room, to);
+		if (e) findDoorTile(maps[room].map, e->doorNo, &doorTile);
+	}
+	audio.play(SFX_DOOR_OPEN, 80);
+	walkFrom = pp();                               // the hero will walk into the doorway
+	walkTo = sf::Vector2f(doorTile.x * 32.f + 4, doorTile.y * 32.f + 4);
+	if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "DOOR open at %.2f s\n", runStats.time);
+}
+static float smooth(float k) { k = k < 0 ? 0 : k > 1 ? 1 : k; return k * k * (3 - 2 * k); }
+static int faceToward(sf::Vector2f d) {
+	return std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
+}
+void Game::updateDoor(float dt) {
+	if (rattleT > 0) rattleT -= dt;
+	if (arriveT >= 0) {
+		float before = arriveT;
+		arriveT += dt;
+		if (arriveTile.x >= 0 && arriveT < WALK_OUT) {          // stepping out of the doorway into the room
+			player.scriptedWalk = true;
+			player.source.y = faceToward(walkTo - walkFrom);
+			player.setPosition(walkFrom + (walkTo - walkFrom) * smooth(arriveT / WALK_OUT));
+		}
+		else if (player.scriptedWalk) { player.scriptedWalk = false; player.setPosition(walkTo); }
+		if (before < WALK_OUT + DOOR_IN && arriveT >= WALK_OUT + DOOR_IN) audio.play(SFX_SLAM, 35, 1.3f);   // a soft thud as it shuts
+		if (arriveT > WALK_OUT + DOOR_IN + 0.3f) arriveT = -1;
+	}
+	if (doorT < 0) return;
+	doorT += dt;
+	// the door swings open; once it's part-way, the hero walks into the doorway and the dark
+	float walk = smooth((doorT - 0.18f) / (DOOR_OPEN + DOOR_FADE - 0.18f));
+	player.scriptedWalk = walk > 0 && walk < 1;
+	player.source.y = faceToward(walkTo - walkFrom);
+	player.setPosition(walkFrom + (walkTo - walkFrom) * walk);
+	if (doorT >= DOOR_OPEN + DOOR_FADE) {          // black: change rooms, then walk out of the door there
+		int from = room;
+		doorT = -1;
+		player.scriptedWalk = false;
+		enterRoom(doorTo, from, doorPush);
+		if (doorBack) showToast(Str("Went back to ") + ROOMS[doorTo].name);
+		const Edge* e = house.edgeTo(room, from);
+		arriveTile = sf::Vector2i(-1, -1);
+		if (e) findDoorTile(maps[room].map, e->doorNo, &arriveTile);
+		walkTo = pp();                             // where enterRoom put you, just inside
+		walkFrom = arriveTile.x >= 0 ? sf::Vector2f(arriveTile.x * 32.f + 4, arriveTile.y * 32.f + 4) : walkTo;
+		if (arriveTile.x >= 0) player.setPosition(walkFrom);
+		arriveT = 0;
+	}
+}
+// Animates the game's own painted door: it folds toward its hinge as it swings
+// away into the dark doorway (darkening as it turns), and unfolds again as it
+// shuts.  Front doors (top / bottom walls) fold toward the left; side-wall doors,
+// drawn edge-on, fold upward.  open: 0 shut .. 1 open; jitter rattles it.
+void Game::drawDoorTile(sf::RenderWindow* w, sf::Vector2i t, float open, float jitter, bool away) {
+	if (t.x < 0) return;
+	const TileGrid& m = maps[room].map;
+	sf::Vector2i v = m.at(t.x, t.y);
+	if (v.y != 1) return;
+	auto floor = [&](int c, int r) { sf::Vector2i u = m.at(c, r); return m.inside(c, r) && !m.solid(c, r) && !(u.x == 0 && u.y == 0); };
+	bool sideDoor = !floor(t.x, t.y + 1) && !floor(t.x, t.y - 1);    // room is left/right of it
+	sf::Vector2f p(t.x * 32.f, t.y * 32.f);
+	// the doorway behind the door (side doors: only the narrow door strip)
+	sf::RectangleShape gap(sideDoor ? sf::Vector2f(11.f, 32.f) : sf::Vector2f(32.f, 32.f));
+	gap.setPosition(sideDoor ? p + sf::Vector2f(11, 0) : p);
+	gap.setFillColor(sf::Color(3, 1, 2)); w->draw(gap);
+	float ease = open * open * (3 - 2 * open);           // smoothstep
+	float k = 1.f - 0.86f * ease;                        // how much of the door still faces you
+	std::uint8_t shade = (std::uint8_t)(255 - 120 * ease);   // it darkens as it turns away from the light
+	sf::Sprite door(tileset);
+	if (sideDoor) {
+		// Seen from above, a side-wall door is a narrow strip lying along the wall.
+		// It ROTATES on its top hinge out of the wall and into the room (like a
+		// clock hand), 90 degrees: toward the right if the room is on the right.
+		bool roomRight = floor(t.x + 1, t.y);
+		door.setTextureRect(sf::IntRect({ v.x * 32 + 11, 32 }, { 11, 32 }));
+		door.setOrigin({ 5.5f, 0.f });
+		door.setPosition(p + sf::Vector2f(16.5f + jitter, 1.f));
+		// You push a door open: it swings AWAY from you, into the next room.  The door
+		// behind you on arrival was pushed from the other side, so it opens toward you.
+		float intoRoom = roomRight ? -90.f : 90.f;
+		door.setRotation(sf::degrees((away ? -intoRoom : intoRoom) * ease));
+		shade = (std::uint8_t)(255 - 50 * ease);     // it stays lit - it's turning toward you, not away
+	}
+	else {
+		door.setTextureRect(sf::IntRect({ v.x * 32, 32 }, { 32, 32 }));
+		door.setPosition(p + sf::Vector2f(jitter, 0));
+		door.setScale({ k, 1.f });                       // hinge on the left
+	}
+	door.setColor(sf::Color(shade, shade, shade));
+	w->draw(door);
+	if (ease > 0.05f && !sideDoor) {                     // the door's edge catching the light as it turns
+		sf::RectangleShape edge(sideDoor ? sf::Vector2f(11.f, 1.f) : sf::Vector2f(1.f, 32.f));
+		edge.setPosition(sideDoor ? p + sf::Vector2f(11, 32 * k - 1) : p + sf::Vector2f(32 * k - 1, 0));
+		edge.setFillColor(sf::Color(170, 120, 90, (std::uint8_t)(200 * ease))); w->draw(edge);
+	}
 }

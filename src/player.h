@@ -25,6 +25,7 @@ public:
 	bool frozen = false;    // input disabled (jump scare)
 	bool hiddenAway = false; // hiding inside a wardrobe: not drawn
 	bool stomping = false;   // playing the 3-frame stomp (columns 4-6 of the sheet)
+	bool scriptedWalk = false; // walking through a doorway: animate the walk though input is off
 	sf::Clock stompClock;
 	void startStomp() { stomping = true; stompClock.restart(); }
 	static constexpr float STOMP_FRAME = 0.11f;   // seconds per stomp frame: lift, STAMP, settle

@@ -226,7 +226,7 @@ void Spider::update(float dt, sf::Vector2f player, bool visible, float sightRang
 		break;
 	case CHASE:
 		if (!sees) { lostT += dt; if (lostT > 1.2f) { enter(SEARCH); searches = 0; break; } }
-		if (dist < 42 && bite <= 0) { enter(ATTACK); break; }
+		if (dist < 27 && bite <= 0) { enter(ATTACK); break; }   // right at your feet: inside the stomp ring
 		repathT -= dt;
 		if (repathT <= 0 || pathStep >= pathLen) { planTo(map, lastKnown); repathT = 0.35f; }
 		if (!followPath(dt, 115.f, map)) stepTowards(lastKnown, 115.f, dt, map);

@@ -31,7 +31,6 @@ void bar(sf::RenderWindow* w, const sf::Font& f, const char* name, float x, floa
 }
 
 void Game::drawWorldOverlays(sf::RenderWindow* w) {
-	float t = runStats.time;
 	// BFS hint trail: dripping blood drops fixed to every third tile of the
 	// path (trail[0] is beside the goal), so they never slide as you walk.
 	// Only the next few ahead of you are shown.
@@ -53,17 +52,6 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 			w->draw(decalSprite);
 			++shown;
 		}
-	}
-	// After a minute the objective itself starts to pulse.
-	int tc, tr;
-	if (objectiveTime >= 60 && room == targetRoom && targetTile >= 0 && current_map->find(targetTile, &tc, &tr)) {
-		float s = 0.5f + 0.5f * std::sin(t * 5);
-		sf::RectangleShape m(sf::Vector2f(32, 32));
-		m.setPosition({ (float)(tc * 32.f), (float)(tr * 32.f) });
-		m.setFillColor(sf::Color(220, 20, 50, (std::uint8_t)(40 + 60 * s)));
-		m.setOutlineColor(sf::Color(255, 60, 80, (std::uint8_t)(140 + 100 * s)));
-		m.setOutlineThickness(2);
-		w->draw(m);
 	}
 	// Words written in blood on the wall (they drip as they fade).
 	if (wallT > 0) {
@@ -225,6 +213,14 @@ void Game::drawHud(sf::RenderWindow* w) {
 		sf::RectangleShape r({ W / 2 - 60, H }); r.setPosition({ W / 2 + 60, 0 }); r.setFillColor(sf::Color(6, 2, 3, 235)); w->draw(r);
 		sf::Text ht(fontItalic, "hiding in the wardrobe...  E to step out", 20);
 		ht.setFillColor(ASH); ht.setPosition({ std::floor((W - ht.getLocalBounds().size.x) / 2), H - 150.f }); w->draw(ht);
+	}
+
+	// Door transition: fade to black as the door opens, back in as it shuts behind you.
+	{
+		float fade = 0;
+		if (doorT >= DOOR_OPEN) fade = minOf(1.f, (doorT - DOOR_OPEN) / DOOR_FADE);
+		if (arriveT >= 0) fade = maxOf(0.f, 1.f - arriveT / 0.3f);
+		if (fade > 0) { sf::RectangleShape black({ 1024.f, 768.f }); black.setFillColor(sf::Color(0, 0, 0, (std::uint8_t)(255 * fade))); w->draw(black); }
 	}
 
 	// Demo banner.

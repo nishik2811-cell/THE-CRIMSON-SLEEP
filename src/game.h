@@ -60,6 +60,7 @@ public:
 	void devForceHint() { forceHint = true; }
 	void devSpawnBride();
 	void devSwing() { swingSword(); }
+	void devBack() { goBack(); }
 	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; spiders[0].wait = 30; }
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
@@ -102,6 +103,16 @@ private:
 	bool searched[ROOM_COUNT][GRID_W * GRID_H] = {};   // drawers already opened (each holds one thing)
 	void squash(Spider& s);
 	void stomp();
+	// Door transition: the door swings open, the screen fades, you arrive as the
+	// door behind you swings shut.  Locked doors rattle.
+	float doorT = -1, arriveT = -1, rattleT = 0;
+	int doorTo = -1; bool doorPush = true; bool doorBack = false;
+	sf::Vector2i doorTile{ -1, -1 }, arriveTile{ -1, -1 }, rattleTile{ -1, -1 };
+	static constexpr float DOOR_OPEN = 0.45f, DOOR_FADE = 0.3f, DOOR_IN = 0.5f, WALK_OUT = 0.5f;
+	sf::Vector2f walkFrom, walkTo;          // the hero walks through the doorway
+	void beginDoor(int to, bool push, bool back);
+	void updateDoor(float dt);
+	void drawDoorTile(sf::RenderWindow* w, sf::Vector2i t, float open, float jitter, bool away = true);
 	void stompLand();
 	float stompT = 0, stompHitT = 0, stompFxT = 0;   // cooldown, time to the stamp frame, dust ring
 
@@ -168,7 +179,8 @@ private:
 	bool placeWallWriting(const Str& word);
 	float shake = 0, jumpscare = 0, flare = 0, flareCooldown = 0, hurtFlash = 0;
 	static constexpr float FLARE_COOLDOWN = 10.f;   // seconds between lantern flares
-	static constexpr float STOMP_COOLDOWN = 3.f;    // seconds before you can stomp again
+	static constexpr float STOMP_COOLDOWN = 15.f;   // seconds before you can stomp again
+	static constexpr float STOMP_REACH = 30.f;      // px from your feet - about one tile
 	// digging (crypt)
 	int digCount = 0; float digT = 0;
 	// hints

@@ -104,7 +104,7 @@ bool Game::demoEncounter(float dt) {
 	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
 	// A spider at the dreamer's feet: STOMP it.
 	for (int i = 0; i < spiderCount; ++i)
-		if (spiders[i].active && spiders[i].state == Spider::ATTACK && dist(spiders[i].pos, me) < 44) { stomp(); break; }
+		if (spiders[i].active && spiders[i].state == Spider::ATTACK && dist(spiders[i].pos, me) < STOMP_REACH) { stomp(); break; }
 	bool canFlare = flareCooldown <= 0 && player.has(LANTERN);
 	int was = demoEnc;
 	demoEnc = 0;

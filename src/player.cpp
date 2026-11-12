@@ -54,6 +54,7 @@ void Player::tryMove(int dir) {
 }
 
 bool Player::isMoving() const {
+	if (scriptedWalk) return true;
 	if (forcedDir >= 0) return !frozen;   // demo / test walking counts as moving
 	if (lockInput) return !frozen && autoDir >= 0;
 	return !frozen && (down(Key::Down) || down(Key::Up) || down(Key::Left) || down(Key::Right) ||
