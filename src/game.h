@@ -181,7 +181,7 @@ private:
 	bool placeWallWriting(const Str& word);
 	float shake = 0, jumpscare = 0, flare = 0, flareCooldown = 0, hurtFlash = 0;
 	static constexpr float FLARE_COOLDOWN = 10.f;   // seconds between lantern flares
-	static constexpr float STOMP_COOLDOWN = 15.f;   // seconds before you can stomp again
+	static constexpr float STOMP_COOLDOWN = 12.f;   // seconds before you can stomp again
 	static constexpr float STOMP_REACH = 30.f;      // px from your feet - about one tile
 	// digging (crypt)
 	int digCount = 0; float digT = 0;

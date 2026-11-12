@@ -764,7 +764,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 			txt(b, fontSerif, 13, BONE, 22, y0 + 2);
 			float x = 84;
 			for (int k = 0; k < 8; ++k) {                       // the 8-state machine, current state lit
-				bool on = (int)s.state == k;
+				bool on = s.active && (int)s.state == k;   // a squashed spider has no state left
 				float cw = width(names[k], fontMono, 9) + 8;
 				rect(x, y0 + 2, cw, 17, on ? stateCol[k] : CHIP, on ? sf::Color::Transparent : EDGE);
 				txt(names[k], fontMono, 9, on ? sf::Color(20, 6, 8) : TAG, x + 4, y0 + 5);

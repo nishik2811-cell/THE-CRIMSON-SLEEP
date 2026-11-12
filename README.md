@@ -21,7 +21,7 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 
 - **Ten rooms** joined in a **graph**, with locked doors, a hidden passage found by **DFS**, and a **BFS** hint route plus a trail of blood to your goal.
 - **Enemy AI** with an **eight-state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
-- **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet (short reach, 15 s cooldown).
+- **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet (short reach, 12 s cooldown).
 - **Doors you walk through**: a door swings open on its hinge, the hero walks through, and it shuts behind you with a thud. Locked doors rattle.
 - **A boss fight**: the hero draws the Blessed Sword (animated swing in four directions) and needs six blows to end the Devil.
 - **Save & continue**, health kits hidden in drawers, and rolling **credits** over TV static.
@@ -58,7 +58,9 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 | | |
 |---|---|
 | <img src="docs/images/bfs_hint.png" alt="BFS hint"><br><sub>Stuck for 30 s? The hint names the goal and the <b>BFS</b> route to it.</sub> | <img src="docs/images/samara.png" alt="Samara"><br><sub>Samara hunts by sound. Stand still and she loses your trail.</sub> |
-| <img src="docs/images/bedroom.png" alt="Collapsed Bedroom"><br><sub>The Collapsed Bedroom: pits, fire, spikes and a lever.</sub> | <img src="docs/images/crypt.png" alt="The Crimson Crypt"><br><sub>The Crimson Crypt. The EMF meter screams when the Devil is close.</sub> |
+| <img src="docs/images/bedroom.png" alt="Collapsed Bedroom"><br><sub>The Collapsed Bedroom: pits, fire, spikes and a lever.</sub> | <img src="docs/images/crypt.png" alt="The Crimson Crypt"><br><sub>The Crimson Crypt: the hero swings the Blessed Sword. The Devil's health bar sits at the bottom.</sub> |
+| <img src="docs/images/notecard.png" alt="Survival note"><br><sub>Meet a horror and a survival note slides in at the side. The game keeps running.</sub> | <img src="docs/images/door.png" alt="Door swinging open"><br><sub>Doors swing open on their hinge and the hero walks through.</sub> |
+| <img src="docs/images/hide.png" alt="Hiding in a wardrobe"><br><sub>Hiding in a wardrobe: nothing can see, hear or touch you.</sub> | <img src="docs/images/stomp.png" alt="Stomping a spider"><br><sub>A spider at your feet: the ring shows the stomp's reach.</sub> |
 
 ---
 
@@ -95,7 +97,7 @@ In fullscreen the game is letterboxed and the console takes the right-hand strip
 
 <p align="center">
   <img src="docs/images/card_bst.png" alt="BST card" width="460"><br>
-  <sub>The BST card: green = collected, gold = clue read. The red path is <code>search(Iron Key)</code> visiting <code>6</code>, which takes 1 step.</sub>
+  <sub>The BST card: green = collected, gold = clue read. The red path is <code>search(Lantern)</code> visiting <code>6 &gt; 3 &gt; 1</code>: 3 steps.</sub>
 </p>
 
 ### Complexity
@@ -167,7 +169,7 @@ stateDiagram-v2
 **Killing them.** When a spider rears up at your feet, **stomp (Q)**. The hero lifts a boot and stamps
 (a three-frame animation with a dust ring), and the spider is squashed flat. The boot only reaches about
 one tile (30 px): when a spider is close, a faint ring on the floor shows that reach. After a stomp you
-must wait **15 seconds** before the next one (the HUD bar counts down). Stomp too early and you miss and
+must wait **12 seconds** before the next one (the HUD bar counts down). Stomp too early and you miss and
 lose the stomp; too late and it bites. Its body stays on the floor for good, saves included, and a
 squashed spider never comes back. Once you carry the Blessed Sword, **SHIFT** cuts spiders down too. In
 the dark, two red eyes show you where a spider is before it reaches the light.
@@ -189,7 +191,7 @@ The sprites are generated from single drawings:
 ## Watch the dream (demo mode)
 
 Pick **Watch the dream** on the title screen and the game plays itself from the first room to the
-**true ending** in about four minutes, at normal walking speed. The live console is open the whole
+**true ending** in about ten minutes, at normal walking speed. The live console is open the whole
 time. **TAB** hides or shows it, **M** mutes, and **Esc** pauses it (you can leave to the title from the pause menu).
 
 <p align="center"><img src="docs/images/demo.png" alt="Demo mode" width="900"></p>
@@ -286,7 +288,7 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 | E / Enter | Interact: pick up, open, read, use doors, hide in / leave a wardrobe |
 | **F** | Flare the lantern (10 s cooldown, shown on the HUD) |
 | **Shift** | Swing the Blessed Sword (once you have it): the final fight, and it cuts spiders down too |
-| **Q** | Stomp: squash a spider at your feet (about one tile of reach, 15 s cooldown) |
+| **Q** | Stomp: squash a spider at your feet (about one tile of reach, 12 s cooldown) |
 | **L** | Lantern on / off (stealth) |
 | **B** | Go back one room (Stack) |
 | **H** | Hint now (BFS) |
