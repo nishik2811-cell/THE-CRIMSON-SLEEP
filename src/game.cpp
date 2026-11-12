@@ -546,6 +546,7 @@ void Game::interact() {
 	case 23: // wardrobe: hide inside (E again to step out)
 		hidden = !hidden;
 		player.hiddenAway = hidden;
+		if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "HIDE %d room %d goal %d\n", (int)hidden, room, demoGoal);
 		audio.play(SFX_DOOR_OPEN, 55, 1.3f);
 		if (hidden) showToast("You hide in the wardrobe. Hold your breath...  (E to step out)");
 		break;

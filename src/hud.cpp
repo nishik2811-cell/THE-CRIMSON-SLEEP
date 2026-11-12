@@ -102,6 +102,34 @@ void Game::drawHud(sf::RenderWindow* w) {
 	if (hurtFlash > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(160, 0, 10, (std::uint8_t)(120 * hurtFlash))); w->draw(r); }
 	if (flare > 0) { sf::RectangleShape r(sf::Vector2f(W, H)); r.setFillColor(sf::Color(255, 210, 190, (std::uint8_t)(150 * flare))); w->draw(r); }
 
+	// Hiding in a wardrobe: the room seen through the gap between its doors -
+	// soft darkness closing in from both sides, the wooden doors' slats, a thin
+	// band of light down the middle.  The HUD stays visible on top.
+	if (hidden) {
+		const float cx = W / 2, gapW = 150;
+		// two "doors": darkness that fades in toward the gap (soft edges, no hard blocks)
+		sf::Vertex leftDoor[4] = {
+			{ { 0, 0 }, sf::Color(4, 1, 2, 245) }, { { cx - gapW / 2, 0 }, sf::Color(4, 1, 2, 120) },
+			{ { 0, H }, sf::Color(4, 1, 2, 245) }, { { cx - gapW / 2, H }, sf::Color(4, 1, 2, 120) } };
+		sf::Vertex rightDoor[4] = {
+			{ { cx + gapW / 2, 0 }, sf::Color(4, 1, 2, 120) }, { { W, 0 }, sf::Color(4, 1, 2, 245) },
+			{ { cx + gapW / 2, H }, sf::Color(4, 1, 2, 120) }, { { W, H }, sf::Color(4, 1, 2, 245) } };
+		w->draw(leftDoor, 4, sf::PrimitiveType::TriangleStrip);
+		w->draw(rightDoor, 4, sf::PrimitiveType::TriangleStrip);
+		sf::Vertex shade[4] = {                                    // the gap itself is dim too - you're peeking
+			{ { cx - gapW / 2, 0 }, sf::Color(4, 1, 2, 120) }, { { cx + gapW / 2, 0 }, sf::Color(4, 1, 2, 120) },
+			{ { cx - gapW / 2, H }, sf::Color(4, 1, 2, 120) }, { { cx + gapW / 2, H }, sf::Color(4, 1, 2, 120) } };
+		w->draw(shade, 4, sf::PrimitiveType::TriangleStrip);
+		for (int i = 0; i < 16; ++i) {                             // the doors' wooden slats, catching a little light
+			float yy = 40.f + i * 44.f;
+			sf::RectangleShape sl({ cx - gapW / 2 - 40, 3.f }); sl.setPosition({ 20, yy }); sl.setFillColor(sf::Color(60, 30, 22, 45)); w->draw(sl);
+			sf::RectangleShape sr({ cx - gapW / 2 - 40, 3.f }); sr.setPosition({ cx + gapW / 2 + 20, yy }); sr.setFillColor(sf::Color(60, 30, 22, 45)); w->draw(sr);
+		}
+		sf::Text ht(fontItalic, "hiding in the wardrobe...   E to step out", 20);
+		ht.setFillColor(sf::Color(220, 200, 190)); ht.setOutlineColor(sf::Color::Black); ht.setOutlineThickness(2);
+		ht.setPosition({ std::floor((W - ht.getLocalBounds().size.x) / 2), H - 140.f }); w->draw(ht);
+	}
+
 	// Status panel.
 	panel(w, 12, 12, 270, 122);
 	bar(w, fontSerif, "Health", 22, 18, player.health, sf::Color(170, 16, 30));
@@ -207,13 +235,6 @@ void Game::drawHud(sf::RenderWindow* w) {
 		}
 	}
 
-	// Hiding in a wardrobe: you look out through the gap between the doors.
-	if (hidden) {
-		sf::RectangleShape l({ W / 2 - 60, H }); l.setFillColor(sf::Color(6, 2, 3, 235)); w->draw(l);
-		sf::RectangleShape r({ W / 2 - 60, H }); r.setPosition({ W / 2 + 60, 0 }); r.setFillColor(sf::Color(6, 2, 3, 235)); w->draw(r);
-		sf::Text ht(fontItalic, "hiding in the wardrobe...  E to step out", 20);
-		ht.setFillColor(ASH); ht.setPosition({ std::floor((W - ht.getLocalBounds().size.x) / 2), H - 150.f }); w->draw(ht);
-	}
 
 	// Door transition: fade to black as the door opens, back in as it shuts behind you.
 	{

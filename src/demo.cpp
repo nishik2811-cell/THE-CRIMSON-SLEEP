@@ -191,6 +191,7 @@ bool Game::demoPlan(int tile, bool avoid) {
 // Called every frame in demo mode, before the player moves.
 void Game::demoUpdate(float dt) {
 	player.forcedDir = -1;
+	if (hidden) { hidden = false; player.hiddenAway = false; }   // the dreamer never hides (it could never step out)
 	// The dreamer takes hits like a player (the flash, the health bar) but can't die:
 	// the show always reaches the end.
 	if (player.health < 20) player.health = 20;
@@ -276,6 +277,7 @@ void Game::demoUpdate(float dt) {
 
 	// Arrived: face the thing and use it (or, on cracked ground, stand still and dig).
 	player.source.y = demoFace;
+	if (player.col.isInteractionMap(pp(), demoFace) == 23) { demoPathLen = 0; demoWait = 0.3f; return; }   // a wardrobe: not this
 	if (g.tile < 0) { demoPathLen = 0; return; }   // next to the Devil: the strike happens above
 	interact();
 	demoPathLen = 0;

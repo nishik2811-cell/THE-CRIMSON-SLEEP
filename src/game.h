@@ -61,6 +61,7 @@ public:
 	void devSpawnBride();
 	void devSwing() { swingSword(); }
 	void devBack() { goBack(); }
+	void devHide() { hidden = true; player.hiddenAway = true; }
 	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; spiders[0].wait = 30; }
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
