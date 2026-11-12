@@ -21,12 +21,14 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 
 - **Ten rooms** joined in a **graph**, with locked doors, a hidden passage found by **DFS**, and a **BFS** hint route plus a trail of blood to your goal.
 - **Enemy AI** with an **eight-state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
-- **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet.
+- **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet (short reach, 15 s cooldown).
+- **Doors you walk through**: a door swings open on its hinge, the hero walks through, and it shuts behind you with a thud. Locked doors rattle.
+- **A boss fight**: the hero draws the Blessed Sword (animated swing in four directions) and needs six blows to end the Devil.
 - **Save & continue**, health kits hidden in drawers, and rolling **credits** over TV static.
 - **Live data-structure console**: press **TAB** and the window widens with a panel that draws every structure as the game changes it.
 - **Watch the dream**: a self-playing demo that finishes the whole game, with the console open beside it.
 - **No STL.** No `std::vector`, `std::string`, `std::map`, `std::queue` or `<algorithm>`: stack, queue, heap, list, tree, graph, grid and even the string class are all written by hand in [`src/ds/`](src/ds).
-- **Four endings**, survival notes for every horror, a fear system, jump scares and a mini-map.
+- **Four endings**, survival notes that slide in at the side without pausing the game, a fear system, jump scares and a mini-map.
 
 ---
 
@@ -37,11 +39,12 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 4. [Watch the dream (demo mode)](#watch-the-dream-demo-mode)
 5. [The house](#the-house)
 6. [Horrors, and how to survive them](#horrors-and-how-to-survive-them)
-7. [Endings](#endings)
-8. [Controls](#controls)
-9. [Build & run](#build--run)
-10. [Project layout & tools](#project-layout--tools)
-11. [Credits](#credits)
+7. [Menus, saving and credits](#menus-saving-and-credits)
+8. [Endings](#endings)
+9. [Controls](#controls)
+10. [Build & run](#build--run)
+11. [Project layout & tools](#project-layout--tools)
+12. [Credits](#credits)
 
 ---
 
@@ -69,7 +72,9 @@ unit-tested by `make test`. Each one does a real job in the game: take it away a
 **Live console (TAB).** Press TAB in-game and the window widens: the game keeps its full view on the
 left and a console strip opens on the right. Each card *draws* its structure from the live game
 state, so you can watch keys move through the linked list, rooms stack up as you walk, and the
-threat heap reorder as something closes in. TAB or the graph icon (bottom-right) closes it again.
+threat heap reorder as something closes in. The *Dangers* card lists the two worst threats in true
+order by popping a **copy** of the heap (the raw heap array is only partly sorted, so slot 1 is not
+always the runner-up). TAB or the graph icon (bottom-right) closes it again.
 In fullscreen the game is letterboxed and the console takes the right-hand strip.
 
 | Structure | File | What it does in the game |
@@ -106,9 +111,10 @@ In fullscreen the game is letterboxed and the console takes the right-hand strip
 | BFS / A\* over a room | 32×24 tile grid | O(W·H) / O((W·H) log(W·H)) |
 | tile lookup | Array / grid | O(1) |
 
-`make test` runs [`tests/ds_tests.cpp`](tests/ds_tests.cpp), with 28 checks covering:
+`make test` runs [`tests/ds_tests.cpp`](tests/ds_tests.cpp), with 31 checks covering:
 - LIFO and FIFO order;
 - heap order with late, high-priority inserts;
+- popping a copy of the heap gives true order and leaves the original untouched;
 - list deletion;
 - sorted BST traversal;
 - BFS detouring around a locked door;
@@ -159,9 +165,12 @@ stateDiagram-v2
 | RETURN | Goes back to its nest | **A\*** |
 
 **Killing them.** When a spider rears up at your feet, **stomp (Q)**. The hero lifts a boot and stamps
-(a three-frame animation with a dust ring), and the spider is squashed flat. Its body stays on the floor
-for good, saves included, and a squashed spider never comes back. Stomp too early and you miss; too late
-and it bites. In the dark, two red eyes show you where a spider is before it reaches the light.
+(a three-frame animation with a dust ring), and the spider is squashed flat. The boot only reaches about
+one tile (30 px): when a spider is close, a faint ring on the floor shows that reach. After a stomp you
+must wait **15 seconds** before the next one (the HUD bar counts down). Stomp too early and you miss and
+lose the stomp; too late and it bites. Its body stays on the floor for good, saves included, and a
+squashed spider never comes back. Once you carry the Blessed Sword, **SHIFT** cuts spiders down too. In
+the dark, two red eyes show you where a spider is before it reaches the light.
 
 A Weaver that is chasing you **follows you through the door** into the next room. With the console
 open, the *Enemy AI* card lights up each spider's current state and shows what it sensed, which
@@ -190,7 +199,8 @@ pressing **E** would. It finds its way with the project's own structures:
 - **Between rooms:** BFS over the house graph.
 - **Inside a room:** BFS over the tiles with the Queue. Tiles next to ghosts, spiders or the Devil are treated as blocked, and it waits for a ghost to pass if one is in the way.
 - **The Devil:** it closes in and strikes with the sword until he falls.
-- **Meeting the horrors:** it uses each one's survival rule. It turns to **face Carrie** so she freezes, **stands still** while Samara hunts, and **flares** spiders and spirits when they get close.
+- **Meeting the horrors:** it uses each one's survival rule. It turns to **face Carrie** so she freezes, **stands still** while Samara hunts, **flares** spirits when they get close, and **stomps** a spider the moment it rears up at its feet.
+- **Doors:** it walks through every door with the same swing-open, walk-through, swing-shut animation as a player.
 
 The demo is also the game's end-to-end test: if any room couldn't be solved, the demo would get stuck.
 
@@ -228,14 +238,17 @@ This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** 
 | 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
 | 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking | **Face her** and she freezes. A **flare** drives her away for a while. |
 | 🕷️ | **The Weavers** | Patrol, hear your steps, see you, chase with A\*, rear up and bite | **Stand still**, turn the **lantern off (L)** or **hide in a wardrobe (E)**. When one rears up at your feet, **stomp (Q)**. A flare stuns them. |
-| 😈 | **The Devil** | The final boss. He hunts you through the crypt, and his claws tear at you; the EMF meter beeps when he's near | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. Each blow staggers and knocks him back. A **flare** stuns him for free hits. |
+| 😈 | **The Devil** | The final boss. He hunts you through the crypt, and his claws tear at you; the EMF meter beeps when he's near. His health bar sits at the bottom of the screen | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. Each blow staggers and knocks him back. A **flare** stuns him for free hits. |
 | 🔥 | **The house** | Spikes, fire, open graves | Time your steps. **Levers** lower the spikes. |
 | 😱 | **Fear** | Rises in the dark, near the dead and with every scare | At 100 your mind breaks. Keep the lantern lit and flare to steady your nerves. |
 
 **Health kits** are hidden in drawers around the house (+40 health). **Wardrobes** are hiding spots:
-press E to step inside, and nothing can see, hear or touch you until you step out.
+press E to step inside. The view stays the same, a small *HIDDEN - E to step out* label appears, and
+nothing can see, hear or touch you until you press E again.
 
-The first time you meet each horror, a **survival note** explains it. **J** reopens all of them.
+The first time you meet each horror, a **survival note** slides in at the side of the screen, in a
+translucent card with blood dripping from its top edge. The game keeps running while it shows, and it
+fades after ten seconds. **J** reopens all of them.
 If you go 30 seconds without progress, the hint bar names your next goal and the BFS route to it,
 and a trail of blood leads you there.
 
@@ -243,9 +256,10 @@ and a trail of blood leads you there.
 
 ## Menus, saving and credits
 
+- **Boot:** a content warning, then the logo rises out of the dark over the blood moon and glides to the left as the menu fades in (any key skips).
 - **Title:** Continue the dream (when there's a save), Begin the dream, Watch the dream, Credits, Controls, Wake up.
 - **Save & quit to menu** (pause menu) writes `savegame.txt` straight from the data structures: the inventory **linked list**, the room **stack**, the item **BST**, every door in the **graph**, and every room's tile **array**. **Continue** restores the run exactly where you left it.
-- **Credits:** black screen, live TV static, and the credits rolling up like a film. A horror sting plays under the static first; then the song builds in slowly as the static thins to a faint hiss.
+- **Credits:** pitch-black screen, quiet live TV static, and the credits rolling up like a film. A horror sting plays under the static first; then the song builds in slowly as the static thins to a faint hiss.
 
 <p align="center"><img src="docs/images/credits.png" alt="Credits" width="560"></p>
 
@@ -269,10 +283,10 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 | Key | Action |
 |---|---|
 | Arrows / WASD | Walk |
-| E / Enter | Interact: pick up, open, read, use doors |
+| E / Enter | Interact: pick up, open, read, use doors, hide in / leave a wardrobe |
 | **F** | Flare the lantern (10 s cooldown, shown on the HUD) |
 | **Shift** | Swing the Blessed Sword (once you have it): the final fight, and it cuts spiders down too |
-| **Q** | Stomp (squash a spider at your feet) |
+| **Q** | Stomp: squash a spider at your feet (about one tile of reach, 15 s cooldown) |
 | **L** | Lantern on / off (stealth) |
 | **B** | Go back one room (Stack) |
 | **H** | Hint now (BFS) |
@@ -334,6 +348,10 @@ python3 tools/make_blood_decals.py blood.webp   # hint-trail blood decals
 python3 tools/make_fire.py         # brazier fire tiles
 python3 tools/make_logo.py logo.png              # title logo
 python3 tools/make_jumpscare_from.py art.png     # crimson jump scare
+python3 tools/make_wardrobe.py     # wardrobe tile (hiding spot)
+python3 tools/make_drawer.py       # drawer tile
+python3 tools/place_furniture.py   # places wardrobes and drawers in the room maps
+python3 tools/make_blood_drip.py   # blood-drip strip for the survival-note cards
 ```
 
 **Headless screenshots** (how the pictures above were made):
@@ -350,6 +368,8 @@ CS_ROOM=3 CS_CONSOLE=1 CS_SPIDER=1 CS_FRAMES=24 CS_SHOT=ai.png ./crimson_sleep
 ---
 
 ## Credits
+
+**Made by Nishita, Yashieta, Anwita and Aryan.**
 
 * **Pixel art & sprites:** retro horror pixel sprites, the team's hero, ghost and spider art, and custom walk and attack animations.
 * **Music:**
