@@ -120,8 +120,8 @@ void Screens::centered(sf::RenderWindow* w, const sf::Font& f, const Str& s, uns
 // Keyboard (Up/Down/W/S + Enter) and mouse menu.  Returns chosen index or -1.
 int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx, float y, float size) {
 	int before = menuIndex;
-	if (key_hit(sf::Keyboard::Key::Up) || key_hit(sf::Keyboard::Key::W)) menuIndex = (menuIndex + n - 1) % n;
-	if (key_hit(sf::Keyboard::Key::Down) || key_hit(sf::Keyboard::Key::S)) menuIndex = (menuIndex + 1) % n;
+	if (menuInput && (key_hit(sf::Keyboard::Key::Up) || key_hit(sf::Keyboard::Key::W))) menuIndex = (menuIndex + n - 1) % n;
+	if (menuInput && (key_hit(sf::Keyboard::Key::Down) || key_hit(sf::Keyboard::Key::S))) menuIndex = (menuIndex + 1) % n;
 	if (menuIndex >= n) menuIndex = 0;
 	sf::Vector2f mouse = w->mapPixelToCoords(sf::Mouse::getPosition(*w));
 	int chosen = -1;
@@ -131,15 +131,17 @@ int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx
 		sf::Text tx(fontSerif, sf::String::fromUtf8(s.begin(), s.end()), (unsigned)size);
 		sf::FloatRect b = tx.getLocalBounds();
 		tx.setPosition({ (float)(std::floor(cx - b.size.x / 2 - b.position.x)), (float)(std::floor(y + i * size * 1.25f)) });
-		if (tx.getGlobalBounds().contains(mouse)) {
+		if (menuInput && tx.getGlobalBounds().contains(mouse)) {
 			menuIndex = i;
 			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) chosen = i;
 		}
 		float glow = sel ? 0.85f + 0.15f * std::sin(t * 3) : 1.f;
-		tx.setFillColor(sel ? sf::Color((std::uint8_t)(BONE.r * glow), (std::uint8_t)(BONE.g * glow), (std::uint8_t)(BONE.b * glow)) : ASH);
+		sf::Color ink = sel ? sf::Color((std::uint8_t)(BONE.r * glow), (std::uint8_t)(BONE.g * glow), (std::uint8_t)(BONE.b * glow)) : ASH;
+		ink.a = (std::uint8_t)(255 * menuAlpha);
+		tx.setFillColor(ink);
 		w->draw(tx);
 	}
-	if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Space)) chosen = menuIndex;
+	if (menuInput && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Space))) chosen = menuIndex;
 	if (g_audio && menuIndex != before) g_audio->play(SFX_UI_MOVE, 60);
 	if (g_audio && chosen >= 0) g_audio->play(SFX_UI_CLICK, 70);
 	return chosen;
@@ -153,39 +155,60 @@ int Screens::boot(sf::RenderWindow* w, float dt) {
 	if (!slides.front(&s)) return ST_TITLE;
 	float fade = slideT < 0.8f ? slideT / 0.8f : (s.seconds - slideT < 0.8f ? (s.seconds - slideT) / 0.8f : 1.f);
 	if (fade < 0) fade = 0;
+	float logoY = 140 - 10 * minOf(slideT / s.seconds, 1.f), logoA = slideT < 1.5f ? slideT / 1.5f : 1.f;
 	if (s.logo) {
-		// Logo emerges from the dark over the backdrop, then hands over to the title.
-		drawBackdrop(w, sf::Color((std::uint8_t)(255 * fade), (std::uint8_t)(255 * fade), (std::uint8_t)(255 * fade)));
+		// Logo emerges from the dark over the backdrop. It does NOT fade out:
+		// the title screen picks it up exactly here and glides it into place.
+		float in = minOf(slideT / 0.8f, 1.f);
+		drawBackdrop(w, sf::Color((std::uint8_t)(255 * in), (std::uint8_t)(255 * in), (std::uint8_t)(255 * in)));
 		drawMotes(w, dt, sf::Color(200, 40, 50), true);
-		float rise = slideT / s.seconds;
-		drawLogo(w, 512 - 220, 140 - 10 * rise, 420, slideT < 1.5f ? slideT / 1.5f : 1.f);
+		drawLogo(w, 512 - logoWidth(420) / 2, logoY, 420, logoA);
 	}
 	else {
 		centered(w, fontItalic, s.line1, 30, sf::Color(200, 180, 172, (std::uint8_t)(255 * fade)), 340);
 		if (s.line2[0]) centered(w, fontSerif, s.line2, 24, sf::Color(176, 30, 58, (std::uint8_t)(255 * fade)), 390);
 	}
-	if (slideT >= s.seconds || anyKey()) { slides.dequeue(); slideT = 0; }
+	if (slideT >= s.seconds || anyKey()) {
+		slides.dequeue(); slideT = 0;
+		if (s.logo) { introT = 0; introFromY = logoY; introFromA = logoA; }   // hand over to the title
+	}
 	return slides.empty() ? ST_TITLE : ST_BOOT;
 }
 
 // ----------------------------------------------------------------- title
 int Screens::title(sf::RenderWindow* w, float dt) {
 	t += dt;
+	// Hand-over from the boot logo: k eases 0 -> 1 as the logo glides to the
+	// left, the shade comes in behind it, then the tagline and menu fade up.
+	const float GLIDE = 1.3f, FADE_IN = 0.7f;
+	float k = 1, ui = 1;
+	bool skipped = false;
+	if (introT >= 0) {
+		introT += dt;
+		if (key_any() && introT > 0.15f) { introT = GLIDE + FADE_IN; skipped = true; }   // a key finishes it (and isn't also a menu pick)
+		float g = minOf(introT / GLIDE, 1.f);
+		k = g * g * (3 - 2 * g);                                      // smoothstep
+		ui = clampTo((introT - GLIDE * 0.6f) / FADE_IN, 0.f, 1.f);
+		if (introT >= GLIDE + FADE_IN) introT = -1;
+	}
 	drawBackdrop(w);
 	// Darken the left third so the logo and menu read clearly (as in the Godot build).
-	quad(w, 0, 0, 620, 768, sf::Color(0, 0, 0, 200), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 200));
+	std::uint8_t shade = (std::uint8_t)(200 * k);
+	quad(w, 0, 0, 620, 768, sf::Color(0, 0, 0, shade), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, shade));
 	drawMotes(w, dt, sf::Color(200, 40, 50), true);
 
 	const float cx = 290;
-	float logoH = 330;
-	float logoW = hasLogo ? logoH * logoTex.getSize().x / logoTex.getSize().y : 380;
-	drawLogo(w, cx - logoW / 2, 70, logoH, 1.f);
-	centered(w, fontItalic, "some dreams don't let you wake up", 24, sf::Color(222, 206, 196), 424, cx);
+	float logoH = 420 + (330 - 420) * k;
+	float lx0 = 512 - logoWidth(420) / 2, lx1 = cx - logoWidth(330) / 2;
+	drawLogo(w, lx0 + (lx1 - lx0) * k, introFromY + (70 - introFromY) * k, logoH, introFromA + (1 - introFromA) * k);
+	centered(w, fontItalic, "some dreams don't let you wake up", 24, sf::Color(222, 206, 196, (std::uint8_t)(255 * ui)), 424, cx);
+	menuAlpha = ui; menuInput = ui >= 1 && !skipped;
 	// "Continue" only appears when there is a saved run.
 	const char* withSave[] = { "Continue the dream", "Begin the dream", "Watch the dream", "Credits", "Controls", "Wake up" };
 	const char* noSave[] = { "Begin the dream", "Watch the dream", "Credits", "Controls", "Wake up" };
 	int n = hasSave ? 6 : 5;
 	int c = menu(w, hasSave ? withSave : noSave, n, cx, 456, 30);
+	menuAlpha = 1; menuInput = true;
 	if (c < 0) return ST_TITLE;
 	if (!hasSave) ++c;                       // same numbering either way
 	if (c == 0) return ST_CONTINUE;

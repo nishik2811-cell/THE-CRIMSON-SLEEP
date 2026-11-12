@@ -43,6 +43,17 @@ int main() {
 		while (pq.extractMax(&t)) { CHECK(t.priority <= last); last = t.priority; ++n; }
 		CHECK(n == 5 && pq.empty());
 	}
+	// The raw heap array is only partly sorted: slot 1 need not be the
+	// runner-up.  Popping a COPY (what the console does) gives true order
+	// and leaves the live queue untouched.
+	{
+		PriorityQueue<T> pq; T t;
+		pq.insert({ 90, 1 }); pq.insert({ 10, 2 }); pq.insert({ 50, 3 });
+		CHECK(pq.at(1).priority == 10 && pq.at(2).priority == 50);
+		PriorityQueue<T> copy = pq;
+		CHECK(copy.extractMax(&t) && t.id == 1 && copy.extractMax(&t) && t.id == 3);
+		CHECK(pq.size() == 3);
+	}
 	// Linked list: inventory insert / find / delete.
 	{
 		LinkedList<int> l;

@@ -698,7 +698,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 	// ---- QUEUE: scares in the order they will fire
 	{
 		float t = card(54, "Next scares in this room", "QUEUE");
-		const char* what[] = { "flicker", "whisper", "door slam", "whisper", "blood writing", "moan", "floor crack", "glass" };
+		const char* what[] = { "flicker", "whisper", "door slam", "breath", "blood writing", "moan", "floor crack", "glass" };   // EventKind order
 		HauntEvent ev[16]; int en = events.toArray(ev, 16);
 		float x = 22;
 		if (en == 0) txt("none left - the room is quiet", fontItalic, 13, TAG, 22, t + 2);
@@ -716,9 +716,12 @@ void Game::drawConsole(sf::RenderWindow* w) {
 	// ---- PRIORITY QUEUE: current dangers, worst first
 	{
 		float t = card(70, "Dangers right now", "PRIORITY QUEUE");
+		// The heap array is only partly ordered (slot 1 is not always the
+		// runner-up), so pop a copy: extractMax hands them back worst first.
+		PriorityQueue<Threat> order = threats;
+		Threat th;
 		int shown = 0;
-		for (int i = 0; i < threats.size() && shown < 2; ++i) {
-			const Threat& th = threats.at(i);
+		while (shown < 2 && order.extractMax(&th)) {
 			if (th.kind == TH_CALM || !th.label[0]) continue;
 			float by = t + shown * 20, maxw = W - 90;
 			rect(24, by + 4, maxw, 12, CHIP);
@@ -769,8 +772,7 @@ void Game::drawConsole(sf::RenderWindow* w) {
 			}
 			const char* sense = !s.active ? "squashed" : s.state == Spider::STUNNED ? "stunned by the flare" :
 			                    s.sawYou ? "SEES you (line of sight)" : s.heardYou ? "HEARD you (footsteps / flare)" : hidden ? "you are hidden" : "senses nothing";
-			if (s.pathLen > 0 && s.algo[0]) std::snprintf(b, sizeof b, "%s   -   %s path %d tiles%s", sense, s.algo, s.pathLen - s.pathStep,
-				s.expanded ? "" : "");
+			if (s.pathLen > 0 && s.algo[0]) std::snprintf(b, sizeof b, "%s   -   %s path %d tiles", sense, s.algo, s.pathLen - s.pathStep);
 			else std::snprintf(b, sizeof b, "%s", sense);
 			txt(b, fontItalic, 12, s.sawYou ? sf::Color(255, 140, 150) : s.heardYou ? sf::Color(240, 200, 130) : TAG, 22, y0 + 22);
 			if (s.expanded && s.algo[0] == 'A') { std::snprintf(b, sizeof b, "%d nodes", s.expanded); txt(b, fontMono, 10, TAG, W - 22 - width(b, fontMono, 10), y0 + 24); }

@@ -26,6 +26,11 @@ private:
 	struct Slide { const char* line1; const char* line2; float seconds; bool logo; };
 	Queue<Slide> slides;                                  // boot sequence (FIFO)
 	float slideT = 0, t = 0, endT = 0;
+	// Boot -> title hand-over: the logo glides from the centre to its menu
+	// spot while the menu fades in (-1 = no hand-over running).
+	float introT = -1, introFromY = 130, introFromA = 1;
+	float menuAlpha = 1; bool menuInput = true;
+	float logoWidth(float h) const { return hasLogo ? h * logoTex.getSize().x / logoTex.getSize().y : 380.f; }
 	sf::Font fontTitle, fontSerif, fontItalic;
 	sf::Texture jumpTex;
 	sf::Sprite jump{ jumpTex };

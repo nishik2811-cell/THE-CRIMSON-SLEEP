@@ -56,6 +56,7 @@ int aStar(const TileGrid& m, int from, int to, int* path, int* expanded) {
 		int c = cur.tile % GRID_W, r = cur.tile / GRID_W;
 		for (int d = 0; d < 4; ++d) {
 			int nc = c + DC[d], nr = r + DR[d], nt = nr * GRID_W + nc;
+			if (!m.inside(nc, nr)) continue;            // no wrapping round the map edge
 			if (!walkable(m, nc, nr) && nt != to) continue;
 			int g = cur.g + 1;
 			if (g >= best[nt]) continue;
