@@ -61,7 +61,7 @@ public:
 	void devSpawnBride();
 	void devSwing() { swingSword(); }
 	void devBack() { goBack(); }
-	void devHide() { hidden = true; player.hiddenAway = true; }
+	void devHide() { (void)player.col.isInteractionMap(pp(), player.source.y); hideTile = player.col.facingTile(player.source.y); hidden = true; player.hiddenAway = true; }
 	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; spiders[0].wait = 30; }
 	void devHold(int dir) { player.forcedDir = dir; }
 	sf::Vector2f devPos() const { return pp(); }
@@ -100,6 +100,7 @@ private:
 	int corpseCount[ROOM_COUNT] = {};
 	sf::Texture deadTex; sf::Sprite deadSprite{ deadTex };
 	bool hidden = false;                  // inside a wardrobe (stealth)
+	sf::Vector2i hideTile{ -1, -1 };      // the wardrobe you are in
 	bool lanternOn = true;                // L toggles; off = harder to see, harder to be seen
 	bool searched[ROOM_COUNT][GRID_W * GRID_H] = {};   // drawers already opened (each holds one thing)
 	void squash(Spider& s);

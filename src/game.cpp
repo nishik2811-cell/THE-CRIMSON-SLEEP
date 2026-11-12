@@ -371,6 +371,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 	bride.draw(window);
 	drawWorldOverlays(window);
+
 	for (int si = 0; si < spiderCount; ++si) spiders[si].drawEyes(window, pp() + sf::Vector2f(12, 12));   // red glints in the dark
 	for (int si = 0; si < spiderCount; ++si) {
 		const Spider& s = spiders[si];
@@ -546,6 +547,7 @@ void Game::interact() {
 	case 23: // wardrobe: hide inside (E again to step out)
 		hidden = !hidden;
 		player.hiddenAway = hidden;
+		hideTile = player.col.facingTile(player.source.y);
 		if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "HIDE %d room %d goal %d\n", (int)hidden, room, demoGoal);
 		audio.play(SFX_DOOR_OPEN, 55, 1.3f);
 		if (hidden) showToast("You hide in the wardrobe. Hold your breath...  (E to step out)");
