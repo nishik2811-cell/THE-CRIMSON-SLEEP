@@ -59,6 +59,7 @@ Game::Game(Audio& a) : audio(a) {
 	g_lastLookup = -1; g_consoleScroll = 0;
 	if (deadTex.loadFromFile(asset("graphics/spider_dead.png"))) deadSprite.setTexture(deadTex, true);
 	if (bossAtkTex.loadFromFile(asset("graphics/enemy_boss_attack.png"))) bossAtkSprite.setTexture(bossAtkTex, true);
+	if (itemTex.loadFromFile(asset("graphics/texture.png"))) itemIcon.setTexture(itemTex, true);
 	if (samaraTex.loadFromFile(asset("graphics/wraith.png"))) samaraSprite.setTexture(samaraTex, true);
 	samaraSprite.setOrigin({ 12.f, 40.f });
 	// The card's blood: find where each thin strip of the drip image ends, so the
@@ -268,6 +269,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		player.blockT = player.blocking ? player.blockT + dt : 0.f;
 		if (player.clashT > 0) player.clashT -= dt;
 		if (hitFxT >= 0) { hitFxT += dt; if (hitFxT > 0.6f) hitFxT = -1; }
+		if (getItemT >= 0) { getItemT += dt; if (getItemT > 1.7f) getItemT = -1; }
 		if (clashFxT >= 0) { clashFxT += dt; if (clashFxT > 0.4f) clashFxT = -1; }
 		if (bossParryT >= 0) { bossParryT -= dt; if (bossParryT < 0) bossParryT = -1; }
 		if (bossCutFxT >= 0) { bossCutFxT += dt; if (bossCutFxT > 0.35f) bossCutFxT = -1; }
@@ -330,7 +332,15 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (!overlay) bossDeathT += dt;
 		if (before < DEATH_BURST && bossDeathT >= DEATH_BURST) { audio.play(SFX_SCREAM, 100, 0.35f); audio.play(SFX_GLASS, 100, 0.5f); shake = 1.6f; }
 		if (bossDeathT < DEATH_BURST) shake = maxOf(shake, 0.35f + 0.5f * bossDeathT / DEATH_BURST);   // the crypt shakes harder and harder
-		if (bossDeathT > DEATH_END) { bossDeathT = -1; player.end_sound.play(); finish(locketReturned ? END_TRUE : END_ESCAPE); return; }
+		if (bossDeathT > DEATH_END) {
+			bossDeathT = -1;
+			if (locketReturned) { player.end_sound.play(); finish(END_TRUE); return; }
+			// Without the locket returned the dream isn't over: the way out opens,
+			// and you have to walk out of the house yourself (the Escape ending).
+			house.reveal(CRIMSON_CRYPT, ANTECHAMBER);
+			audio.play(SFX_DOOR_OPEN, 70, 0.6f);
+			say("The Devil is dust.\nFar above, a lock gives way with a crack.\n\nGet out of this house - through the front door.");
+		}
 	}
 	if (!overlay) child.update(dt, pp(), player.source.y);
 	child.draw(window);
@@ -352,10 +362,11 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (!overlay) {
 			if (player.isMoving() && !hidden) s.hear(me, 140.f);        // footsteps carry; standing still is silent
 			s.update(dt, me, !hidden, lanternOn ? 260.f : 90.f, maps[room].map);   // lantern off: it only sees you up close
+			if (getenv("CS_TRACE_SPIDER") && i == 0) { static int k = 0; if (++k % 15 == 0) std::fprintf(stderr, "SPIDER %d d=%.0f\n", (int)s.state, dist(s.pos, me)); }
 			if (s.active && !hidden && dist(s.pos, me) < 22) {
 				if (s.bite <= 0 && s.dangerous()) {
 					audio.play(SFX_STING, 70, 1.4f);
-					hurt(8, 10, "A spider skitters up your arm and BITES!", TIP_SPIDERS, false);
+					hurt(8, 6, "A spider skitters up your arm and BITES!", TIP_SPIDERS, false);
 					s.bitten();
 				}
 			}
@@ -402,6 +413,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	bride.draw(window);
 	drawSamara(window);
 	drawItemGlints(window);
+	drawItemGet(window);
 	drawHitFx(window);
 	if (child.active && child.distanceTo(pp()) < 360) {
 		// Carrie shows through the dark - faint and dull far away, clearer
@@ -502,6 +514,7 @@ void Game::pickUp(int item, const Str& msg, bool clearTile) {
 	if (rec && !rec->collected) { rec->collected = true; runStats.itemsFound++; }
 	if (ITEMS[item].isClue) { if (rec) rec->discovered = true; }
 	player.give(item);
+	getItem = item; getItemT = 0;                  // it rises over your head for a moment
 	showToast(Str("+ ") + ITEMS[item].name);
 	say(msg);
 	if (clearTile) changeFacingTile(sf::Vector2i(-1, -1));
@@ -630,6 +643,7 @@ bool Game::edgeUsable(const Edge& e) {
 	if (e.hidden) return false;
 	if (!e.locked) return true;
 	if (e.requiredItem == NEWSPAPER) return discovered(NEWSPAPER);
+	if (e.to == OUTSIDE && bossHP <= 0) return true;           // with the Devil dead, the front door opens
 	return player.has(e.requiredItem);
 }
 
@@ -641,6 +655,7 @@ void Game::tryDoor(int doorNo) {
 	}
 	if (e->to == OUTSIDE) {
 		if (player.has(CRIMSON_LOCKET)) { audio.play(SFX_DOOR_OPEN, 80); finish(END_SECRET); }
+		else if (bossHP <= 0) { audio.play(SFX_DOOR_OPEN, 80); finish(END_ESCAPE); }   // the Devil is dead: the house lets you go
 		else say("The front door won't open.\nThe house is not done with you.");
 		return;
 	}
@@ -946,7 +961,11 @@ void Game::updateHints(float dt) {
 		if (!collected(s.item)) { key = i * 2; targetRoom = s.room; targetTile = s.tile; what = Str("The ") + ITEMS[s.item].name + " is somewhere in the " + ROOMS[s.room].name + "."; break; }
 		if (e && e->locked) { key = i * 2 + 1; targetRoom = s.lockFrom; targetTile = 3 + e->doorNo; what = Str("Use the ") + ITEMS[s.item].name + " on the door to the " + ROOMS[s.lockTo].name + "."; break; }
 	}
-	if (key == 100 && player.has(CRIMSON_LOCKET) && !locketReturned) {
+	if (bossHP <= 0) {
+		key = 30; targetRoom = ENTRANCE_HALL; targetTile = 3 + 5;   // the front door
+		what = "The Devil is dead. Get out of the house - through the front door.";
+	}
+	else if (key == 100 && player.has(CRIMSON_LOCKET) && !locketReturned) {
 		key = 19; targetRoom = OSSUARY; targetTile = 12;
 		what = "Samara waits by her bones in the Ossuary. Give her back her locket (E).";
 	}
@@ -1693,8 +1712,8 @@ void Game::drawDevilDeath(sf::RenderWindow* w) {
 		beam[3] = sf::Vertex{ { x + 120, c.y + 260 }, bottom };
 		w->draw(beam, sf::BlendAdd);
 	}
-	// Fade to white into the ending.
-	if (u > DEATH_END - DEATH_BURST - 1.2f) {
+	// Fade to white into the ending (only the true ending: otherwise you walk out yourself).
+	if (locketReturned && u > DEATH_END - DEATH_BURST - 1.2f) {
 		float f = minOf(1.f, (u - (DEATH_END - DEATH_BURST - 1.2f)) / 1.2f);
 		sf::RectangleShape veil(sf::Vector2f(2400, 2400)); veil.setPosition(c - sf::Vector2f(1200, 1200));
 		veil.setFillColor(sf::Color(255, 248, 240, (std::uint8_t)(255 * f))); w->draw(veil);
@@ -1900,4 +1919,40 @@ void Game::drawBossParry(sf::RenderWindow* w) {
 	bossAtkSprite.setPosition({ bp.x - 24, bp.y - 40 });
 	bossAtkSprite.setColor(sf::Color(255, 235, 225));
 	w->draw(bossAtkSprite);
+}
+
+// The item you just took, held up over the hero's head: it rises, glows,
+// holds for a beat and fades.  Keys are tinted by kind.
+void Game::drawItemGet(sf::RenderWindow* w) {
+	if (getItemT < 0 || getItem < 0) return;
+	float rise = minOf(1.f, getItemT / 0.3f), fade = getItemT > 1.3f ? maxOf(0.f, 1.f - (getItemT - 1.3f) / 0.4f) : 1.f;
+	sf::Vector2f c = pp() + sf::Vector2f(12, -34 - 12 * rise);
+	sf::CircleShape glow(13.f); glow.setOrigin({ 13.f, 13.f }); glow.setPosition(c);
+	glow.setFillColor(sf::Color(255, 220, 140, (std::uint8_t)(45 * fade))); w->draw(glow, sf::BlendAdd);
+	if (getItem == CRIMSON_LOCKET) {
+		sf::CircleShape body(3.f); body.setOrigin({ 3.f, 3.f }); body.setScale({ 1.f, 1.25f }); body.setPosition(c);
+		body.setFillColor(sf::Color(170, 14, 32, (std::uint8_t)(255 * fade)));
+		body.setOutlineThickness(1.f); body.setOutlineColor(sf::Color(226, 182, 84, (std::uint8_t)(255 * fade))); w->draw(body);
+		return;
+	}
+	int tx = 18; sf::Color tint = sf::Color::White;
+	switch (getItem) {
+	case LANTERN: tx = 11; break;
+	case SWORD: tx = 16; break;
+	case NEWSPAPER: case HYMN_PAGE: tx = 3; break;
+	case DIARY: tx = 10; break;
+	case MATTOCK: tx = 15; break;
+	case PETROL: tx = 20; break;
+	case RUSTY_KEY: tint = sf::Color(235, 150, 100); break;
+	case BRASS_KEY: tint = sf::Color(255, 220, 110); break;
+	case CHAPEL_KEY: tint = sf::Color(200, 215, 255); break;
+	default: break;                                   // the Iron Key as drawn
+	}
+	tint.a = (std::uint8_t)(255 * fade);
+	if (getItem == DIARY) { itemIcon.setTextureRect(sf::IntRect({ 10 * 32 + 7, 32 + 2 }, { 18, 18 })); itemIcon.setOrigin({ 9.f, 9.f }); }   // just the book, not its table
+	else { itemIcon.setTextureRect(sf::IntRect({ tx * 32, 32 }, { 32, 32 })); itemIcon.setOrigin({ 16.f, 16.f }); }
+	itemIcon.setScale({ 0.85f, 0.85f });
+	itemIcon.setPosition(c);
+	itemIcon.setColor(tint);
+	w->draw(itemIcon);
 }

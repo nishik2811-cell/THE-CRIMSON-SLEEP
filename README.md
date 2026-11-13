@@ -164,7 +164,7 @@ stateDiagram-v2
 | INVESTIGATE | Goes to where it heard the sound | **A\*** |
 | SEARCH | Looks around where it last saw you | **BFS** + **A\*** |
 | CHASE | Re-plans a route to you every 0.35 s | **A\*** |
-| ATTACK | **Rears up** for half a second, then lunges | straight line |
+| ATTACK | **Rears up** for half a second, then lunges. After a bite it scuttles back a few tiles, crouches, and comes at you again | straight line, then **BFS** escape |
 | STUNNED | Caught in a flare: curls up, then scuttles off | — |
 | RETURN | Goes back to its nest | **A\*** |
 
@@ -288,7 +288,7 @@ and a trail of blood leads you there.
 | Ending | How |
 |---|---|
 | **True** | Open the Hidden Tunnel, give Samara back her locket, *then* slay the Devil with the Blessed Sword. He bursts into ash, ten souls rise, the crimson moon gives way to a sunrise, and Samara smiles from among the lights. |
-| **Escape** | Slay the Devil without giving the locket back. |
+| **Escape** | Slay the Devil without giving the locket back. The way out of the crypt opens and the front door's lock gives way: walk out of the house yourself. |
 | **Secret** | Keep the locket and walk out of the front door with it. |
 | **Trapped** | Choose the petrol in the Antechamber. |
 

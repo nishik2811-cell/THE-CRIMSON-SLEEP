@@ -54,6 +54,7 @@ void buildHouse(Graph& g) {
 
 	g.addEdge(ANTECHAMBER, GRAND_CORRIDOR, 1);
 	g.addEdge(ANTECHAMBER, CRIMSON_CRYPT, 3, true, SWORD);
+	g.addEdge(CRIMSON_CRYPT, ANTECHAMBER, 3, false, ITEM_NONE, true);   // the way back out: sealed until the Devil is dead
 
 	g.addEdge(HIDDEN_TUNNEL, CHAPEL, 1, false, ITEM_NONE, true);
 	g.addEdge(HIDDEN_TUNNEL, OSSUARY, 2, true, NEWSPAPER);       // needs the clipping *read* (BST)

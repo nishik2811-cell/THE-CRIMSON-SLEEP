@@ -23,7 +23,7 @@ static float dist(sf::Vector2f a, sf::Vector2f b) { float x = a.x - b.x, y = a.y
 namespace {
 // What finishes a step (checked against the real game state).
 enum DemoDone { D_LANTERN, D_NEWSPAPER, D_RUSTY, D_DIARY, D_BRASS, D_LEVER, D_CHAPELKEY, D_HYMN, D_IRON,
-	D_LOCKET, D_RETURN, D_SWORD, D_NOTE, D_MATTOCK1, D_DIG1, D_DIG2, D_MATTOCK2, D_DIG3, D_DIG4, D_END };
+	D_LOCKET, D_RETURN, D_SWORD, D_DEVIL, D_NOTE, D_MATTOCK1, D_DIG1, D_DIG2, D_MATTOCK2, D_DIG3, D_DIG4, D_END };
 // One step of the walkthrough: use `tile` (an interaction tile id) in `room`.
 struct DemoGoal { int room; int tile; int done; const char* what; };
 
@@ -63,7 +63,8 @@ const DemoGoal GOALS_ESCAPE[] = {
 	{ ANTECHAMBER,       17, D_LEVER,     "pull the antechamber lever" },
 	{ CRIMSON_CRYPT,     19, D_NOTE,      "read the note (it opens the way)" },
 	{ CRIMSON_CRYPT,     17, D_LEVER,     "pull the crypt lever" },
-	{ CRIMSON_CRYPT,     -1, D_END,       "slay the Devil (the locket never returned)" },
+	{ CRIMSON_CRYPT,     -1, D_DEVIL,     "slay the Devil (the locket never returned)" },
+	{ OUTSIDE,            0, D_END,       "walk out of the front door" },
 };
 // Secret: find the locket, keep it, and walk out of the front door.
 const DemoGoal GOALS_SECRET[] = {
@@ -122,6 +123,7 @@ bool Game::demoGoalDone(int g) {
 	case D_IRON: return collected(IRON_KEY);
 	case D_LOCKET: return player.has(CRIMSON_LOCKET) || locketReturned;
 	case D_RETURN: return locketReturned;
+	case D_DEVIL: return bossHP <= 0 && bossDeathT < 0;
 	case D_SWORD: return player.has(SWORD);
 	case D_MATTOCK1: return player.is_mattock || digCount >= 1;
 	case D_DIG1: return digCount >= 1;
@@ -199,7 +201,7 @@ bool Game::demoEncounter(float dt) {
 	if (demoCarrieCD > 0) demoCarrieCD -= dt;
 	float cd = child.distanceTo(pp());
 	bool seeCarrie = child.active && childBanishT <= 0 && child.stun <= 0 && cd < 170 &&
-	                 ai::lineOfSight(maps[room].map, me, child.pos);
+	                 (ai::lineOfSight(maps[room].map, me, child.pos) || cd < 100);   // in view, or close enough to see her coming round the corner
 	if (seeCarrie && cd < 60 && canFlare) { flareLantern(); demoCarrieCD = 4.f; return false; }   // she's almost on you: flare at once
 	if (seeCarrie && demoCarrieCD <= 0) {
 		demoEnc = 1;
@@ -223,7 +225,7 @@ bool Game::demoEncounter(float dt) {
 		demoEnc = 2;
 		demoEncT += dt;
 		if (canFlare && sd < 125) { flareLantern(); return false; }       // drive her off
-		if (sd > 60 && sd < 150 && demoSamaraHold < Bride::LOSE_AFTER + 0.5f) { demoSamaraHold += dt; return true; }   // freeze till she loses the trail
+		if (sd > 85 && sd < 160 && demoSamaraHold < Bride::LOSE_AFTER + 0.5f) { demoSamaraHold += dt; return true; }   // freeze till she loses the trail
 		return false;                                                    // keep going
 	}
 	return false;

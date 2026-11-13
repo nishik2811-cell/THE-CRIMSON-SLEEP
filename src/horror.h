@@ -72,7 +72,8 @@ public:
 //   CHASE       sees you (line of sight, view cone)     -> A* straight at you
 //   ATTACK      close enough: a lunge
 //   STUNNED     a flare hit it: it curls up for a moment, then scuttles home
-//   RETURN      after a bite or a stun                  -> A* back to its nest
+//   RETURN      after a bite: back off a few tiles (BFS escape), then come again;
+//               after a stun: A* back to its nest
 // Stealth: with the lantern OFF it only sees you up close; hiding in a
 // wardrobe makes you invisible and silent.
 class Spider {
@@ -96,7 +97,8 @@ public:
 	// playerVisible: false while the player hides; sightRange shrinks with the lantern off.
 	void update(float dt, sf::Vector2f player, bool playerVisible, float sightRange, const TileGrid& map);
 	void flareHit() { enter(STUNNED); stun = 1.2f; }    // the light scares it off: brief stun, then RETURN
-	void bitten() { bite = 3.f; enter(RETURN); }          // it bit you: back to the nest
+	void bitten() { bite = 4.5f; regroup = true; enter(RETURN); }   // it bit you: backs off a few tiles, then comes again
+	bool regroup = false;        // RETURN means "back off, then come again" rather than "go home"
 	void startChase(sf::Vector2f target) { lastKnown = target; enter(CHASE); }
 	bool dangerous() const { return active && state != STUNNED && state != RETURN; }
 	void draw(sf::RenderWindow* w);

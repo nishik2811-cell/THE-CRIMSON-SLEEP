@@ -237,13 +237,22 @@ void Spider::update(float dt, sf::Vector2f player, bool visible, float sightRang
 		break;
 	case ATTACK:                                        // rears up (your chance to STOMP), then lunges
 		if (stateT > 0.55f) stepTowards(player, 200.f, dt, map);
-		if (stateT > 1.0f) enter(RETURN);
+		if (stateT > 1.0f) { regroup = true; enter(RETURN); }   // missed or not: back off, then come again
 		break;
 	case STUNNED:                                       // curled up and twitching - it can be squashed now
-		if ((stun -= dt) <= 0) enter(RETURN);
+		if ((stun -= dt) <= 0) { regroup = false; enter(RETURN); }   // scared off by the light: all the way home
 		break;
-	case RETURN:                                        // A* back to the nest, then rest
-		if (pathLen == 0) planTo(map, home);
+	case RETURN:
+		if (regroup) {                                  // after a bite: scuttle back a few tiles (BFS away from you)...
+			if (pathLen == 0 && stateT < 0.1f) { pathLen = ai::bfsEscape(map, ai::tileOf(pos), player, 4, path); pathStep = 0; algo = "BFS"; }
+			bool moving = followPath(dt, 120.f, map);
+			if (!moving && stateT > 2.8f) {           // ...crouch a moment, then come at you again
+				regroup = false; lastKnown = player; lostT = 0;
+				enter(sees ? CHASE : INVESTIGATE);
+			}
+			break;
+		}
+		if (pathLen == 0) planTo(map, home);            // A* back to the nest, then rest
 		if (!followPath(dt, 130.f, map) && stateT > 0.3f) { enter(IDLE); wait = frand(1.5f, 3.f); }
 		break;
 	default: break;

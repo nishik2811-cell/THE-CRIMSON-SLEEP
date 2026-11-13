@@ -24,6 +24,7 @@ public:
 	int menuIndex = 0;
 	int demoChoice = 0;                                  // which ending "Watch the dream" plays
 	bool watchMenu = false;                              // the Watch-the-dream sub-menu is open
+	bool mouseWasDown = false;                           // a click counts once, on the press (not while held)
 
 private:
 	struct Slide { const char* line1; const char* line2; float seconds; bool logo; };

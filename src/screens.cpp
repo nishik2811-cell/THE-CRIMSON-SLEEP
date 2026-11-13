@@ -136,7 +136,7 @@ int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx
 		tx.setPosition({ (float)(std::floor(cx - b.size.x / 2 - b.position.x)), (float)(std::floor(y + i * size * 1.25f)) });
 		if (menuInput && tx.getGlobalBounds().contains(mouse)) {
 			menuIndex = i;
-			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left)) chosen = i;
+			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && !mouseWasDown) chosen = i;   // the press, not a held button
 		}
 		float glow = sel ? 0.85f + 0.15f * std::sin(t * 3) : 1.f;
 		sf::Color ink = sel ? sf::Color((std::uint8_t)(BONE.r * glow), (std::uint8_t)(BONE.g * glow), (std::uint8_t)(BONE.b * glow)) : ASH;
@@ -145,6 +145,7 @@ int Screens::menu(sf::RenderWindow* w, const char* const* items, int n, float cx
 		w->draw(tx);
 	}
 	if (menuInput && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Space))) chosen = menuIndex;
+	mouseWasDown = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
 	if (g_audio && menuIndex != before) g_audio->play(SFX_UI_MOVE, 60);
 	if (g_audio && chosen >= 0) g_audio->play(SFX_UI_CLICK, 70);
 	return chosen;
@@ -335,7 +336,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	struct Script { const char* lines[6]; const char* name; };
 	static const Script scripts[] = {
 		{ { "" }, "" },
-		{ { "The corpse crumbles into grey ash.", "You stagger out into a cold, colourless morning.", "Behind you, faint and far away, a woman is still weeping.", "Somewhere beneath the chapel, something was left undone.", "" }, "ESCAPE ENDING" },
+		{ { "The Devil is dust, and the house lets you go.", "You stagger out of the front door into a cold, colourless morning.", "Behind you, faint and far away, a woman is still weeping.", "Somewhere beneath the chapel, something was left undone.", "" }, "ESCAPE ENDING" },
 		{ { "The petrol catches. The house screams.", "Smoke fills the corridors - every door slams shut.", "Through the flames they come, all ten of them.", "The fire burns for three days.", "No one finds you. The house simply... sleeps again.", "" }, "TRAPPED ENDING" },
 		{ { "You run, the locket burning in your fist.", "The front door gives way to a forest of black trees.", "Samara walks beside you now - quiet, at peace.", "But beneath the house, the Devil still sleeps.", "And one day, he will dream of you.", "" }, "SECRET ENDING" },
 		{ { "The last blow falls. The Devil bursts into ash, and is gone.", "For a moment there is only silence.", "Then, far above, the weeping stops - and Samara is at peace.", "Morning light finds its way into the house at last.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },

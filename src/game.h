@@ -185,6 +185,10 @@ private:
 	void updateSamara(float dt);
 	void drawSamara(sf::RenderWindow* w);
 	void drawItemGlints(sf::RenderWindow* w);
+	// "Item get": whatever you take rises over the hero's head for a moment.
+	sf::Texture itemTex; sf::Sprite itemIcon{ itemTex };
+	int getItem = -1; float getItemT = -1;
+	void drawItemGet(sf::RenderWindow* w);
 	bool nearSamara();
 public:
 	bool devLocketReturned() const { return locketReturned; }
