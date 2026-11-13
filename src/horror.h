@@ -29,7 +29,12 @@ public:
 	bool visible() const { return state == HUNT || state == FADE_IN; }
 	// She hunts by sound: once you have stood still for a moment she loses
 	// your trail - she stops coming for you and cannot hurt you.
-	bool lostTrail() const { return stillT > 0.3f; }
+	// Her trail: while you move she hears you and comes straight on.  Stop,
+	// and she slows, listening around where she last heard you; only after
+	// LOSE_AFTER seconds of silence has she really lost you - then she drifts off.
+	static constexpr float LOSE_AFTER = 2.5f;
+	bool lostTrail() const { return stillT > LOSE_AFTER; }
+	bool listening() const { return stillT > 0.15f && stillT <= LOSE_AFTER; }
 	float distanceTo(sf::Vector2f p) const;
 };
 

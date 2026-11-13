@@ -121,7 +121,7 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 	}
 
 	// Walk one frame toward `target` (a tile spot on the path he planned),
-	// first along x then along y, then animate / draw / beep as usual.
+	// first along x then along y, then animate and draw as usual.
 	void Enemy_boss::stepTo(sf::Vector2f target, Character* player, sf::RenderWindow* window){
 		net_x = player->characterImage.getPosition().x - characterImage.getPosition().x;
 		net_y = player->characterImage.getPosition().y - characterImage.getPosition().y;
@@ -150,18 +150,7 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 		}
 		setFrame();
 		window->draw(characterImage);
-		if (game_state == 1){
-			if (std::abs(net_x) < 150 && std::abs(net_y) < 150){
-				if (player->beep_sound.getStatus() != sf::SoundSource::Status::Playing){
-					//player->beep_sound.setPlayingOffset(sf::seconds(3.0f));
-					player->beep_sound.play();
-				}
-			}
-			else
-				player->beep_sound.stop();
-		}
-		else
-			player->beep_sound.stop();
+		player->beep_sound.stop();                  // (the old EMF beep is gone)
 
 	}
 	int Enemy_boss::colSpecialTile(){

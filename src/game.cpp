@@ -15,7 +15,7 @@ const TipInfo TIPS[TIP_COUNT] = {
 	  "- Contact drains your blood and spikes your fear." },
 	{ "Samara (The Cursed Maiden)",
 	  "She drifts through walls, hunting by the sound of your steps.\n"
-	  "- STAND STILL and she loses your trail.\n"
+	  "- STAND STILL: she slows and listens, and after a few\n    silent seconds she loses your trail and drifts away.\n"
 	  "- FLARE your lantern (F) when she is close to banish her.\n"
 	  "- Her locket lies somewhere below the chapel. Return it to her\n"
 	  "  and she will never harm you again." },
@@ -172,7 +172,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	switch (room) {
 	case GRAND_CORRIDOR: if (!roomVisited[LIBRARY]) say("A long corridor. Portraits with scratched-out eyes.\nAlfred was right to be afraid."); break;
 	case NURSERY: say("A music box plays by itself.\nI must not come in contact with whatever lives here.\nSpikes ring the chest - there must be a lever somewhere."); break;
-	case CRIMSON_CRYPT: say("The Devil is here. The EMF meter screams.\nHe can only be ended by the Blessed Sword:\nSHIFT to strike - six blows. Hold C to block his scythe.\nA flare (F) stuns him."); break;
+	case CRIMSON_CRYPT: say("The Devil is here, asleep in his grave.\nHe can only be ended by the Blessed Sword:\nSHIFT to strike - six blows. Hold C to block his scythe.\nA flare (F) stuns him."); break;
 	case HIDDEN_TUNNEL: say("Wet stone. Scratch marks. Someone was walled in here."); break;
 	case OSSUARY: say("Bones, stacked like firewood.\nAt the far end, a skeleton in a wedding dress."); break;
 	default: break;
@@ -200,6 +200,7 @@ void Game::spawnEnemies() {
 		sf::Vector2f c = arenaCentre();
 		boss.setPosition({ std::floor((c.x - 12) / 32) * 32 + 4, std::floor((c.y + 36) / 32) * 32 + 4 });
 		bossDormant = true; bossRiseT = -1; bossActive = false; bossAtkT = -1; bossPathLen = bossPathStep = 0;
+		boss.source = sf::Vector2i(0, Character::Down); boss.setFrame();   // one frame of the sheet, not the whole sheet
 	}
 
 	bride.reset(ROOMS[room].wraith && !locketReturned, frand(10, 18));   // at peace: she never hunts again
@@ -267,6 +268,9 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		player.blockT = player.blocking ? player.blockT + dt : 0.f;
 		if (player.clashT > 0) player.clashT -= dt;
 		if (hitFxT >= 0) { hitFxT += dt; if (hitFxT > 0.6f) hitFxT = -1; }
+		if (clashFxT >= 0) { clashFxT += dt; if (clashFxT > 0.4f) clashFxT = -1; }
+		if (bossParryT >= 0) { bossParryT -= dt; if (bossParryT < 0) bossParryT = -1; }
+		if (bossCutFxT >= 0) { bossCutFxT += dt; if (bossCutFxT > 0.35f) bossCutFxT = -1; }
 		if (player.cutT > 0) player.cutT -= dt;
 		if (flare > 0) flare -= dt * 2.f;
 		if (shake > 0) shake -= dt * 2.5f;
@@ -317,6 +321,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 			window->draw(r);
 		}
 		else if (bossAtkT >= 0) drawBossAttack(window, false);              // planted mid-swing
+		else if (bossParryT >= 0) drawBossParry(window);                    // scythe up, catching your blade
 		else if (overlay || bossStun > 0) { window->draw(boss.characterImage); boss.beep_sound.stop(); }
 		else bossChase(dt, window);
 	}
@@ -398,9 +403,14 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	drawSamara(window);
 	drawItemGlints(window);
 	drawHitFx(window);
-	if (child.active && child.distanceTo(pp()) < 340) {   // Carrie shows through the dark - you can see what you're facing
+	if (child.active && child.distanceTo(pp()) < 360) {
+		// Carrie shows through the dark - faint and dull far away, clearer
+		// as she gets closer, so you can always see what you're facing.
+		float k = clampTo(1.f - (child.distanceTo(pp()) - 60.f) / 300.f, 0.f, 1.f);
+		std::uint8_t a = (std::uint8_t)(25 + 135 * k * k);
+		std::uint8_t g = (std::uint8_t)(150 + 60 * k);
 		sf::Sprite cs = child.sprite;
-		cs.setColor(child.stun > 0 ? sf::Color(255, 120, 120, 150) : sf::Color(255, 215, 215, 150));
+		cs.setColor(child.stun > 0 ? sf::Color(255, 120, 120, a) : sf::Color(200 + (std::uint8_t)(40 * k), g, g, a));
 		window->draw(cs);
 	}
 	drawDevilGlow(window);
@@ -498,7 +508,11 @@ void Game::pickUp(int item, const Str& msg, bool clearTile) {
 }
 
 void Game::interact() {
-	if (nearSamara() && !(demo && demoRoute != 0)) { returnLocket(); return; }   // (the other demo endings keep it)
+	if (nearSamara() && !(demo && demoRoute != 0)) {   // (the other demo endings keep it)
+		locketFlyT = 0; dialogue = "";                 // hold it out to her: it floats from your hand to hers
+		audio.play(SFX_CHIME, 70, 1.2f);
+		return;
+	}
 	int id = player.col.isInteractionMap(pp(), player.source.y);
 	if (id < 0) return;
 	switch (id) {
@@ -565,7 +579,7 @@ void Game::interact() {
 	case 11: pickUp(LANTERN, "Lantern picked up.\nIts flame burns a sickly red.\n(F: flare it to drive spirits back)", true); break;
 	case 12: // skeleton: Bride's remains (Ossuary) / Devil's corpse (Crypt)
 		if (room == OSSUARY && !player.has(CRIMSON_LOCKET)) {
-			pickUp(CRIMSON_LOCKET, "The skeleton's fingers open on their own.\nA Crimson Locket. Inside: a wedding photo, 1953.\n\nThe weeping stops. Someone is standing behind you.", false);
+			pickUp(CRIMSON_LOCKET, "The skeleton's fingers open on their own.\nA Crimson Locket. Inside: a wedding photo, 1953.\n\nSomewhere in the house, the weeping stops.", false);
 			bride.pacified = true;
 			audio.play(SFX_CHIME, 80);
 			samaraRise(false);
@@ -812,11 +826,15 @@ void Game::updateThreats(float dt) {
 	// Insert every active danger with its priority...
 	if (bride.active && bride.visible() && !bride.pacified) {
 		float d = bride.distanceTo(p);
-		if (bride.lostTrail()) { if (d < 240) threats.insert(Threat{ 45, TH_BRIDE_NEAR, "Samara has lost your trail - keep still" }); }
-		else if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "SAMARA HAS YOU" });
-		else if (d < 240) threats.insert(Threat{ 75, TH_BRIDE_NEAR, "Samara drifts toward you - stand still, or FLARE (F)" });
+		if (d < 22) threats.insert(Threat{ 100, TH_BRIDE_ATTACK, "SAMARA HAS YOU" });
+		else if (d < 240) {
+			if (bride.lostTrail()) threats.insert(Threat{ 40, TH_BRIDE_NEAR, "Samara has lost your trail - she drifts away. Keep still" });
+			else if (bride.listening()) threats.insert(Threat{ 60, TH_BRIDE_NEAR, "Samara stops... listening for you. Don't move" });
+			else threats.insert(Threat{ 75, TH_BRIDE_NEAR, "Samara hears your footsteps - stand still, or FLARE (F)" });
+		}
+		if (getenv("CS_TRACE_BRIDE")) { static int k = 0; if (++k % 20 == 0) std::fprintf(stderr, "BRIDE d=%.0f still=%.1f %s\n", d, bride.stillT, bride.lostTrail() ? "LOST" : bride.listening() ? "listening" : "hunting"); }
 	}
-	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "The Devil is close - the EMF meter screams" });
+	if (bossActive && bossStun <= 0 && dist(boss.characterImage.getPosition(), p) < 150) threats.insert(Threat{ 90, TH_DEVIL, "The Devil is close" });
 	if (child.active && child.stun <= 0 && child.distanceTo(p) < 170) {
 		threats.insert(Threat{ child.frozen ? 50 : 80, TH_CHILD, child.frozen ? "Carrie is frozen while you watch her" : "Carrie stalks behind you in blood - TURN AND FACE HER" });
 		openTip(TIP_CHILD);
@@ -878,6 +896,7 @@ void Game::updateThreats(float dt) {
 	if (child.active && child.stun <= 0 && !hidden && child.distanceTo(p) < 18) {
 		audio.play(SFX_CHILD_LUNGE, 95);
 		child.stun = 3; child.pos = child.home;
+		if (getenv("CS_TRACE")) std::fprintf(stderr, "CARRIE hit: flareCD=%.1f frozen=%d facing=%d hp=%.0f\n", flareCooldown, (int)child.frozen, player.source.y, player.health);
 		hurt(25, 10, "Carrie's telekinetic wrath violently slams you!", TIP_CHILD, false);
 	}
 
@@ -1247,16 +1266,26 @@ void Game::swordLand() {
 		return l < 22 || (l < reach && (v.x * f.x + v.y * f.y) / l > 0.2f);
 	};
 	bool hit = false;
-	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58)) {
+	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58) && bossAtkT < 0 && bossStun <= 0 && std::rand() % 100 < 35) {
+		// He parries: the scythe catches the Blessed Sword - sparks - and he cuts back at once.
+		hit = true;
+		bossParryT = 0.4f; bossAtkCD = 0.3f;
+		clashFxT = 0; clashPos = (bossCentre() + me) * 0.5f + sf::Vector2f(0, -14);
+		audio.play(SFX_CLANG, 100, 0.85f);
+		showToast("He parries!");
+		if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS parry\n");
+	}
+	else if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58)) {
 		hit = true;
 		--bossHP; bossHitT = 0.25f;
+		bossCutFxT = 0; bossCutDir = f;                // the blade's cut shows on him
 		bool committed = bossAtkT >= BOSS_RAISE;      // mid-swing he doesn't flinch - he cuts back
 		if (!committed) { bossStun = 0.35f; bossAtkT = -1; }   // the blow staggers him - and wakes him from a flare's daze
 		bossAtkCD = minOf(bossAtkCD, 0.45f);          // and he answers every wound with the scythe
 		shake = 0.7f;
 		audio.play(SFX_SWORD_HIT, 100);
 		audio.play(SFX_SLAM, 50, 0.7f);
-		for (int i = 0; i < (committed ? 0 : 26); ++i) {   // knocked back along the blow
+		for (int i = 0; i < (committed ? 0 : 8); ++i) {    // staggered back a step along the blow
 			sf::Vector2f step = f * 1.f;
 			int dir = d;
 			if (boss.col.isCollisionMap(boss.characterImage.getPosition(), dir)) break;
@@ -1399,13 +1428,18 @@ void Game::updateBossAttack(float dt) {
 	float l = std::sqrt(d.x * d.x + d.y * d.y);
 	if (bossAtkT < 0) {
 		if (bossAtkCD > 0) bossAtkCD -= dt;
-		if (bossAtkCD <= 0 && bossStun <= 0 && l < BOSS_REACH - 8) {
-			bossAtkT = 0; bossAtkLanded = false;
-			bossAtkDir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
-			boss.source.y = bossAtkDir;
-			audio.play(SFX_BREATH, 80, 0.55f);         // a low, ragged breath as he raises it
+		if (bossAtkCD <= 0 && bossStun <= 0 && bossParryT < 0) {
+			// Pick an attack, a little differently every time.
+			int roll = std::rand() % 100;
+			if (l < BOSS_REACH - 8) startBossAttack(roll < 45 ? 0 : roll < 75 ? 1 : 2, d);
+			else if (l < 120 && roll < 35) startBossAttack(3, d);          // a lunge from further out
 		}
 		return;
+	}
+	if (bossAtkKind == 3 && bossAtkT < BOSS_WINDUP && l > 30) {     // the lunge: he glides in during the wind-up
+		sf::Vector2f step = d / l * 95.f * dt;
+		int dir = std::fabs(step.x) > std::fabs(step.y) ? (step.x > 0 ? Character::Right : Character::Left) : (step.y > 0 ? Character::Down : Character::Up);
+		if (!boss.col.isCollisionMap(boss.characterImage.getPosition(), dir)) boss.characterImage.move(step);
 	}
 	float before = bossAtkT;
 	bossAtkT += dt;
@@ -1423,6 +1457,7 @@ void Game::updateBossAttack(float dt) {
 		if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS swing %s hp=%.0f\n", blocked ? "BLOCKED" : inArc ? "HIT" : "miss", player.health);
 		if (blocked) {
 			player.clashT = 0.35f;
+			clashFxT = 0; clashPos = (bc + me) * 0.5f + sf::Vector2f(0, -14);   // where the blades meet
 			audio.play(SFX_CLANG, 100);                          // steel on steel
 			player.fear += 3;
 			bossStun = 0.9f; bossAtkCD = 1.8f;               // the clash staggers him: strike now
@@ -1431,13 +1466,17 @@ void Game::updateBossAttack(float dt) {
 		}
 		else if (inArc && player.invulnerable <= 0) {
 			audio.play(SFX_SCYTHE_CUT, 100);
-			hurt(22, 14, "The Devil's scythe opens you to the bone!", TIP_DEVIL, false);   // health down, fear up
+			hurt(bossAtkDamage, 14, "The Devil's scythe opens you to the bone!", TIP_DEVIL, false);   // health down, fear up
 			hitFxT = 0; hitFxDir = l > 1 ? d / l : sf::Vector2f(0, 1); player.cutT = 0.45f;
 			knockBack(bc);
 			shake = 1.f;
 		}
 	}
-	if (bossAtkT >= BOSS_ATK_END) { bossAtkT = -1; bossAtkCD = frand(1.4f, 2.2f); }
+	if (bossAtkT >= BOSS_ATK_END) {
+		bossAtkT = -1;
+		if (bossAtkKind == 2 && bossCombo == 0) { bossCombo = 1; startBossAttack(1, d); bossCombo = 1; }   // the double: a second, faster cut
+		else { bossCombo = 0; bossAtkCD = frand(0.8f, 2.0f); }                        // and a random breath before the next
+	}
 }
 
 void Game::drawBossAttack(sf::RenderWindow* w, bool overDark) {
@@ -1470,15 +1509,8 @@ void Game::drawBossAttack(sf::RenderWindow* w, bool overDark) {
 // show through the darkness so you can read the fight.
 void Game::drawDevilGlow(sf::RenderWindow* w) {
 	if (!bossActive || bossRiseT >= 0) return;          // (while rising he is drawn by the rise itself)
-	sf::Vector2f c = bossCentre() + sf::Vector2f(0, -12);
-	float pulse = 0.5f + 0.5f * std::sin(runStats.time * 3.f);
-	float rage = bossAtkT >= 0 && bossAtkT < BOSS_SWING ? 1.f : 0.f;
-	for (int k = 3; k >= 1; --k) {                      // a slow crimson aura, brighter as he winds up
-		sf::CircleShape g(14.f + k * 12.f); g.setOrigin({ g.getRadius(), g.getRadius() }); g.setPosition(c);
-		g.setFillColor(sf::Color(200, 10, 25, (std::uint8_t)((10 + 10 * pulse + 25 * rage) / k)));
-		w->draw(g, sf::BlendAdd);
-	}
 	if (bossAtkT >= 0) { drawBossAttack(w, true); return; }
+	if (bossParryT >= 0) { drawBossParry(w); return; }
 	sf::Sprite ghost = boss.characterImage;
 	ghost.setColor(bossHitT > 0 ? sf::Color(255, 90, 90, 220) : bossStun > 0 ? sf::Color(200, 200, 255, 150) : sf::Color(255, 220, 220, 170));
 	w->draw(ghost);
@@ -1492,12 +1524,12 @@ void Game::samaraRise(bool instant) {
 	int c, r;
 	sf::Vector2f bones = maps[room].map.find(12, &c, &r) ? sf::Vector2f(c * 32.f + 16, r * 32.f + 16) : pp();
 	samaraPos = bones + sf::Vector2f(0, 40);       // she stands up out of her grave
-	samaraT = instant ? 3.f : 0.f;
-	samaraGoneT = -1;
+	samaraT = instant ? SAMARA_RISEN + 0.5f : 0.f;   // taken just now: she comes a little later
+	samaraGoneT = -1; samaraSpoke = false; locketFlyT = -1;
 	if (!instant) audio.play(SFX_BRIDE_APPEAR, 75);
 }
 bool Game::nearSamara() {
-	if (samaraT < 1.5f || locketReturned || !player.has(CRIMSON_LOCKET)) return false;
+	if (samaraT < SAMARA_RISEN || !samaraSpoke || locketFlyT >= 0 || locketReturned || !player.has(CRIMSON_LOCKET)) return false;
 	sf::Vector2f d = samaraPos - (pp() + sf::Vector2f(12, 12));
 	return std::sqrt(d.x * d.x + d.y * d.y) < 60;
 }
@@ -1509,29 +1541,55 @@ void Game::returnLocket() {
 	player.fear = maxOf(0.f, player.fear - 30.f);
 	audio.play(SFX_CHIME, 95, 0.8f);
 	showToast("Locket returned - Samara is at peace");
-	say("Samara:\n\t\"...He tore it from my neck the night he killed us.\n\tThank you.\"\n\nShe closes her hand around the locket - and for the first\ntime in seventy years, she smiles.");
+	say("Samara:\n\t\"...Thank you.\"\n\nShe closes her hand around the locket - and for the first\ntime in seventy years, she smiles.");
 }
 void Game::updateSamara(float dt) {
 	if (samaraT >= 0) {
+		float before = samaraT;
 		samaraT += dt;
+		// The build-up: silence... a whisper... someone behind you... she rises.
+		if (before < SAMARA_APPEAR - 1.6f && samaraT >= SAMARA_APPEAR - 1.6f) { audio.play(SFX_WHISPER, 70, 0.9f); }
+		if (before < SAMARA_APPEAR && samaraT >= SAMARA_APPEAR) { audio.play(SFX_BRIDE_APPEAR, 75); showToast("Someone is standing behind you..."); }
 		// Once risen she glides to stand just in front of you, then waits.
 		sf::Vector2f me = pp() + sf::Vector2f(12, 12), d = me - samaraPos;
 		float l = std::sqrt(d.x * d.x + d.y * d.y);
-		if (samaraT > 1.5f && l > 52 && l < 260) samaraPos += d / l * 26.f * dt;
+		if (samaraT > SAMARA_RISEN && l > 52 && l < 260) samaraPos += d / l * 18.f * dt;
+		if (samaraT > SAMARA_RISEN + 0.8f && !samaraSpoke && l < 90) {   // she reaches you - and asks for it
+			samaraSpoke = true;
+			audio.play(SFX_BRIDE, 60, 1.3f);
+			say("Samara:\n\t\"...My locket.\n\tHe tore it from my neck the night he killed us all.\n\tPlease...\"\n\n(E: give it back)");
+		}
 	}
+	if (locketFlyT >= 0) { locketFlyT += dt; if (locketFlyT > 1.3f) { locketFlyT = -1; returnLocket(); } }
 	if (samaraGoneT >= 0) { samaraGoneT += dt; if (samaraGoneT > 4.f) samaraGoneT = -1; }
 }
 void Game::drawSamara(sf::RenderWindow* w) {
-	if (samaraT < 0 && samaraGoneT < 0) return;
+	if ((samaraT < SAMARA_APPEAR) && samaraGoneT < 0) return;   // not yet: only the silence
 	float t = samaraT >= 0 ? samaraT : samaraGoneT;
 	int f = (int)(t * 5) % 4;
 	samaraSprite.setTextureRect(sf::IntRect({ f * 24, 0 }, { 24, 48 }));
 	float bob = std::sin(t * 2.5f) * 2;
 	if (samaraT >= 0) {                                 // rising, then waiting: pale, still crying
-		float a = minOf(1.f, samaraT / 1.5f);
+		float a = clampTo((samaraT - SAMARA_APPEAR) / (SAMARA_RISEN - SAMARA_APPEAR), 0.f, 1.f);   // rising, slowly
 		samaraSprite.setPosition({ samaraPos.x, samaraPos.y + bob + 30 * (1 - a) });
 		samaraSprite.setColor(sf::Color(255, 225, 225, (std::uint8_t)(210 * a)));
 		w->draw(samaraSprite);
+		if (locketFlyT >= 0) {                          // the locket drifts from your hand to hers, trailing light
+			float u = minOf(1.f, locketFlyT / 1.2f), e = u * u * (3 - 2 * u);
+			sf::Vector2f from = pp() + sf::Vector2f(12, -2), to = samaraPos + sf::Vector2f(0, -22);
+			sf::Vector2f p = from + (to - from) * e + sf::Vector2f(0, -26.f * std::sin(e * 3.14159f));
+			for (int i = 1; i <= 6; ++i) {
+				float ue = maxOf(0.f, e - i * 0.04f);
+				sf::Vector2f q = from + (to - from) * ue + sf::Vector2f(0, -26.f * std::sin(ue * 3.14159f));
+				sf::CircleShape tr(1.2f); tr.setOrigin({ 1.2f, 1.2f }); tr.setPosition(q);
+				tr.setFillColor(sf::Color(255, 220, 150, (std::uint8_t)(180 - i * 25))); w->draw(tr, sf::BlendAdd);
+			}
+			sf::CircleShape glow(6.f); glow.setOrigin({ 6.f, 6.f }); glow.setPosition(p);
+			glow.setFillColor(sf::Color(255, 60, 70, 70)); w->draw(glow, sf::BlendAdd);
+			sf::CircleShape body(2.4f); body.setOrigin({ 2.4f, 2.4f }); body.setScale({ 1.f, 1.25f }); body.setPosition(p);
+			body.setFillColor(sf::Color(170, 14, 32)); body.setOutlineThickness(1.f); body.setOutlineColor(sf::Color(226, 182, 84));
+			w->draw(body);
+		}
 		if (nearSamara()) {
 			sf::Text tip(fontSerif, "E  -  give Samara her locket", 16);
 			tip.setFillColor(sf::Color(255, 220, 200));
@@ -1621,19 +1679,19 @@ void Game::drawDevilDeath(sf::RenderWindow* w) {
 	float lift = minOf(1.f, u / 1.8f);
 	sf::RectangleShape warm(sf::Vector2f(2400, 2400)); warm.setPosition(c - sf::Vector2f(1200, 1200));
 	warm.setFillColor(sf::Color(120, 80, 60, (std::uint8_t)(70 * lift))); w->draw(warm, sf::BlendAdd);
-	// ...and ten pale lights rise out of the floor around you.
-	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
-	for (int i = 0; i < 10; ++i) {
-		float st = 0.4f + i * 0.18f;
+	// ...and morning light breaks into the crypt: slanted shafts from above.
+	for (int i = 0; i < 5; ++i) {
+		float st = 0.5f + i * 0.25f;
 		if (u < st) continue;
-		float v = u - st;
-		sf::Vector2f p = me + sf::Vector2f(std::cos(i * 0.628f) * (70 + 12 * (i % 3)), std::sin(i * 0.628f) * 50 - v * 38.f);
-		p.x += std::sin(v * 2.f + i) * 6;
-		float a = minOf(1.f, v / 0.6f) * maxOf(0.f, 1 - (u - 3.6f) / 1.2f);
-		for (int k = 3; k >= 0; --k) {
-			sf::CircleShape g(3.f + k * 4); g.setOrigin({ g.getRadius(), g.getRadius() }); g.setPosition(p);
-			g.setFillColor(sf::Color(255, 240, 225, (std::uint8_t)((k == 0 ? 230 : 45 / k) * a))); w->draw(g, sf::BlendAdd);
-		}
+		float a = minOf(1.f, (u - st) / 1.2f);
+		float x = c.x - 220 + i * 110 + 18 * std::sin(u * 0.6f + i);
+		sf::VertexArray beam(sf::PrimitiveType::TriangleStrip, 4);
+		sf::Color top(255, 236, 200, (std::uint8_t)(70 * a)), bottom(255, 220, 170, 0);
+		beam[0] = sf::Vertex{ { x - 70, c.y - 420 }, top };
+		beam[1] = sf::Vertex{ { x - 40, c.y - 420 }, top };
+		beam[2] = sf::Vertex{ { x + 60, c.y + 260 }, bottom };
+		beam[3] = sf::Vertex{ { x + 120, c.y + 260 }, bottom };
+		w->draw(beam, sf::BlendAdd);
 	}
 	// Fade to white into the ending.
 	if (u > DEATH_END - DEATH_BURST - 1.2f) {
@@ -1695,7 +1753,7 @@ void Game::bossChase(float dt, sf::RenderWindow* w) {
 	sf::Vector2f d = me - (p + sf::Vector2f(12, 12));
 	if (leashed && bossPathLen - bossPathStep <= 1) { boss.source.y = Character::Down; boss.finishFrame(&player, w); return; }   // waiting in the middle
 	float dl = std::sqrt(d.x * d.x + d.y * d.y);
-	if (dl < 46) {                                    // in reach: he stands his ground (and swings) instead of walking through you
+	if (dl < 34) {                                    // in reach (blade to blade): he stands his ground (and swings) instead of walking through you
 		boss.source.y = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
 		boss.finishFrame(&player, w);
 		return;
@@ -1763,6 +1821,32 @@ void Game::drawItemGlints(sf::RenderWindow* w) {
 // The scythe's cut: a curved swipe sweeps across the hero (white edge, red
 // trail), a fine spray of blood follows the blow, and the hero flashes red.
 void Game::drawHitFx(sf::RenderWindow* w) {
+	// Steel on steel: a burst of sparks and a flash where the blades meet.
+	if (clashFxT >= 0) {
+		float k = clashFxT / 0.4f;
+		sf::CircleShape fl(4.f + 14.f * (1 - k)); fl.setOrigin({ fl.getRadius(), fl.getRadius() }); fl.setPosition(clashPos);
+		fl.setFillColor(sf::Color(255, 240, 200, (std::uint8_t)(200 * (1 - k)))); w->draw(fl, sf::BlendAdd);
+		for (int i = 0; i < 12; ++i) {
+			float a = i * 0.5236f + 0.2f;
+			float r0 = 3 + 18 * k, r1 = r0 + 6 + (i % 3) * 3;
+			sf::Vertex ray[2] = { { clashPos + sf::Vector2f(std::cos(a), std::sin(a)) * r0, sf::Color(255, 250, 220, (std::uint8_t)(255 * (1 - k))) },
+			                      { clashPos + sf::Vector2f(std::cos(a), std::sin(a)) * r1 + sf::Vector2f(0, 20 * k * k), sf::Color(255, 160, 60, 0) } };
+			w->draw(ray, 2, sf::PrimitiveType::Lines, sf::BlendAdd);
+		}
+	}
+	// The Blessed Sword's cut on the Devil: a bright slash across him.
+	if (bossCutFxT >= 0 && (bossActive || bossDeathT >= 0)) {
+		float k = bossCutFxT / 0.35f;
+		sf::Vector2f c = bossCentre() + sf::Vector2f(0, -14);
+		sf::Vector2f n(-bossCutDir.y, bossCutDir.x);
+		float L = 12 + 10 * minOf(1.f, bossCutFxT / 0.08f);
+		for (int i = -1; i <= 1; ++i) {
+			sf::Vector2f o = bossCutDir * (float)i;
+			sf::Vertex cut[2] = { { c - n * L + o, sf::Color(255, i == 0 ? 255 : 90, i == 0 ? 240 : 90, (std::uint8_t)(255 * (1 - k))) },
+			                      { c + n * L + o, sf::Color(255, i == 0 ? 255 : 90, i == 0 ? 240 : 90, (std::uint8_t)(255 * (1 - k))) } };
+			w->draw(cut, 2, sf::PrimitiveType::Lines, sf::BlendAdd);
+		}
+	}
 	if (hitFxT < 0) return;
 	sf::Vector2f c = pp() + sf::Vector2f(12, 0);
 	float base = std::atan2(hitFxDir.y, hitFxDir.x);
@@ -1790,4 +1874,30 @@ void Game::drawHitFx(sf::RenderWindow* w) {
 		sf::RectangleShape d({ i % 3 == 0 ? 2.f : 1.f, i % 3 == 0 ? 2.f : 1.f }); d.setPosition(p);
 		d.setFillColor(sf::Color(190, 10, 25, (std::uint8_t)(255 * bf))); w->draw(d);
 	}
+}
+
+// Start one of his attacks: 0 normal swing, 1 quick jab, 2 double swing
+// (two cuts), 3 lunge (he glides in from further away during the wind-up).
+void Game::startBossAttack(int kind, sf::Vector2f d) {
+	bossAtkKind = kind;
+	float wind = kind == 0 ? frand(0.38f, 0.55f) : kind == 1 ? frand(0.22f, 0.3f) : kind == 2 ? frand(0.32f, 0.42f) : 0.5f;
+	BOSS_RAISE = kind == 1 ? 0.12f : 0.22f;
+	BOSS_WINDUP = BOSS_RAISE + wind;
+	BOSS_SWING = BOSS_WINDUP + 0.16f;
+	BOSS_ATK_END = BOSS_SWING + (kind == 1 ? 0.16f : 0.26f);
+	bossAtkDamage = kind == 1 ? 14.f : kind == 3 ? 20.f : 22.f;
+	bossAtkT = 0; bossAtkLanded = false;
+	bossAtkDir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
+	boss.source.y = bossAtkDir;
+	audio.play(SFX_BREATH, 80, kind == 1 ? 0.8f : 0.55f);   // a low, ragged breath as he raises it
+	if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS attack kind %d\n", kind);
+}
+
+void Game::drawBossParry(sf::RenderWindow* w) {
+	sf::Vector2f bp = boss.characterImage.getPosition(), d = (pp() + sf::Vector2f(12, 12)) - bossCentre();
+	int dir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
+	bossAtkSprite.setTextureRect(sf::IntRect({ 1 * 72, dir * 72 }, { 72, 72 }));   // the raised-scythe pose
+	bossAtkSprite.setPosition({ bp.x - 24, bp.y - 40 });
+	bossAtkSprite.setColor(sf::Color(255, 235, 225));
+	w->draw(bossAtkSprite);
 }

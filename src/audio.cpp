@@ -48,7 +48,8 @@ Audio::Audio() {
 		{ TRACK_END_TRUE,    "ending_true.ogg",    85, true },
 		{ TRACK_END_OTHER,   "rank_music.ogg",     85, true },
 		{ TRACK_END_TRAPPED, "music_wrong.ogg",    85, true },
-		{ TRACK_DEVIL_DEATH, "devil_death.ogg",    95, false },   // his death: the swell, the burst, the dawn chord
+		{ TRACK_DEVIL_DEATH, "devil_death.ogg",    95, false },
+		{ TRACK_BOSS,        "boss_fight.ogg",     80, true },    // the fight: war drums, a gritty ostinato, a dark choir   // his death: the swell, the burst, the dawn chord
 	};
 	const char* themeFiles[3] = { "theme_calm.ogg", "theme_dread.ogg", "theme_nursery.ogg" };
 	for (int i = 0; i < 3; ++i)

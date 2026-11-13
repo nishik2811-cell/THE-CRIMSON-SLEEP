@@ -10,5 +10,5 @@ public:
 	void movement(Character*, sf::RenderWindow*) override;
 	int colSpecialTile();
 	void stepTo(sf::Vector2f target, Character* player, sf::RenderWindow* window);   // follow a planned path
-	void finishFrame(Character* player, sf::RenderWindow* window);                   // animate, draw, EMF beep
+	void finishFrame(Character* player, sf::RenderWindow* window);                   // animate and draw
 };

@@ -51,7 +51,7 @@ public:
 	void update(sf::RenderWindow* window, float dt);
 	void retryRoom();             // after death: wake up at the room's entrance
 	const RunStats& stats() const { return runStats; }
-	Track musicTrack() const { return bossDeathT >= 0 ? TRACK_DEVIL_DEATH : chaseHold > 0 ? TRACK_CHASE : TRACK_GAME; }
+	Track musicTrack() const { return bossDeathT >= 0 ? TRACK_DEVIL_DEATH : bossActive ? TRACK_BOSS : chaseHold > 0 ? TRACK_CHASE : TRACK_GAME; }
 	Str deathReason;
 	int deathTip = TIP_FEAR;
 
@@ -141,7 +141,8 @@ private:
 	int demoEnc = 0;
 	float demoCarrieCD = 0;
 	bool demoWillBlock = true;
-	float demoSamaraHold = 0;   // seconds spent frozen for Samara this encounter
+	float demoSamaraHold = 0;
+	float demoDodgeT = 0; int demoDodgeDir = 0; bool demoDodging = false;   // a committed sidestep away from a spirit   // seconds spent frozen for Samara this encounter
 	int demoRoute = 0;        // which ending the demo plays: 0 true, 1 escape, 2 secret, 3 trapped   // after a look at Carrie, carry on for a while          // 0 none, 1 Carrie, 2 Samara
 	float demoEncT = 0;
 	bool demoGoalDone(int g);
@@ -158,15 +159,25 @@ private:
 	// The Devil's scythe: raise, wind-up (the telegraph), SWING, follow-through.
 	float bossAtkT = -1, bossAtkCD = 2.f; // -1 = not swinging
 	int bossAtkDir = 0; bool bossAtkLanded = false;
-	static constexpr float BOSS_RAISE = 0.25f, BOSS_WINDUP = 0.70f, BOSS_SWING = 0.88f, BOSS_ATK_END = 1.15f;
+	// Each attack sets its own timing (see startBossAttack): a normal swing, a
+	// quick jab, a double swing, or a lunge from further out.
+	float BOSS_RAISE = 0.25f, BOSS_WINDUP = 0.70f, BOSS_SWING = 0.88f, BOSS_ATK_END = 1.15f;
+	int bossAtkKind = 0, bossCombo = 0; float bossAtkDamage = 22.f;
+	float bossParryT = -1;                    // he caught your blade on the scythe
+	void startBossAttack(int kind, sf::Vector2f d);
+	void drawBossParry(sf::RenderWindow* w);
 	static constexpr float BOSS_REACH = 62.f;
-	float hitFxT = -1; sf::Vector2f hitFxDir;      // the scythe's cut across the hero: slash + blood
+	float hitFxT = -1; sf::Vector2f hitFxDir;
+	float clashFxT = -1, bossCutFxT = -1; sf::Vector2f clashPos, bossCutDir;   // blades meeting / the sword's cut on him      // the scythe's cut across the hero: slash + blood
 	void drawHitFx(sf::RenderWindow* w);
 	sf::Texture bossAtkTex; sf::Sprite bossAtkSprite{ bossAtkTex };
 	// Samara and her locket: she rises beside her bones and waits for it.
 	bool cardOpen[8] = {};               // console cards expanded by a click (show every element)
 	bool locketReturned = false;          // gave it back: she's at peace (needed for the true ending)
 	float samaraT = -1, samaraGoneT = -1; // waiting in the Ossuary / ascending after the gift
+	bool samaraSpoke = false;             // she has asked for it
+	static constexpr float SAMARA_APPEAR = 5.f, SAMARA_RISEN = 8.f;   // seconds after taking the locket
+	float locketFlyT = -1;                // the locket floating from your hand to hers
 	sf::Vector2f samaraPos;
 	sf::Texture samaraTex; sf::Sprite samaraSprite{ samaraTex };
 	void samaraRise(bool instant);

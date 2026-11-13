@@ -172,6 +172,17 @@ bool Game::demoEncounter(float dt) {
 
 	// A wandering spirit about to walk into you: flare it (it freezes and you
 	// walk on past), or if the flare is still recharging, step out of its way.
+	// Mid-dodge: finish the sidestep, then wait there for the spirit to pass
+	// (no turning back and forth).
+	if (demoDodging) {
+		demoDodgeT += dt;
+		if (demoDodgeT < 0.55f) { player.forcedDir = demoDodgeDir; return true; }
+		float gd = 1e9f;
+		for (int i = 0; i < easyCount; ++i) { float q = dist(ghostEasy[i].characterImage.getPosition() + sf::Vector2f(12, 12), me); if (q < gd) gd = q; }
+		for (int i = 0; i < mediumCount; ++i) { float q = dist(ghostMedium[i].characterImage.getPosition() + sf::Vector2f(12, 12), me); if (q < gd) gd = q; }
+		if (ghostStun <= 0 && gd < 70 && gd > 44 && demoDodgeT < 3.f) return true;   // let it go by (closer than that: dodge again below)
+		demoDodging = false;
+	}
 	if (ghostStun <= 0) {
 		float gd = 1e9f; sf::Vector2f gp;
 		for (int i = 0; i < easyCount; ++i) { sf::Vector2f q = ghostEasy[i].characterImage.getPosition() + sf::Vector2f(12, 12); if (dist(q, me) < gd) { gd = dist(q, me); gp = q; } }
@@ -189,6 +200,7 @@ bool Game::demoEncounter(float dt) {
 	float cd = child.distanceTo(pp());
 	bool seeCarrie = child.active && childBanishT <= 0 && child.stun <= 0 && cd < 170 &&
 	                 ai::lineOfSight(maps[room].map, me, child.pos);
+	if (seeCarrie && cd < 60 && canFlare) { flareLantern(); demoCarrieCD = 4.f; return false; }   // she's almost on you: flare at once
 	if (seeCarrie && demoCarrieCD <= 0) {
 		demoEnc = 1;
 		sf::Vector2f d = child.pos - me;
@@ -197,7 +209,8 @@ bool Game::demoEncounter(float dt) {
 		if (was != 1) { demoEncT = 0; showToast("Carrie! Face her - she can't move while you watch her."); }
 		demoEncT += dt;
 		if (demoEncT > 1.0f && cd < 125 && canFlare) { flareLantern(); demoCarrieCD = 4.f; return false; }
-		if (demoEncT > 2.0f) { demoCarrieCD = 5.f; return false; }   // no flare to spare: carry on (never a staring match)
+		if (cd < 110 && flareCooldown < 8.5f) return true;   // she's close: keep her frozen with your eyes till the lantern is ready
+		if (demoEncT > 2.0f) { demoCarrieCD = 5.f; return false; }   // no flare for a while and she's further off: carry on
 		return true;
 	}
 	// Samara: she hunts by sound.  The flare drives her off the moment she's
@@ -210,7 +223,7 @@ bool Game::demoEncounter(float dt) {
 		demoEnc = 2;
 		demoEncT += dt;
 		if (canFlare && sd < 125) { flareLantern(); return false; }       // drive her off
-		if (sd < 80 && demoSamaraHold < 2.2f) { demoSamaraHold += dt; return true; }   // freeze: she loses the trail
+		if (sd > 60 && sd < 150 && demoSamaraHold < Bride::LOSE_AFTER + 0.5f) { demoSamaraHold += dt; return true; }   // freeze till she loses the trail
 		return false;                                                    // keep going
 	}
 	return false;
@@ -244,6 +257,7 @@ bool Game::demoDodge(sf::Vector2f from) {
 	}
 	if (best < 0) return false;
 	player.forcedDir = best;
+	demoDodgeDir = best; demoDodgeT = 0; demoDodging = true;   // commit: step aside for ~half a second, then hold
 	demoPathLen = 0;                                // re-plan from wherever the dodge ends
 	return true;
 }
@@ -350,8 +364,14 @@ void Game::demoUpdate(float dt) {
 	demoReplanT += dt;
 	// Samara: walk up to her and give the locket back (E), like a player would.
 	if (g.tile == -2 && room == g.room) {
-		if (nearSamara()) { player.source.y = samaraPos.y > pp().y + 12 ? Character::Down : Character::Up; interact(); demoWait = READ_PAUSE; return; }
-		if (samaraT < 1.5f) return;                 // let her finish rising first
+		if (locketFlyT >= 0 || samaraGoneT >= 0) return;   // the locket is on its way / she is rising: watch
+		if (nearSamara()) {
+			player.source.y = samaraPos.y > pp().y + 12 ? Character::Down : Character::Up;
+			if (demoTalkT < 3.0f && !dialogue.empty()) return;        // let her words be read first
+			interact(); demoWait = 1.4f; return;
+		}
+		if (samaraSpoke && demoTalkT < 3.0f && !dialogue.empty()) return;
+		if (samaraT < SAMARA_RISEN) return;         // wait for her: the silence, the whisper, her rising
 		int st = (int)(samaraPos.y / 32) * GRID_W + (int)(samaraPos.x / 32);
 		if (st != demoTargetIdx) { demoTargetIdx = st; demoPathLen = 0; }
 	}
@@ -373,14 +393,14 @@ void Game::demoUpdate(float dt) {
 		if (bossAtkT >= 0 && bossAtkT < BOSS_SWING + 0.05f) {
 			// He winds up: turn to face him and raise the guard (C) - the clash
 			// staggers him, and that's the opening for the sword.
-			if (bossAtkT < 0.05f) demoWillBlock = std::rand() % 4 != 0;   // like a player, it doesn't always get the guard up
+			if (bossAtkT < 0.05f) demoWillBlock = std::rand() % 100 < (bossAtkKind == 1 ? 60 : 80);   // quick jabs are harder to read   // like a player, it doesn't always get the guard up
 			if (bd < BOSS_REACH + 14 && demoWillBlock) {
 				player.source.y = std::fabs(dv.x) > std::fabs(dv.y) ? (dv.x > 0 ? Character::Right : Character::Left)
 				                                                     : (dv.y > 0 ? Character::Down : Character::Up);
 				player.blocking = true;
 				return;
 			}
-			if (bd < BOSS_REACH + 14) { if (!demoDodge(bc)) player.forcedDir = dv.x > 0 ? Character::Left : Character::Right; return; }
+			if (bd < BOSS_REACH + 14) return;            // too slow to raise the guard: it takes the cut (no backing off)
 			player.source.y = std::fabs(dv.x) > std::fabs(dv.y) ? (dv.x > 0 ? Character::Right : Character::Left)
 			                                                     : (dv.y > 0 ? Character::Down : Character::Up);
 			return;                                 // wait at the edge of his reach for the blade to pass
@@ -427,7 +447,7 @@ void Game::demoUpdate(float dt) {
 		if (!startTile && (g.tile >= 0 || healing) && demoDanger(t % GRID_W, t / GRID_W) && demoBlockedT < 2.5f) {
 			demoBlockedT += dt;
 			if (demoBlockedT > 0.6f && flareCooldown <= 0 && player.has(LANTERN)) flareLantern();
-			if (demoBlockedT > 1.2f && onTile) { demoPathLen = 0; demoBlockedT = 0; return; }   // try a way around
+			if (demoBlockedT > 2.0f && onTile) { demoPathLen = 0; demoBlockedT = 0; return; }   // still blocked: try a way around
 			return;
 		}
 		demoBlockedT = 0;

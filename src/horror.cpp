@@ -49,8 +49,12 @@ void Bride::update(float dt, sf::Vector2f player, bool playerMoving) {
 		// She hunts by sound: while you move she comes straight for you; stand
 		// still and she loses the trail and slowly drifts away.
 		if (pacified) {}
-		else if (lostTrail()) { if (l > 1) pos -= d / l * 10.f * dt; }
-		else if (l > 1) pos += d / l * 52.f * dt;
+		else if (lostTrail()) { if (l > 1) pos -= d / l * 14.f * dt; }                 // lost you: she drifts away
+		else if (listening()) {                                                            // you stopped: she slows, listening
+			float k = 1.f - stillT / LOSE_AFTER;                                           // ...slower and slower
+			if (l > 1) pos += d / l * 24.f * k * dt;
+		}
+		else if (l > 1) pos += d / l * 52.f * dt;                                          // she hears your steps: straight at you
 		pos.x += std::sin(wobble * 2.1f) * 12 * dt;
 		timer -= dt;
 		if (timer <= 0 || (pacified && timer < 12)) banish(frand(18, 28));

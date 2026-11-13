@@ -250,7 +250,7 @@ int Screens::controls(sf::RenderWindow* w, float dt) {
 	sf::Text k(fontSerif, keys, 23); k.setFillColor(BONE); k.setPosition({ (float)(110), (float)(160) }); w->draw(k);
 	const char* tips =
 		"How to survive\n\n"
-		"- Samara hunts by sound. Stand still, or flare.\n"
+		"- Samara hunts by sound. Stand still till she loses you, or flare.\n"
 		"- Never turn your back on Carrie. Face her to freeze her.\n"
 		"- Spirits walk fixed paths: watch, then cross.\n"
 		"- Fear kills too: keep the lantern lit and rest.\n"
@@ -338,7 +338,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		{ { "The corpse crumbles into grey ash.", "You stagger out into a cold, colourless morning.", "Behind you, faint and far away, a woman is still weeping.", "Somewhere beneath the chapel, something was left undone.", "" }, "ESCAPE ENDING" },
 		{ { "The petrol catches. The house screams.", "Smoke fills the corridors - every door slams shut.", "Through the flames they come, all ten of them.", "The fire burns for three days.", "No one finds you. The house simply... sleeps again.", "" }, "TRAPPED ENDING" },
 		{ { "You run, the locket burning in your fist.", "The front door gives way to a forest of black trees.", "Samara walks beside you now - quiet, at peace.", "But beneath the house, the Devil still sleeps.", "And one day, he will dream of you.", "" }, "SECRET ENDING" },
-		{ { "The last blow falls. The Devil bursts into ash, and is gone.", "Ten pale lights rise slowly from the floorboards.", "The brightest of them wears a locket at her throat.", "Samara smiles at you - and they drift up into the dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
+		{ { "The last blow falls. The Devil bursts into ash, and is gone.", "For a moment there is only silence.", "Then, far above, the weeping stops - and Samara is at peace.", "Morning light finds its way into the house at last.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
 	};
 	const Script& sc = scripts[e < 1 || e > 4 ? 1 : e];
 
@@ -372,24 +372,20 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	}
 	else drawMotes(w, dt, e == END_TRUE ? sf::Color(255, 230, 200) : sf::Color(200, 40, 50), true);
 
-	// Ten freed souls rise on the true ending.
-	if (e == END_TRUE && endT > 3.5f) {
-		for (int si = 0; si < 10; ++si) {
-			Soul& s = souls[si];
-			bool samara = si == 4;                     // the brightest light: Samara, her locket at her throat
-			s.y -= s.speed * dt * (samara ? 0.8f : 1.f);
-			float x = s.x + 14 * std::sin(endT * 1.3f + s.phase);
-			for (int k = 3; k >= 0; --k) {
-				sf::CircleShape g((samara ? 6.f : 4.f) + k * (samara ? 6.f : 4.f));
-				g.setOrigin({ (float)(g.getRadius()), (float)(g.getRadius()) });
-				g.setPosition({ (float)(x), (float)(s.y) });
-				g.setFillColor(samara ? sf::Color(255, 225, 190, (std::uint8_t)(k == 0 ? 250 : 60 / k)) : sf::Color(255, 240, 230, (std::uint8_t)(k == 0 ? 230 : 40 / k)));
-				w->draw(g, sf::BlendAdd);
-			}
-			if (samara) {                              // a tiny crimson glint: the locket
-				sf::CircleShape l(2.2f); l.setOrigin({ 2.2f, 2.2f }); l.setPosition({ x, s.y + 9 });
-				l.setFillColor(sf::Color(255, 60, 70, 230)); w->draw(l);
-			}
+	// The true ending: a flock of birds crosses the sunrise - the first living
+	// things the house has seen in seventy years.
+	if (e == END_TRUE && endT > 5.f) {
+		for (int i = 0; i < 9; ++i) {
+			float bt = endT - 5.f - (i % 3) * 0.6f;
+			if (bt < 0) continue;
+			float x = -60.f + bt * (38.f + (i % 4) * 4.f) + (i / 3) * 28.f;
+			float y = 250.f + (i % 3) * 22.f + (i / 3) * 14.f - bt * 4.f + 4.f * std::sin(bt * 1.3f + i);
+			if (x > 1100) continue;
+			float flap = std::sin(bt * (7.f + i % 3) + i) * 4.f;
+			float sz = 5.f + (i % 3);
+			sf::Color ink(30, 8, 16, (std::uint8_t)(220 * minOf(1.f, bt / 1.5f)));
+			sf::Vertex wing[4] = { { { x - sz, y - flap }, ink }, { { x, y }, ink }, { { x, y }, ink }, { { x + sz, y - flap }, ink } };
+			w->draw(wing, 4, sf::PrimitiveType::Lines);
 		}
 	}
 	sf::RectangleShape dim(sf::Vector2f(1024, 768)); dim.setFillColor(sf::Color(0, 0, 0, e == END_TRUE && hasDawn ? 0 : 90)); w->draw(dim);
