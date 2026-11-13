@@ -324,6 +324,19 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 
 Requires **SFML 3** (Graphics, Window, System, Audio) and a C++17 compiler.
 
+**Quick start: the launchers.** Each one builds the game if needed (only what changed, so it
+picks up new code after a `git pull`) and then starts it:
+
+| System | Launcher |
+| --- | --- |
+| Linux | `./run.sh` |
+| macOS | `./run.sh`, or double-click **`run.command`** in Finder |
+| Windows | double-click **`run.bat`** (needs MSYS2 in `C:\msys64`) |
+
+`run.sh` finds SFML 3 by itself (Homebrew on macOS, the system packages on Linux) and says what to
+install if it's missing. Use `./run.sh --rebuild` for a clean build, or
+`SFML_DIR=/path/to/sfml3 ./run.sh` for an SFML 3 install in a custom place.
+
 **Linux (Ubuntu / Debian)**
 ```bash
 sudo apt-get install -y g++ make libsfml-dev   # must be SFML 3.x
