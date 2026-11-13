@@ -61,6 +61,7 @@ public:
 	void devSpawnBride();
 	void devSwing() { swingSword(); }
 	void devBack() { goBack(); }
+	void devFlare() { flareLantern(); }
 	void devHide() { (void)player.col.isInteractionMap(pp(), player.source.y); hideTile = player.col.facingTile(player.source.y); hidden = true; player.hiddenAway = true; }
 	void devSpawnSpider() { if (spiderCount < 1) spiderCount = 1; spiders[0].reset(true, pp() + sf::Vector2f(-150.f, 12.f)); spiders[0].dir = 2; spiders[0].wait = 30; }
 	void devHold(int dir) { player.forcedDir = dir; }
@@ -134,6 +135,8 @@ private:
 	bool demoPlan(int tile, bool avoid);
 	bool demoDanger(int c, int r);
 	bool demoEncounter(float dt);
+	bool demoDodge(sf::Vector2f from);
+	int demoFindKit();
 	int demoEnc = 0;          // 0 none, 1 Carrie, 2 Samara
 	float demoEncT = 0;
 	bool demoGoalDone(int g);
@@ -147,6 +150,33 @@ private:
 	static const int BOSS_MAX_HP = 6;
 	int bossHP = BOSS_MAX_HP;             // the Devil takes six blows of the Blessed Sword
 	float bossHitT = 0, bossDeathT = -1;  // red flash on a hit; >= 0 while he collapses
+	// The Devil's scythe: raise, wind-up (the telegraph), SWING, follow-through.
+	float bossAtkT = -1, bossAtkCD = 2.f; // -1 = not swinging
+	int bossAtkDir = 0; bool bossAtkLanded = false;
+	static constexpr float BOSS_RAISE = 0.25f, BOSS_WINDUP = 0.70f, BOSS_SWING = 0.88f, BOSS_ATK_END = 1.15f;
+	static constexpr float BOSS_REACH = 62.f;
+	sf::Texture bossAtkTex; sf::Sprite bossAtkSprite{ bossAtkTex };
+	// Samara and her locket: she rises beside her bones and waits for it.
+	bool locketReturned = false;          // gave it back: she's at peace (needed for the true ending)
+	float samaraT = -1, samaraGoneT = -1; // waiting in the Ossuary / ascending after the gift
+	sf::Vector2f samaraPos;
+	sf::Texture samaraTex; sf::Sprite samaraSprite{ samaraTex };
+	void samaraRise(bool instant);
+	void returnLocket();
+	void updateSamara(float dt);
+	void drawSamara(sf::RenderWindow* w);
+	bool nearSamara();
+public:
+	bool devLocketReturned() const { return locketReturned; }
+	void devGiveLocket(bool returned) { player.give(CRIMSON_LOCKET); bride.pacified = true; if (returned) { player.take(CRIMSON_LOCKET); locketReturned = true; } }
+private:
+	void updateBossAttack(float dt);
+	void drawBossAttack(sf::RenderWindow* w, bool overDark);
+	void drawDevilGlow(sf::RenderWindow* w);
+	void drawDevilDeath(sf::RenderWindow* w);
+	sf::Vector2f deathPos;
+	static constexpr float DEATH_BURST = 2.8f, DEATH_END = 7.5f;   // convulsing until the burst; the ending after
+	sf::Vector2f bossCentre() const { return boss.characterImage.getPosition() + sf::Vector2f(12, 12); }
 	float swingT = 0, swingHitT = 0;      // sword cooldown, time until the STRIKE frame lands
 	void swingSword();
 	void swordLand();

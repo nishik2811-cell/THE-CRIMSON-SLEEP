@@ -57,6 +57,9 @@ static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX
 Game::Game(Audio& a) : audio(a) {
 	g_lastLookup = -1; g_consoleScroll = 0;
 	if (deadTex.loadFromFile(asset("graphics/spider_dead.png"))) deadSprite.setTexture(deadTex, true);
+	if (bossAtkTex.loadFromFile(asset("graphics/enemy_boss_attack.png"))) bossAtkSprite.setTexture(bossAtkTex, true);
+	if (samaraTex.loadFromFile(asset("graphics/wraith.png"))) samaraSprite.setTexture(samaraTex, true);
+	samaraSprite.setOrigin({ 12.f, 40.f });
 	// The card's blood: find where each thin strip of the drip image ends, so the
 	// strips can be revealed downwards one by one - the blood runs down the card.
 	{
@@ -193,8 +196,10 @@ void Game::spawnEnemies() {
 	}
 	else if (room == CRIMSON_CRYPT && bossHP > 0) { boss.setPosition({ (float)(838), (float)(228) }); bossActive = true; }
 
-	bride.reset(ROOMS[room].wraith, frand(10, 18));
-	bride.pacified = player.has(CRIMSON_LOCKET);
+	bride.reset(ROOMS[room].wraith && !locketReturned, frand(10, 18));   // at peace: she never hunts again
+	bride.pacified = player.has(CRIMSON_LOCKET) || locketReturned;
+	samaraT = samaraGoneT = -1;
+	if (room == OSSUARY && player.has(CRIMSON_LOCKET) && !locketReturned) samaraRise(true);   // still waiting for it
 	bool crawl = room == NURSERY || room == HIDDEN_TUNNEL || room == OSSUARY || room == COLLAPSED_BEDROOM;
 	sf::Vector2f spot = room == NURSERY ? sf::Vector2f(780, 520) : room == HIDDEN_TUNNEL ? sf::Vector2f(700, 180) :
 		room == OSSUARY ? sf::Vector2f(250, 330) : sf::Vector2f(620, 560);
@@ -230,6 +235,7 @@ void Game::retryRoom() {
 	if (room == CRIMSON_CRYPT) { digCount = digCount >= 4 ? 4 : 0; }
 	placePlayer(entryTile);
 	spawnEnemies();
+	demoPathLen = 0; demoWait = 1.f;
 	dialogue = "";
 	say("You wake again, gasping. The house lets you try once more.");
 }
@@ -264,7 +270,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (jumpscare > 0) { jumpscare -= dt; player.frozen = jumpscare > 0.25f; }
 		player.light.flicker *= 0.92f;
 	}
-	player.frozen = overlay || jumpscare > 0.25f || hidden || doorT >= 0 || (arriveT >= 0 && arriveT < WALK_OUT);
+	player.frozen = overlay || jumpscare > 0.25f || hidden || doorT >= 0 || (arriveT >= 0 && arriveT < WALK_OUT) || bossDeathT >= 0;
 
 	window->setView(player.view);   // the room always follows the camera
 	// Camera shake.
@@ -293,15 +299,16 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	}
 	if (bossActive) {
 		boss.characterImage.setColor(bossHitT > 0 ? sf::Color(255, 90, 90) : sf::Color::White);   // flashes red when struck
-		if (overlay || bossStun > 0) { window->draw(boss.characterImage); boss.beep_sound.stop(); }
+		if (bossAtkT >= 0) drawBossAttack(window, false);                   // planted mid-swing
+		else if (overlay || bossStun > 0) { window->draw(boss.characterImage); boss.beep_sound.stop(); }
 		else boss.movement(&player, window);
 	}
-	else if (bossDeathT >= 0) {                      // the Devil collapses: sinks, darkens, fades
-		float k = minOf(1.f, bossDeathT / 2.2f);
-		boss.characterImage.setColor(sf::Color(255, (std::uint8_t)(120 * (1 - k)), (std::uint8_t)(120 * (1 - k)), (std::uint8_t)(255 * (1 - k))));
-		window->draw(boss.characterImage);
+	else if (bossDeathT >= 0) {                      // the Devil's death plays over the darkness (drawDevilDeath)
+		float before = bossDeathT;
 		if (!overlay) bossDeathT += dt;
-		if (bossDeathT > 2.6f) { bossDeathT = -1; player.end_sound.play(); finish(player.has(CRIMSON_LOCKET) ? END_TRUE : END_ESCAPE); return; }
+		if (before < DEATH_BURST && bossDeathT >= DEATH_BURST) { audio.play(SFX_SCREAM, 100, 0.35f); audio.play(SFX_GLASS, 100, 0.5f); shake = 1.6f; }
+		if (bossDeathT < DEATH_BURST) shake = maxOf(shake, 0.35f + 0.5f * bossDeathT / DEATH_BURST);   // the crypt shakes harder and harder
+		if (bossDeathT > DEATH_END) { bossDeathT = -1; player.end_sound.play(); finish(locketReturned ? END_TRUE : END_ESCAPE); return; }
 	}
 	if (!overlay) child.update(dt, pp(), player.source.y);
 	child.draw(window);
@@ -368,8 +375,12 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	// --- horrors that glow through the dark ---
 	if (!overlay) {
 		bride.update(dt, pp(), player.isMoving());
+		updateSamara(dt);
 	}
 	bride.draw(window);
+	drawSamara(window);
+	drawDevilGlow(window);
+	drawDevilDeath(window);
 	drawWorldOverlays(window);
 
 	for (int si = 0; si < spiderCount; ++si) spiders[si].drawEyes(window, pp() + sf::Vector2f(12, 12));   // red glints in the dark
@@ -412,9 +423,11 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		updateEvents(dt);
 		updateThreats(dt);
 		updateHints(dt);
-		if (bossActive && bossStun <= 0 && !hidden && player.invulnerable <= 0 && boss.isCollisionCharacter(&player)) {
+		updateBossAttack(dt);
+		if (game_state != ST_PLAYING) return;
+		if (bossActive && bossStun <= 0 && bossAtkT < 0 && !hidden && player.invulnerable <= 0 && boss.isCollisionCharacter(&player)) {
 			audio.play(SFX_SCREAM, 70, 0.6f);
-			hurt(25, 15, "The Devil's claws tear into you!", TIP_DEVIL, false);
+			hurt(15, 12, "The Devil's claws tear into you!", TIP_DEVIL, false);
 			knockBack(boss.characterImage.getPosition());
 			if (game_state != ST_PLAYING) return;
 		}
@@ -452,6 +465,7 @@ void Game::pickUp(int item, const Str& msg, bool clearTile) {
 }
 
 void Game::interact() {
+	if (nearSamara()) { returnLocket(); return; }
 	int id = player.col.isInteractionMap(pp(), player.source.y);
 	if (id < 0) return;
 	switch (id) {
@@ -510,12 +524,13 @@ void Game::interact() {
 	case 11: pickUp(LANTERN, "Lantern picked up.\nIts flame burns a sickly red.\n(F: flare it to drive spirits back)", true); break;
 	case 12: // skeleton: Bride's remains (Ossuary) / Devil's corpse (Crypt)
 		if (room == OSSUARY && !player.has(CRIMSON_LOCKET)) {
-			pickUp(CRIMSON_LOCKET, "The skeleton's fingers open on their own.\nA Crimson Locket. Inside: a wedding photo, 1953.\n\nSomewhere above, a woman stops weeping.", false);
+			pickUp(CRIMSON_LOCKET, "The skeleton's fingers open on their own.\nA Crimson Locket. Inside: a wedding photo, 1953.\n\nThe weeping stops. Someone is standing behind you.", false);
 			bride.pacified = true;
 			audio.play(SFX_CHIME, 80);
+			samaraRise(false);
 		}
 		else if (room == CRIMSON_CRYPT) {
-			if (player.has(SWORD)) { player.end_sound.play(); finish(player.has(CRIMSON_LOCKET) ? END_TRUE : END_ESCAPE); }
+			if (player.has(SWORD)) { player.end_sound.play(); finish(locketReturned ? END_TRUE : END_ESCAPE); }
 			else say("The corpse twitches. You need a blessed blade.");
 		}
 		else say("Bones. Just bones. Probably.");
@@ -611,6 +626,7 @@ void Game::flareLantern() {
 		showToast(b); return;
 	}
 	flareCooldown = FLARE_COOLDOWN; flare = 1.f;
+	if (getenv("CS_TRACE")) std::fprintf(stderr, "FLARE\n");
 	lanternOn = true;                    // a flare relights the lantern
 	player.fear -= 20;
 	audio.play(SFX_FLARE, 90);
@@ -627,7 +643,11 @@ void Game::flareLantern() {
 	}
 	for (int i = 0; i < easyCount; ++i) if (dist(ghostEasy[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
 	for (int i = 0; i < mediumCount; ++i) if (dist(ghostMedium[i].characterImage.getPosition(), pp()) < 110) ghostStun = 3.5f;
-	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) { bossStun = 2.f; showToast("The Devil recoils from the light!"); }
+	if (bossActive && dist(boss.characterImage.getPosition(), pp()) < 110) {
+		bossStun = 2.f;
+		if (bossAtkT >= 0 && bossAtkT < BOSS_SWING) { bossAtkT = -1; bossAtkCD = 1.2f; showToast("The light breaks his swing!"); }
+		else showToast("The Devil recoils from the light!");
+	}
 	bool stunned = false;
 	for (int i = 0; i < spiderCount; ++i) {
 		if (!spiders[i].active) continue;
@@ -657,10 +677,10 @@ void Game::hurt(float h, float f, const Str& why, int tip, bool respawn) {
 }
 
 void Game::die(const Str& why, int tip) {
-	if (demo) return;   // the demo dreamer can't die
 	player.dead_sound.play();
 	boss.beep_sound.stop();
 	runStats.deaths++;
+	if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "DEMO died in room %d: %s\n", room, why.c_str());
 	deathReason = why; deathTip = tip;
 	game_state = ST_RETRY;
 }
@@ -866,7 +886,11 @@ void Game::updateHints(float dt) {
 		if (!collected(s.item)) { key = i * 2; targetRoom = s.room; targetTile = s.tile; what = Str("The ") + ITEMS[s.item].name + " is somewhere in the " + ROOMS[s.room].name + "."; break; }
 		if (e && e->locked) { key = i * 2 + 1; targetRoom = s.lockFrom; targetTile = 3 + e->doorNo; what = Str("Use the ") + ITEMS[s.item].name + " on the door to the " + ROOMS[s.lockTo].name + "."; break; }
 	}
-	if (key == 100) {
+	if (key == 100 && player.has(CRIMSON_LOCKET) && !locketReturned) {
+		key = 19; targetRoom = OSSUARY; targetTile = 12;
+		what = "Samara waits by her bones in the Ossuary. Give her back her locket (E).";
+	}
+	else if (key == 100) {
 		targetRoom = CRIMSON_CRYPT;
 		int lc, lr;
 		if (maps[CRIMSON_CRYPT].map.find(19, &lc, &lr)) { key = 20; targetTile = 19; what = "Read the note at the crypt's entrance - it opens the way."; }
@@ -1116,7 +1140,7 @@ float Game::scrawlWidth(const Str& word) const {
 // stopping at anything solid (walls, pits, fire), so a hit never throws you
 // into danger or back to the room's entrance.
 void Game::knockBack(sf::Vector2f from) {
-	if (demo) return;
+	if (demo) demoPathLen = 0;                    // the dreamer is shoved like anyone: re-plan from where it lands
 	sf::Vector2f d = pp() - from;
 	bool horiz = std::fabs(d.x) >= std::fabs(d.y);
 	int dir = horiz ? (d.x >= 0 ? Character::Right : Character::Left) : (d.y >= 0 ? Character::Down : Character::Up);
@@ -1183,10 +1207,13 @@ void Game::swordLand() {
 	bool hit = false;
 	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58)) {
 		hit = true;
-		--bossHP; bossHitT = 0.25f; bossStun = maxOf(bossStun, 0.7f);
+		--bossHP; bossHitT = 0.25f;
+		bool committed = bossAtkT >= BOSS_RAISE;      // mid-swing he doesn't flinch - he cuts back
+		if (!committed) { bossStun = 0.35f; bossAtkT = -1; }   // the blow staggers him - and wakes him from a flare's daze
+		bossAtkCD = minOf(bossAtkCD, 0.45f);          // and he answers every wound with the scythe
 		shake = 0.7f;
 		audio.play(SFX_SLAM, 95, 0.7f);
-		for (int i = 0; i < 26; ++i) {                // knocked back along the blow
+		for (int i = 0; i < (committed ? 0 : 26); ++i) {   // knocked back along the blow
 			sf::Vector2f step = f * 1.f;
 			int dir = d;
 			if (boss.col.isCollisionMap(boss.characterImage.getPosition(), dir)) break;
@@ -1195,7 +1222,8 @@ void Game::swordLand() {
 		if (bossHP <= 0) {
 			bossActive = false; bossDeathT = 0; boss.beep_sound.stop();
 			audio.play(SFX_SCREAM, 100, 0.5f);
-			say("The Blessed Sword bites deep.\nThe Devil shrieks, and the crypt shakes...");
+			bossAtkT = -1;
+			deathPos = bossCentre();
 			runStats.banished++;
 		}
 		else {
@@ -1314,5 +1342,247 @@ void Game::drawDoorTile(sf::RenderWindow* w, sf::Vector2i t, float open, float j
 		sf::RectangleShape edge(sideDoor ? sf::Vector2f(11.f, 1.f) : sf::Vector2f(1.f, 32.f));
 		edge.setPosition(sideDoor ? p + sf::Vector2f(11, 32 * k - 1) : p + sf::Vector2f(32 * k - 1, 0));
 		edge.setFillColor(sf::Color(170, 120, 90, (std::uint8_t)(200 * ease))); w->draw(edge);
+	}
+}
+
+// ------------------------------------------------------- the Devil's scythe
+// When you are within reach he plants his feet and swings: a quarter-second
+// raise, a long wind-up (his eyes and the floor in front of him burn red -
+// that's your warning), the cut, and a follow-through.  Step out of the
+// crimson arc or flare him during the wind-up.  Hit him and he answers.
+void Game::updateBossAttack(float dt) {
+	if (!bossActive || hidden) { if (!bossActive) bossAtkT = -1; return; }
+	sf::Vector2f bc = bossCentre(), me = pp() + sf::Vector2f(12, 12), d = me - bc;
+	float l = std::sqrt(d.x * d.x + d.y * d.y);
+	if (bossAtkT < 0) {
+		if (bossAtkCD > 0) bossAtkCD -= dt;
+		if (bossAtkCD <= 0 && bossStun <= 0 && l < BOSS_REACH - 8) {
+			bossAtkT = 0; bossAtkLanded = false;
+			bossAtkDir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
+			boss.source.y = bossAtkDir;
+			audio.play(SFX_BREATH, 80, 0.55f);         // a low, ragged breath as he raises it
+		}
+		return;
+	}
+	float before = bossAtkT;
+	bossAtkT += dt;
+	if (before < BOSS_WINDUP && bossAtkT >= BOSS_WINDUP) audio.play(SFX_WHISPER, 90, 0.5f);   // the blade cuts the air
+	if (!bossAtkLanded && bossAtkT >= BOSS_WINDUP + 0.06f) {
+		bossAtkLanded = true;
+		sf::Vector2f f = bossAtkDir == Character::Down ? sf::Vector2f(0, 1) : bossAtkDir == Character::Left ? sf::Vector2f(-1, 0) :
+		                 bossAtkDir == Character::Right ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
+		bool inArc = l < 24 || (l < BOSS_REACH && (d.x * f.x + d.y * f.y) / l > -0.15f);
+		shake = maxOf(shake, 0.5f);
+		if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS swing %s hp=%.0f\n", inArc ? "HIT" : "miss", player.health);
+		if (inArc && player.invulnerable <= 0) {
+			audio.play(SFX_SLAM, 100, 0.5f);
+			hurt(22, 14, "The Devil's scythe opens you to the bone!", TIP_DEVIL, false);
+			knockBack(bc);
+			shake = 1.f;
+		}
+	}
+	if (bossAtkT >= BOSS_ATK_END) { bossAtkT = -1; bossAtkCD = frand(1.4f, 2.2f); }
+}
+
+void Game::drawBossAttack(sf::RenderWindow* w, bool overDark) {
+	int f = bossAtkT < BOSS_RAISE ? 0 : bossAtkT < BOSS_WINDUP ? 1 : bossAtkT < BOSS_SWING ? 2 : 3;
+	sf::Vector2f bp = boss.characterImage.getPosition();
+	// Telegraph: during the wind-up the floor he is about to cut glows crimson.
+	if (overDark && bossAtkT < BOSS_WINDUP + 0.05f) {
+		float k = minOf(1.f, bossAtkT / BOSS_WINDUP);
+		float base = bossAtkDir == Character::Down ? 90.f : bossAtkDir == Character::Left ? 180.f : bossAtkDir == Character::Right ? 0.f : 270.f;
+		sf::Vector2f c = bossCentre();
+		sf::VertexArray fan(sf::PrimitiveType::TriangleFan, 18);
+		fan[0] = sf::Vertex{ c, sf::Color(200, 10, 30, (std::uint8_t)(40 + 70 * k)) };
+		for (int i = 1; i < 18; ++i) {
+			float a = (base - 100.f + 200.f * (i - 1) / 16.f) * 3.14159f / 180.f;
+			fan[i] = sf::Vertex{ c + sf::Vector2f(std::cos(a), std::sin(a)) * BOSS_REACH, sf::Color(255, 30, 50, (std::uint8_t)(10 + 40 * k)) };
+		}
+		w->draw(fan, sf::BlendAdd);
+	}
+	bossAtkSprite.setTextureRect(sf::IntRect({ f * 72, bossAtkDir * 72 }, { 72, 72 }));
+	bossAtkSprite.setPosition({ bp.x - 24, bp.y - 40 });   // walk sprites hang 24 px above their position; the body sits at (24,16) in the cell
+	bool tell = bossAtkT >= BOSS_RAISE && bossAtkT < BOSS_WINDUP;
+	std::uint8_t g = (std::uint8_t)(tell ? 150 + 60 * std::sin(bossAtkT * 40) : 255);
+	sf::Color c = bossHitT > 0 ? sf::Color(255, 90, 90) : sf::Color(255, g, g);
+	if (overDark) c.a = 215;                            // seen through the dark, a little ghostly
+	bossAtkSprite.setColor(c);
+	w->draw(bossAtkSprite);
+}
+
+// The Devil is never just a shape in the dark: a slow crimson aura, and his
+// figure (and his scythe) show through the darkness so you can read the fight.
+void Game::drawDevilGlow(sf::RenderWindow* w) {
+	if (!bossActive) return;
+	sf::Vector2f c = bossCentre() + sf::Vector2f(0, -12);
+	float pulse = 0.5f + 0.5f * std::sin(runStats.time * 3.f);
+	float rage = bossAtkT >= 0 && bossAtkT < BOSS_SWING ? 1.f : 0.f;
+	for (int k = 3; k >= 1; --k) {
+		sf::CircleShape g(14.f + k * 12.f); g.setOrigin({ g.getRadius(), g.getRadius() }); g.setPosition(c);
+		g.setFillColor(sf::Color(200, 10, 25, (std::uint8_t)((10 + 10 * pulse + 25 * rage) / k)));
+		w->draw(g, sf::BlendAdd);
+	}
+	if (bossAtkT >= 0) { drawBossAttack(w, true); return; }
+	sf::Sprite ghost = boss.characterImage;
+	ghost.setColor(bossHitT > 0 ? sf::Color(255, 90, 90, 220) : bossStun > 0 ? sf::Color(200, 200, 255, 150) : sf::Color(255, 220, 220, 170));
+	w->draw(ghost);
+}
+
+// ------------------------------------------------------- Samara's locket
+// Take the locket from her bones and Samara rises beside them - not hunting
+// now, waiting.  Walk up to her and press E to give it back (the true
+// ending needs it), or keep it and run for the front door (the secret one).
+void Game::samaraRise(bool instant) {
+	int c, r;
+	sf::Vector2f bones = maps[room].map.find(12, &c, &r) ? sf::Vector2f(c * 32.f + 16, r * 32.f + 16) : pp();
+	samaraPos = bones + sf::Vector2f(0, 40);       // she stands up out of her grave
+	samaraT = instant ? 3.f : 0.f;
+	samaraGoneT = -1;
+	if (!instant) audio.play(SFX_BRIDE_APPEAR, 75);
+}
+bool Game::nearSamara() {
+	if (samaraT < 1.5f || locketReturned || !player.has(CRIMSON_LOCKET)) return false;
+	sf::Vector2f d = samaraPos - (pp() + sf::Vector2f(12, 12));
+	return std::sqrt(d.x * d.x + d.y * d.y) < 60;
+}
+void Game::returnLocket() {
+	player.take(CRIMSON_LOCKET);
+	locketReturned = true;
+	samaraT = -1; samaraGoneT = 0;
+	bride.active = false; bride.pacified = true;
+	player.fear = maxOf(0.f, player.fear - 30.f);
+	audio.play(SFX_CHIME, 95, 0.8f);
+	showToast("Locket returned - Samara is at peace");
+	say("Samara:\n\t\"...He tore it from my neck the night he killed us.\n\tThank you.\"\n\nShe closes her hand around the locket - and for the first\ntime in seventy years, she smiles.");
+}
+void Game::updateSamara(float dt) {
+	if (samaraT >= 0) {
+		samaraT += dt;
+		// Once risen she glides to stand just in front of you, then waits.
+		sf::Vector2f me = pp() + sf::Vector2f(12, 12), d = me - samaraPos;
+		float l = std::sqrt(d.x * d.x + d.y * d.y);
+		if (samaraT > 1.5f && l > 52 && l < 260) samaraPos += d / l * 26.f * dt;
+	}
+	if (samaraGoneT >= 0) { samaraGoneT += dt; if (samaraGoneT > 4.f) samaraGoneT = -1; }
+}
+void Game::drawSamara(sf::RenderWindow* w) {
+	if (samaraT < 0 && samaraGoneT < 0) return;
+	float t = samaraT >= 0 ? samaraT : samaraGoneT;
+	int f = (int)(t * 5) % 4;
+	samaraSprite.setTextureRect(sf::IntRect({ f * 24, 0 }, { 24, 48 }));
+	float bob = std::sin(t * 2.5f) * 2;
+	if (samaraT >= 0) {                                 // rising, then waiting: pale, still crying
+		float a = minOf(1.f, samaraT / 1.5f);
+		samaraSprite.setPosition({ samaraPos.x, samaraPos.y + bob + 30 * (1 - a) });
+		samaraSprite.setColor(sf::Color(255, 225, 225, (std::uint8_t)(210 * a)));
+		w->draw(samaraSprite);
+		if (nearSamara()) {
+			sf::Text tip(fontSerif, "E  -  give Samara her locket", 16);
+			tip.setFillColor(sf::Color(255, 220, 200));
+			float tw = tip.getLocalBounds().size.x;
+			tip.setPosition({ std::floor(samaraPos.x - tw / 2), samaraPos.y - 70 });
+			w->draw(tip);
+		}
+		return;
+	}
+	// Given back: she turns to light and rises away.
+	float k = minOf(1.f, samaraGoneT / 3.5f);
+	for (int i = 3; i >= 1; --i) {
+		sf::CircleShape g(10.f + i * 14.f * (0.6f + k)); g.setOrigin({ g.getRadius(), g.getRadius() });
+		g.setPosition({ samaraPos.x, samaraPos.y - 20 - 50 * k });
+		g.setFillColor(sf::Color(255, 235, 200, (std::uint8_t)(70 * (1 - k) / i)));
+		w->draw(g, sf::BlendAdd);
+	}
+	for (int i = 0; i < 12; ++i) {                      // motes of light drifting up
+		float a = i * 0.52f + samaraGoneT * 1.7f;
+		sf::CircleShape m(1.6f); m.setOrigin({ 1.6f, 1.6f });
+		m.setPosition({ samaraPos.x + std::cos(a) * (14 + 10 * k), samaraPos.y - 10 - std::fmod(samaraGoneT * 40.f + i * 9.f, 90.f) });
+		m.setFillColor(sf::Color(255, 240, 210, (std::uint8_t)(220 * (1 - k)))); w->draw(m, sf::BlendAdd);
+	}
+	samaraSprite.setPosition({ samaraPos.x, samaraPos.y - 50 * k + bob });
+	samaraSprite.setColor(sf::Color(255, 250, 235, (std::uint8_t)(230 * (1 - k))));
+	w->draw(samaraSprite, sf::BlendAdd);
+}
+
+// ------------------------------------------------------- the Devil's death
+// Six blows and he breaks: he convulses while cracks of crimson light split
+// out of him and the crypt shakes harder; then he bursts into ash, a shock
+// ring tears across the floor, the dark lifts - and ten pale lights rise.
+void Game::drawDevilDeath(sf::RenderWindow* w) {
+	if (bossDeathT < 0) return;
+	float t = bossDeathT;
+	sf::Vector2f c = deathPos;
+	if (t < DEATH_BURST) {
+		float k = t / DEATH_BURST;
+		// Cracks of light spinning out of him, more and longer as he breaks.
+		int rays = 5 + (int)(k * 10);
+		for (int i = 0; i < rays; ++i) {
+			float a = i * 2.39996f + t * (0.6f + 0.1f * i);
+			float L = 40 + 140 * k * (0.6f + 0.4f * std::sin(i * 1.7f + t * 9));
+			sf::Vertex ray[3] = {
+				{ c, sf::Color(255, 240, 220, (std::uint8_t)(200 * k)) },
+				{ c + sf::Vector2f(std::cos(a - 0.05f), std::sin(a - 0.05f)) * L, sf::Color(255, 40, 40, 0) },
+				{ c + sf::Vector2f(std::cos(a + 0.05f), std::sin(a + 0.05f)) * L, sf::Color(255, 40, 40, 0) } };
+			w->draw(ray, 3, sf::PrimitiveType::Triangles, sf::BlendAdd);
+		}
+		// He convulses, flashing between crimson and white.
+		sf::Sprite d = boss.characterImage;
+		d.move({ (float)(std::rand() % 7 - 3) * k * 1.5f, (float)(std::rand() % 5 - 2) * k });
+		bool white = (int)(t * (8 + 14 * k)) % 2 == 0;
+		d.setColor(white ? sf::Color(255, 255, 255, 255) : sf::Color(255, 60, 60, 255));
+		w->draw(d);
+		if (white) w->draw(d, sf::BlendAdd);
+		for (int i = 0; i < 18; ++i) {                    // embers already tearing loose
+			float a = i * 0.9f, rr = std::fmod(t * 60.f + i * 23.f, 90.f);
+			sf::CircleShape e(1.5f); e.setOrigin({ 1.5f, 1.5f });
+			e.setPosition(c + sf::Vector2f(std::cos(a) * rr * 0.5f, -rr));
+			e.setFillColor(sf::Color(255, 120 + i * 6, 60, (std::uint8_t)(220 * (1 - rr / 90.f))));
+			w->draw(e, sf::BlendAdd);
+		}
+		return;
+	}
+	float u = t - DEATH_BURST;
+	// The burst: a white flash and a shock ring racing out across the floor.
+	if (u < 0.5f) {
+		sf::RectangleShape flash(sf::Vector2f(2000, 2000)); flash.setPosition(c - sf::Vector2f(1000, 1000));
+		flash.setFillColor(sf::Color(255, 245, 235, (std::uint8_t)(255 * (1 - u / 0.5f)))); w->draw(flash);
+	}
+	if (u < 1.4f) {
+		float r = 20 + 420 * u;
+		sf::CircleShape ring(r); ring.setOrigin({ r, r }); ring.setPosition(c); ring.setScale({ 1.f, 0.6f });
+		ring.setFillColor(sf::Color::Transparent); ring.setOutlineThickness(6.f * (1.4f - u));
+		ring.setOutlineColor(sf::Color(255, 90, 70, (std::uint8_t)(220 * (1 - u / 1.4f)))); w->draw(ring, sf::BlendAdd);
+	}
+	// Ash: what is left of him, drifting down.
+	for (int i = 0; i < 40; ++i) {
+		float a = i * 2.1f;
+		float sp = 40 + (i % 7) * 18;
+		sf::Vector2f p = c + sf::Vector2f(std::cos(a) * sp * minOf(u, 1.2f), std::sin(a) * sp * 0.5f * minOf(u, 1.2f) + u * 18.f + (i % 5) * 3.f);
+		sf::CircleShape ash(1.2f + (i % 3) * 0.6f); ash.setOrigin({ 1.f, 1.f }); ash.setPosition(p);
+		ash.setFillColor(sf::Color(150, 140, 135, (std::uint8_t)(220 * maxOf(0.f, 1 - u / 3.f)))); w->draw(ash);
+	}
+	// The dark lifts: a warm light washes the crypt...
+	float lift = minOf(1.f, u / 1.8f);
+	sf::RectangleShape warm(sf::Vector2f(2400, 2400)); warm.setPosition(c - sf::Vector2f(1200, 1200));
+	warm.setFillColor(sf::Color(120, 80, 60, (std::uint8_t)(70 * lift))); w->draw(warm, sf::BlendAdd);
+	// ...and ten pale lights rise out of the floor around you.
+	sf::Vector2f me = pp() + sf::Vector2f(12, 12);
+	for (int i = 0; i < 10; ++i) {
+		float st = 0.4f + i * 0.18f;
+		if (u < st) continue;
+		float v = u - st;
+		sf::Vector2f p = me + sf::Vector2f(std::cos(i * 0.628f) * (70 + 12 * (i % 3)), std::sin(i * 0.628f) * 50 - v * 38.f);
+		p.x += std::sin(v * 2.f + i) * 6;
+		float a = minOf(1.f, v / 0.6f) * maxOf(0.f, 1 - (u - 3.6f) / 1.2f);
+		for (int k = 3; k >= 0; --k) {
+			sf::CircleShape g(3.f + k * 4); g.setOrigin({ g.getRadius(), g.getRadius() }); g.setPosition(p);
+			g.setFillColor(sf::Color(255, 240, 225, (std::uint8_t)((k == 0 ? 230 : 45 / k) * a))); w->draw(g, sf::BlendAdd);
+		}
+	}
+	// Fade to white into the ending.
+	if (u > DEATH_END - DEATH_BURST - 1.2f) {
+		float f = minOf(1.f, (u - (DEATH_END - DEATH_BURST - 1.2f)) / 1.2f);
+		sf::RectangleShape veil(sf::Vector2f(2400, 2400)); veil.setPosition(c - sf::Vector2f(1200, 1200));
+		veil.setFillColor(sf::Color(255, 248, 240, (std::uint8_t)(255 * f))); w->draw(veil);
 	}
 }

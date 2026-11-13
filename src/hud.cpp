@@ -200,7 +200,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	}
 
 	// The Devil's health: a wide boss bar, bottom-centre above the hint line.
-	if (room == CRIMSON_CRYPT && (bossActive || bossDeathT >= 0)) {
+	if (room == CRIMSON_CRYPT && bossActive) {   // gone the moment he breaks
 		const float bw = 500, bx = (W - bw) / 2, by = H - 108;
 		sf::Text name(fontTitle, "The Devil", 24); name.setFillColor(CRIMSON);
 		name.setOutlineColor(sf::Color::Black); name.setOutlineThickness(2);

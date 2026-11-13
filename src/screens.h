@@ -20,6 +20,7 @@ public:
 	int ending(sf::RenderWindow* w, float dt, const RunStats& s);
 	void resetEnding() { endT = 0; }
 	void startDeath() { deathT = 0; }
+	float deathTime() const { return deathT; }
 	int menuIndex = 0;
 
 private:
@@ -36,6 +37,7 @@ private:
 	sf::Sprite jump{ jumpTex };
 	float deathT = 10.f;   // time since you died (the jump scare plays first)
 	sf::Texture bgTex, logoTex, floorTex;
+	sf::Texture samTex; sf::Sprite sam{ samTex };          // Samara, at peace, on the true ending
 	sf::Sprite bg{ bgTex }, logo{ logoTex };
 	bool hasLogo = false;
 	// credits: a horror sting, then a song that builds as the static fades

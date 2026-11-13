@@ -23,7 +23,8 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 - **Enemy AI** with an **eight-state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
 - **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet (short reach, 12 s cooldown).
 - **Doors you walk through**: a door swings open on its hinge, the hero walks through, and it shuts behind you with a thud. Locked doors rattle.
-- **A boss fight**: the hero draws the Blessed Sword (animated swing in four directions) and needs six blows to end the Devil.
+- **A boss fight**: the hero draws the Blessed Sword (animated swing in four directions) and needs six blows to end the Devil, who answers with his **scythe**: a telegraphed swing you must step out of, or break with a flare. When he falls, he bursts into ash and ten freed souls rise.
+- **Samara's locket**: take it from her bones and she rises beside them. Give it back (E) and she turns to light; only then can you reach the true ending.
 - **Save & continue**, health kits hidden in drawers, and rolling **credits** over TV static.
 - **Live data-structure console**: press **TAB** and the window widens with a panel that draws every structure as the game changes it.
 - **Watch the dream**: a self-playing demo that finishes the whole game, with the console open beside it.
@@ -58,8 +59,9 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 | | |
 |---|---|
 | <img src="docs/images/bfs_hint.png" alt="BFS hint"><br><sub>Stuck for 30 s? The hint names the goal and the <b>BFS</b> route to it.</sub> | <img src="docs/images/samara.png" alt="Samara"><br><sub>Samara hunts by sound. Stand still and she loses your trail.</sub> |
-| <img src="docs/images/bedroom.png" alt="Collapsed Bedroom"><br><sub>The Collapsed Bedroom: pits, fire, spikes and a lever.</sub> | <img src="docs/images/crypt.png" alt="The Crimson Crypt"><br><sub>The Crimson Crypt: the hero swings the Blessed Sword. The Devil's health bar sits at the bottom.</sub> |
+| <img src="docs/images/bedroom.png" alt="Collapsed Bedroom"><br><sub>The Collapsed Bedroom: pits, fire, spikes and a lever.</sub> | <img src="docs/images/crypt.png" alt="The Crimson Crypt"><br><sub>The Crimson Crypt: the Devil winds up his scythe, and the floor he is about to cut glows red. His health bar sits at the bottom.</sub> |
 | <img src="docs/images/notecard.png" alt="Survival note"><br><sub>Meet a horror and a survival note slides in at the side. The game keeps running.</sub> | <img src="docs/images/door.png" alt="Door swinging open"><br><sub>Doors swing open on their hinge and the hero walks through.</sub> |
+| <img src="docs/images/locket.png" alt="Samara's locket"><br><sub>Give Samara back her locket and she turns to light.</sub> | <img src="docs/images/devil_death.png" alt="The Devil's death"><br><sub>Six blows: the Devil convulses, cracks of light split out of him, then he bursts into ash.</sub> |
 | <img src="docs/images/hide.png" alt="Hiding in a wardrobe"><br><sub>Hiding in a wardrobe: nothing can see, hear or touch you.</sub> | <img src="docs/images/stomp.png" alt="Stomping a spider"><br><sub>A spider at your feet: the ring shows the stomp's reach.</sub> |
 
 ---
@@ -184,6 +186,7 @@ The sprites are generated from single drawings:
 - [`tools/make_spider.py`](tools/make_spider.py) cuts out each of the 8 legs (a multi-source BFS from the joints decides which pixel belongs to which leg) and swings it around its joint: 6 frames, rotated into 4 directions.
 - [`tools/make_spider_dead.py`](tools/make_spider_dead.py) draws the squashed body.
 - [`tools/make_stomp.py`](tools/make_stomp.py) adds the hero's stomp frames.
+- [`tools/make_devil_attack.py`](tools/make_devil_attack.py) builds the Devil's scythe swing. It cuts the scythe out of his walk sprite, patches the robe behind it, and redraws the scythe rotated around his hands in 4 poses (raise, wind-up, swing with a crimson slash, follow-through) for 4 directions.
 - [`tools/make_sword_attack.py`](tools/make_sword_attack.py) builds the hero's sword attack: 4 frames (wind-up, swing, strike, recover) in 4 directions. The Blessed Sword is redrawn pixel by pixel at each angle, with a crimson slash arc.
 
 ---
@@ -191,7 +194,9 @@ The sprites are generated from single drawings:
 ## Watch the dream (demo mode)
 
 Pick **Watch the dream** on the title screen and the game plays itself from the first room to the
-**true ending** in about ten minutes, at normal walking speed. The live console is open the whole
+**true ending** in about ten minutes, at normal walking speed, by the same rules as you: its health
+really drops when something hits it, it searches drawers for health kits when it's hurt, and if it
+does die it wakes again in that room ("Dream again") and carries on. The live console is open the whole
 time. **TAB** hides or shows it, **M** mutes, and **Esc** pauses it (you can leave to the title from the pause menu).
 
 <p align="center"><img src="docs/images/demo.png" alt="Demo mode" width="900"></p>
@@ -199,8 +204,10 @@ time. **TAB** hides or shows it, **M** mutes, and **Esc** pauses it (you can lea
 The demo plays by the real rules: it walks to each object, faces it, and uses it exactly as a player
 pressing **E** would. It finds its way with the project's own structures:
 - **Between rooms:** BFS over the house graph.
-- **Inside a room:** BFS over the tiles with the Queue. Tiles next to ghosts, spiders or the Devil are treated as blocked, and it waits for a ghost to pass if one is in the way.
-- **The Devil:** it closes in and strikes with the sword until he falls.
+- **Inside a room:** BFS over the tiles with the Queue. Tiles next to ghosts or the Devil are treated as blocked, and it waits for a ghost to pass if one is in the way. A spirit frozen by a flare is harmless, so it walks straight past.
+- **Spirits:** one about to walk into it gets a flare; if the flare is recharging, it steps across the spirit's line.
+- **Samara's locket:** it takes the locket, waits for Samara to rise, walks up to her and gives it back.
+- **The Devil:** it closes in and strikes with the sword. When he winds up the scythe it flares him or steps out of the red arc, then steps back in.
 - **Meeting the horrors:** it uses each one's survival rule. It turns to **face Carrie** so she freezes, **stands still** while Samara hunts, **flares** spirits when they get close, and **stomps** a spider the moment it rears up at its feet.
 - **Doors:** it walks through every door with the same swing-open, walk-through, swing-shut animation as a player.
 
@@ -237,10 +244,10 @@ This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** 
 | | Horror | Behaviour | How to survive |
 |---|---|---|---|
 | 👻 | **Restless Spirits** | Walk the same patrol, over and over | Watch the pattern, then cross. A **flare** freezes them. |
-| 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Return her **Crimson Locket** and she never harms you again. |
+| 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Take her **Crimson Locket** from her bones in the Ossuary and she rises beside them. Walk up to her and press **E** to give it back: she turns to light and never hunts you again. |
 | 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking | **Face her** and she freezes. A **flare** drives her away for a while. |
 | 🕷️ | **The Weavers** | Patrol, hear your steps, see you, chase with A\*, rear up and bite | **Stand still**, turn the **lantern off (L)** or **hide in a wardrobe (E)**. When one rears up at your feet, **stomp (Q)**. A flare stuns them. |
-| 😈 | **The Devil** | The final boss. He hunts you through the crypt, and his claws tear at you; the EMF meter beeps when he's near. His health bar sits at the bottom of the screen | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. Each blow staggers and knocks him back. A **flare** stuns him for free hits. |
+| 😈 | **The Devil** | The final boss. He hunts you through the crypt and swings his **scythe** when you're in reach: he raises it, the floor in front of him glows red, then he cuts. Every wound makes him swing back. The EMF meter beeps when he's near, and his health bar sits at the bottom of the screen | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. Step out of the red arc when he winds up, then strike. A **flare** during the wind-up breaks the swing and dazes him; your next blow wakes him. Once he's committed to a swing he doesn't flinch. |
 | 🔥 | **The house** | Spikes, fire, open graves | Time your steps. **Levers** lower the spikes. |
 | 😱 | **Fear** | Rises in the dark, near the dead and with every scare | At 100 your mind breaks. Keep the lantern lit and flare to steady your nerves. |
 
@@ -271,9 +278,9 @@ and a trail of blood leads you there.
 
 | Ending | How |
 |---|---|
-| **True** | Open the Hidden Tunnel, return Samara's locket, *then* slay the Devil with the Blessed Sword. The crimson moon fades to dawn and the house sleeps without dreaming. |
-| **Escape** | Slay the Devil without the locket. |
-| **Secret** | Walk out of the front door carrying the locket. |
+| **True** | Open the Hidden Tunnel, give Samara back her locket, *then* slay the Devil with the Blessed Sword. He bursts into ash, ten souls rise, the crimson moon gives way to a sunrise, and Samara smiles from among the lights. |
+| **Escape** | Slay the Devil without giving the locket back. |
+| **Secret** | Keep the locket and walk out of the front door with it. |
 | **Trapped** | Choose the petrol in the Antechamber. |
 
 Each ending closes with your run stats (time, rooms, items, spirits banished, deaths, peak fear), a rank and the credits.
@@ -366,6 +373,8 @@ CS_ROOM=3 CS_CONSOLE=1 CS_SPIDER=1 CS_FRAMES=24 CS_SHOT=ai.png ./crimson_sleep
 - `CS_DEMO=1` starts the demo.
 - `CS_BRIDE=1` / `CS_SPIDER=1` spawn a horror next to you.
 - `CS_STATE=ending_4` shows an ending.
+- `CS_SEED=n` makes a run repeatable (same random choices).
+- `CS_LOCKET=1` / `CS_LOCKET=2` starts you carrying the locket / having already given it back.
 
 ---
 

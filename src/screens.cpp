@@ -32,6 +32,7 @@ Screens::Screens() {
 	bgTex.setSmooth(true);
 	bg.setTexture(bgTex, true);
 	hasLogo = logoTex.loadFromFile(asset("graphics/title_logo.png"));
+	if (samTex.loadFromFile(asset("graphics/wraith.png"))) { sam.setTexture(samTex, true); sam.setTextureRect(sf::IntRect({ 0, 0 }, { 24, 48 })); sam.setOrigin({ 12.f, 48.f }); }
 	logoTex.setSmooth(true);
 	logo.setTexture(logoTex, true);
 	for (Mote& m : motes) m = Mote{ frand(0, 1024), frand(0, 768), frand(-8, 8), frand(-22, -6), frand(0.8f, 2.4f), frand(60, 200) };
@@ -326,7 +327,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		{ { "The corpse crumbles into grey ash.", "You stagger out into a cold, colourless morning.", "Behind you, faint and far away, a woman is still weeping.", "Somewhere beneath the chapel, something was left undone.", "" }, "ESCAPE ENDING" },
 		{ { "The petrol catches. The house screams.", "Smoke fills the corridors - every door slams shut.", "Through the flames they come, all ten of them.", "The fire burns for three days.", "No one finds you. The house simply... sleeps again.", "" }, "TRAPPED ENDING" },
 		{ { "You run, the locket burning in your fist.", "The front door gives way to a forest of black trees.", "Samara walks beside you now - quiet, at peace.", "But beneath the house, the Devil still sleeps.", "And one day, he will dream of you.", "" }, "SECRET ENDING" },
-		{ { "The blade falls. The Devil's corpse shrieks and turns to ash.", "Ten pale lights rise slowly from the floorboards.", "Samara takes back her locket... and smiles at peace.", "One by one, they drift up into the breaking dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
+		{ { "The last blow falls. The Devil bursts into ash, and is gone.", "Ten pale lights rise slowly from the floorboards.", "Samara stands among them, her locket at her throat.", "She smiles at you - and they drift up into the breaking dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
 	};
 	const Script& sc = scripts[e < 1 || e > 4 ? 1 : e];
 
@@ -349,6 +350,33 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	}
 	else drawMotes(w, dt, e == END_TRUE ? sf::Color(255, 230, 200) : sf::Color(200, 40, 50), true);
 
+	// The true ending: the sun comes up behind the hill...
+	if (e == END_TRUE) {
+		float rise = minOf(1.f, endT / 18.f);
+		sf::Vector2f sun(300.f, 590.f - 95.f * rise);
+		float sunA = minOf(1.f, endT / 5.f);
+		sf::VertexArray glow(sf::PrimitiveType::TriangleFan, 42);   // a smooth radial glow (a gradient fan, no rings)
+		glow[0] = sf::Vertex{ sun, sf::Color(255, 220, 170, (std::uint8_t)(150 * sunA)) };
+		for (int i = 1; i < 42; ++i) {
+			float a = (i - 1) / 40.f * 6.2832f;
+			glow[i] = sf::Vertex{ sun + sf::Vector2f(std::cos(a), std::sin(a)) * 170.f, sf::Color(255, 150, 90, 0) };
+		}
+		w->draw(glow, sf::BlendAdd);
+		sf::CircleShape disc(22.f); disc.setOrigin({ 22.f, 22.f }); disc.setPosition(sun);
+		disc.setFillColor(sf::Color(255, 238, 200, (std::uint8_t)(210 * sunA))); w->draw(disc, sf::BlendAdd);
+		// ...and Samara appears among the freed souls, then rises with them.
+		float sa = clampTo((endT - 7.5f) / 2.5f, 0.f, 1.f) * (1.f - clampTo((endT - 19.f) / 3.f, 0.f, 1.f));
+		if (sa > 0) {
+			float up = maxOf(0.f, endT - 15.f) * 16.f;
+			sam.setTextureRect(sf::IntRect({ ((int)(endT * 4) % 4) * 24, 0 }, { 24, 48 }));
+			sam.setScale({ 3.f, 3.f });
+			sam.setPosition({ 760.f, 560.f - up + 3 * std::sin(endT * 1.7f) });
+			sam.setColor(sf::Color(255, 236, 200, (std::uint8_t)(200 * sa)));
+			w->draw(sam);
+			sam.setColor(sf::Color(255, 220, 170, (std::uint8_t)(70 * sa)));
+			w->draw(sam, sf::BlendAdd);
+		}
+	}
 	// Ten freed souls rise on the true ending.
 	if (e == END_TRUE && endT > 3.5f) {
 		for (Soul& s : souls) {
@@ -364,6 +392,9 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		}
 	}
 	sf::RectangleShape dim(sf::Vector2f(1024, 768)); dim.setFillColor(sf::Color(0, 0, 0, 90)); w->draw(dim);
+	if ((e == END_TRUE || e == END_ESCAPE) && endT < 2.f) {   // out of the white of the Devil's death
+		sf::RectangleShape veil(sf::Vector2f(1024, 768)); veil.setFillColor(sf::Color(255, 248, 240, (std::uint8_t)(255 * (1 - endT / 2.f)))); w->draw(veil);
+	}
 
 	// Story lines appear one after another...
 	int n = 0; while (n < 6 && sc.lines[n] && sc.lines[n][0]) ++n;
@@ -394,7 +425,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 
 		// Credits roll.
 		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Retro Horror Adventure",
-			"", "",
+			"", "Created by Nishita, Yashieta, Anwita and Aryan",
 			"Music and sounds: Pixabay artists (see README)", "", "", "Thank you for playing.", "Sleep well." };
 		float cy = 768 - (tail - 3) * 34;
 		if (tail > 3) for (int i = 0; i < 10; ++i) {

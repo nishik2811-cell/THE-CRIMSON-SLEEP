@@ -30,6 +30,7 @@ bool Game::saveGame(const char* path) {
 	std::fprintf(f, "alfred %d %d %d %.1f %.1f\n", npc.state, (int)alfredLeft, alfredDead,
 		npc.characterImage.getPosition().x, npc.characterImage.getPosition().y);
 	std::fprintf(f, "boss %d\n", bossHP);
+	std::fprintf(f, "samara %d\n", (int)locketReturned);
 	std::fprintf(f, "stats %.2f %d %d %d %.2f %d\n", runStats.time, runStats.deaths, runStats.banished, runStats.roomsSeen, runStats.peakFear, runStats.itemsFound);
 	// LINKED LIST: inventory front to back
 	int inv[32]; int n = 0;
@@ -105,6 +106,7 @@ bool Game::loadGame(const char* path) {
 			alfredLeft = left; npc.setPosition({ ax, ay });
 		}
 		else if (!std::strcmp(key, "boss")) { if (std::fscanf(f, "%d", &bossHP) != 1) break; }
+		else if (!std::strcmp(key, "samara")) { int v = 0; if (std::fscanf(f, "%d", &v) != 1) break; locketReturned = v != 0; }   // older saves simply lack this line
 		else if (!std::strcmp(key, "stats")) {
 			if (std::fscanf(f, "%f %d %d %d %f %d", &runStats.time, &runStats.deaths, &runStats.banished, &runStats.roomsSeen, &runStats.peakFear, &runStats.itemsFound) != 6) break;
 		}

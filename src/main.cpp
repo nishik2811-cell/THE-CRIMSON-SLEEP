@@ -79,7 +79,7 @@ static void drawConsoleButton(sf::RenderWindow& w, bool open) {
 static const char* env(const char* k) { const char* v = std::getenv(k); return v && *v ? v : nullptr; }
 
 int main() {
-	std::srand((unsigned)std::time(nullptr));
+	std::srand(env("CS_SEED") ? (unsigned)std::atoi(env("CS_SEED")) : (unsigned)std::time(nullptr));   // CS_SEED: repeatable test runs
 	sf::RenderWindow window(sf::VideoMode({ GAME_WIDTH, GAME_HEIGHT }), "The Crimson Sleep", sf::Style::Default);
 	window.setFramerateLimit(120);
 	window.setKeyRepeatEnabled(false);
@@ -110,6 +110,7 @@ int main() {
 		if (env("CS_FLARECD")) game->devFlareCooldown((float)std::atof(env("CS_FLARECD")));
 		if (env("CS_WRITE")) game->devWrite(env("CS_WRITE"));
 		if (env("CS_HOLD")) game->devHold(std::atoi(env("CS_HOLD")));
+		if (env("CS_LOCKET")) game->devGiveLocket(std::atoi(env("CS_LOCKET")) == 2);   // 1 = carrying it, 2 = already given back
 
 		if (env("CS_TALK")) game->devAlfredTalk((float)std::atof(env("CS_TALK")));
 		if (env("CS_OPEN")) game->devOpen(std::atoi(env("CS_OPEN")));
@@ -264,6 +265,7 @@ int main() {
 			if (prevState != ST_RETRY) { screens.startDeath(); audio.play(SFX_JUMPSCARE, 100); }
 			audio.music(TRACK_DEATH);
 			game_state = screens.retry(&window, dt, *game);
+			if (game->demo && game_state == ST_RETRY && screens.deathTime() > 4.f) game_state = ST_PLAYING;   // the dreamer dreams again by itself
 			if (game_state == ST_PLAYING) game->retryRoom();
 			break;
 		case ST_ENDING:
@@ -277,6 +279,8 @@ int main() {
 		if (game && env("CS_SWINGAT") && frame == std::atoi(env("CS_SWINGAT"))) game->devSwing();
 		if (game && env("CS_BACKAT") && frame == std::atoi(env("CS_BACKAT"))) game->devBack();
 		if (game && env("CS_HIDE") && frame == 5) game->devHide();
+		if (game && env("CS_FLAREAT") && frame == std::atoi(env("CS_FLAREAT"))) game->devFlare();
+		if (game && env("CS_TRACE") && frame % 10 == 0) std::fprintf(stderr, "T %d %.1f %.1f\n", frame, game->devPos().x, game->devPos().y);
 		if (game_state == ST_ENDING && env("CS_DEMO_LOG")) { std::fprintf(stderr, "DEMO ENDING %d after %d frames\n", ending_type, frame); window.close(); }
 		prevState = stateAtFrameStart;   // the state this frame ran, so "just died" is detected once
 		if (!window.isOpen()) break;
