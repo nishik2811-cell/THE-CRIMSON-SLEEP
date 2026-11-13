@@ -203,6 +203,7 @@ void Game::spawnEnemies() {
 		sf::Vector2f c = arenaCentre();
 		boss.setPosition({ std::floor((c.x - 12) / 32) * 32 + 4, std::floor((c.y + 36) / 32) * 32 + 4 });
 		bossDormant = true; bossRiseT = -1; bossActive = false; bossAtkT = -1; bossPathLen = bossPathStep = 0;
+		bossRoarT = -1; burstT = -1; hitStopT = 0; bossParryT = -1; bossGuardT = 0;   // nothing left over from a fight you died in
 		boss.source = sf::Vector2i(0, Character::Down); boss.setFrame();   // one frame of the sheet, not the whole sheet
 	}
 
@@ -971,7 +972,11 @@ void Game::updateHints(float dt) {
 		if (!collected(s.item)) { key = i * 2; targetRoom = s.room; targetTile = s.tile; what = Str("The ") + ITEMS[s.item].name + " is somewhere in the " + ROOMS[s.room].name + "."; break; }
 		if (e && e->locked) { key = i * 2 + 1; targetRoom = s.lockFrom; targetTile = 3 + e->doorNo; what = Str("Use the ") + ITEMS[s.item].name + " on the door to the " + ROOMS[s.lockTo].name + "."; break; }
 	}
-	if (bossHP <= 0) {
+	if (bossHP <= 0 && player.has(CRIMSON_LOCKET) && !locketReturned) {   // the Devil is dead, but Samara still waits
+		key = 31; targetRoom = OSSUARY; targetTile = 12;
+		what = "Give Samara back her locket in the Ossuary - then leave by the front door.";
+	}
+	else if (bossHP <= 0) {
 		key = 30; targetRoom = ENTRANCE_HALL; targetTile = 3 + 5;   // the front door
 		what = "The Devil is dead. Get out of the house - through the front door.";
 	}

@@ -763,9 +763,16 @@ void Game::drawConsole(sf::RenderWindow* w) {
 				float nw = minOf(slot - 8, nodeW(name));
 				rrect(nx - nw / 2, ny, nw, NODE_H, 3, BOX, BOX_EDGE);
 				text(name, 12, BODY, nx, ny + 5, false, 1);
-				Str st = e->locked ? Str("needs ") + ITEMS[e->requiredItem].name : "open";
-				if (tw(st, 10) > slot - 6) st = "locked";
-				text(st, 10, e->locked ? BAD : GOOD, nx, ny + NODE_H + 6, false, 1);
+				// The door's real state, by the same rule the game uses (edgeUsable):
+				// open / locked but you can open it now / locked, and what it needs.
+				bool can = edgeUsable(*e);
+				Str st; sf::Color sc;
+				if (!e->locked) { st = "open"; sc = GOOD; }
+				else if (e->to == OUTSIDE) { st = can ? "opens now" : "sealed"; sc = can ? WARM : BAD; }
+				else if (can) { st = e->requiredItem == NEWSPAPER ? "clue read: opens" : Str("you have the ") + ITEMS[e->requiredItem].name; sc = WARM; }
+				else { st = e->requiredItem == NEWSPAPER ? "read the 1953 newspaper" : Str("needs ") + ITEMS[e->requiredItem].name; sc = BAD; }
+				if (tw(st, 10) > slot - 6) st = !e->locked ? "open" : can ? "can open" : "locked";
+				text(st, 10, sc, nx, ny + NODE_H + 6, false, 1);
 			}
 		}
 	}
@@ -965,7 +972,8 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		float t = section((open ? rows : 1) * ROW - 8 + 30, "BFS  /  DFS", "Finding the way",
 		                  "BFS finds the shortest route; DFS finds rooms behind secret doors.", b, 4, rows > 1);
 		if (hintText.empty()) text("The route appears with the hint (press H).", 12, FAINT, M, t + 4);
-		else if (lastRouteLen <= 1) { std::snprintf(b, sizeof b, "The goal is in this room \xE2\x80\x94 %d steps of blood.", trailLen); text(b, 12, BODY, M, t + 4); }
+		else if (targetRoom == room) { std::snprintf(b, sizeof b, "The goal is in this room \xE2\x80\x94 %d steps of blood.", trailLen); text(b, 12, BODY, M, t + 4); }
+		else if (lastRouteLen <= 1) text("No open route yet \xE2\x80\x94 something still blocks the way.", 12, FAINT, M, t + 4);
 		else if (open || rows == 1) flow(route, rn, t, true, rn - 1, false);
 		else {
 			float x = M;

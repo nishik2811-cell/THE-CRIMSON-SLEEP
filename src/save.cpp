@@ -161,6 +161,7 @@ bool Game::loadGame(const char* path) {
 	std::fclose(f);
 	if (savedRoom < 1 || savedRoom >= ROOM_COUNT) savedRoom = ENTRANCE_HALL;
 	if (bossHP <= 0) house.reveal(CRIMSON_CRYPT, ANTECHAMBER);   // the Devil is dust: the crypt's way out stays open
+	if (bossHP > 0 && bossHP <= BOSS_MAX_HP / 2 && !bossPhase2) { bossPhase2 = true; boss.characterSpeed *= 1.3f; }   // saved after his roar: still in phase two
 	enterRoom(savedRoom, -1, false);
 	player.setPosition({ px, py });
 	dialogue = "";
