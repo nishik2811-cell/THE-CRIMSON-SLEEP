@@ -32,6 +32,8 @@ Screens::Screens() {
 	bgTex.setSmooth(true);
 	bg.setTexture(bgTex, true);
 	hasLogo = logoTex.loadFromFile(asset("graphics/title_logo.png"));
+	hasDawn = dawnTex.loadFromFile(asset("graphics/ending_true.jpg"));
+	if (hasDawn) { dawnTex.setSmooth(true); dawnSprite.setTexture(dawnTex, true); }
 	if (samTex.loadFromFile(asset("graphics/wraith.png"))) { sam.setTexture(samTex, true); sam.setTextureRect(sf::IntRect({ 0, 0 }, { 24, 48 })); sam.setOrigin({ 12.f, 48.f }); }
 	logoTex.setSmooth(true);
 	logo.setTexture(logoTex, true);
@@ -208,13 +210,21 @@ int Screens::title(sf::RenderWindow* w, float dt) {
 	const char* withSave[] = { "Continue the dream", "Begin the dream", "Watch the dream", "Credits", "Controls", "Wake up" };
 	const char* noSave[] = { "Begin the dream", "Watch the dream", "Credits", "Controls", "Wake up" };
 	int n = hasSave ? 6 : 5;
+	if (watchMenu) {                                     // Watch the dream: pick which of the four endings to see
+		const char* endings[] = { "The true ending", "Escape", "The secret way out", "Trapped", "Back" };
+		int e = menu(w, endings, 5, cx, 456, 28);
+		menuAlpha = 1; menuInput = true;
+		if (key_hit(sf::Keyboard::Key::Escape) || e == 4) { watchMenu = false; menuIndex = hasSave ? 2 : 1; return ST_TITLE; }
+		if (e >= 0) { demoChoice = e; watchMenu = false; menuIndex = 0; return ST_DEMO; }
+		return ST_TITLE;
+	}
 	int c = menu(w, hasSave ? withSave : noSave, n, cx, 456, 30);
 	menuAlpha = 1; menuInput = true;
 	if (c < 0) return ST_TITLE;
 	if (!hasSave) ++c;                       // same numbering either way
 	if (c == 0) return ST_CONTINUE;
 	if (c == 1) return ST_NEW_GAME;
-	if (c == 2) return ST_DEMO;
+	if (c == 2) { watchMenu = true; menuIndex = 0; return ST_TITLE; }
 	if (c == 3) { menuIndex = 0; startCredits(); return ST_CREDITS; }
 	if (c == 4) { menuIndex = 0; return ST_CONTROLS; }
 	if (c == 5) w->close();
@@ -231,6 +241,7 @@ int Screens::controls(sf::RenderWindow* w, float dt) {
 		"Arrows / WASD     walk\n"
 		"E / Enter              interact, open doors\n"
 		"F                          flare the lantern\n"
+		"SHIFT / C                swing / block (sword)\n"
 		"B                          go back one room\n"
 		"H                          ask the house for a hint\n"
 		"I / J                    inventory / notes on the dead\n"
@@ -327,7 +338,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		{ { "The corpse crumbles into grey ash.", "You stagger out into a cold, colourless morning.", "Behind you, faint and far away, a woman is still weeping.", "Somewhere beneath the chapel, something was left undone.", "" }, "ESCAPE ENDING" },
 		{ { "The petrol catches. The house screams.", "Smoke fills the corridors - every door slams shut.", "Through the flames they come, all ten of them.", "The fire burns for three days.", "No one finds you. The house simply... sleeps again.", "" }, "TRAPPED ENDING" },
 		{ { "You run, the locket burning in your fist.", "The front door gives way to a forest of black trees.", "Samara walks beside you now - quiet, at peace.", "But beneath the house, the Devil still sleeps.", "And one day, he will dream of you.", "" }, "SECRET ENDING" },
-		{ { "The last blow falls. The Devil bursts into ash, and is gone.", "Ten pale lights rise slowly from the floorboards.", "Samara stands among them, her locket at her throat.", "She smiles at you - and they drift up into the breaking dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
+		{ { "The last blow falls. The Devil bursts into ash, and is gone.", "Ten pale lights rise slowly from the floorboards.", "The brightest of them wears a locket at her throat.", "Samara smiles at you - and they drift up into the dawn.", "For the first time since June 26, 1953,", "the house sleeps without dreaming." }, "TRUE ENDING" },
 	};
 	const Script& sc = scripts[e < 1 || e > 4 ? 1 : e];
 
@@ -335,8 +346,19 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	// stays red for the secret one, turns to fire for the trapped one.
 	float dawn = (e == END_TRUE ? 1.f : e == END_ESCAPE ? 0.45f : 0.f) * minOf(1.f, endT / 14.f);
 	sf::Color tint(255, (std::uint8_t)(255 * (0.6f + 0.4f * dawn)), (std::uint8_t)(255 * (0.55f + 0.45f * dawn)));
-	drawBackdrop(w, tint);
-	if (dawn > 0) {
+	if (e == END_TRUE && hasDawn) {
+		// The true ending: the crimson sun rising over the mountains and the
+		// fog - a slow push in, brightening out of the dark.
+		sf::Vector2u sz = dawnTex.getSize();
+		float s = maxOf(1024.f / sz.x, 768.f / sz.y) * (1.02f + 0.03f * minOf(1.f, endT / 30.f));
+		dawnSprite.setOrigin({ sz.x / 2.f, sz.y / 2.f }); dawnSprite.setScale({ s, s });
+		dawnSprite.setPosition({ 512.f - 40.f * minOf(1.f, endT / 30.f), 384.f });
+		std::uint8_t b = (std::uint8_t)(255 * minOf(0.62f, 0.3f + endT / 8.f));   // dulled, so the words stay clear
+		dawnSprite.setColor(sf::Color(b, b, b));
+		w->draw(dawnSprite);
+	}
+	else drawBackdrop(w, tint);
+	if (dawn > 0 && !(e == END_TRUE && hasDawn)) {
 		// Dawn: deep blue overhead, warm gold at the horizon, fading over the water.
 		sf::Color top(40, 60, 110, (std::uint8_t)(120 * dawn)), mid(255, 190, 140, (std::uint8_t)(170 * dawn)), low(120, 70, 50, 0);
 		quad(w, 0, 0, 1024, 560, top, top, mid, mid, sf::BlendAdd);
@@ -350,48 +372,32 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 	}
 	else drawMotes(w, dt, e == END_TRUE ? sf::Color(255, 230, 200) : sf::Color(200, 40, 50), true);
 
-	// The true ending: the sun comes up behind the hill...
-	if (e == END_TRUE) {
-		float rise = minOf(1.f, endT / 18.f);
-		sf::Vector2f sun(300.f, 590.f - 95.f * rise);
-		float sunA = minOf(1.f, endT / 5.f);
-		sf::VertexArray glow(sf::PrimitiveType::TriangleFan, 42);   // a smooth radial glow (a gradient fan, no rings)
-		glow[0] = sf::Vertex{ sun, sf::Color(255, 220, 170, (std::uint8_t)(150 * sunA)) };
-		for (int i = 1; i < 42; ++i) {
-			float a = (i - 1) / 40.f * 6.2832f;
-			glow[i] = sf::Vertex{ sun + sf::Vector2f(std::cos(a), std::sin(a)) * 170.f, sf::Color(255, 150, 90, 0) };
-		}
-		w->draw(glow, sf::BlendAdd);
-		sf::CircleShape disc(22.f); disc.setOrigin({ 22.f, 22.f }); disc.setPosition(sun);
-		disc.setFillColor(sf::Color(255, 238, 200, (std::uint8_t)(210 * sunA))); w->draw(disc, sf::BlendAdd);
-		// ...and Samara appears among the freed souls, then rises with them.
-		float sa = clampTo((endT - 7.5f) / 2.5f, 0.f, 1.f) * (1.f - clampTo((endT - 19.f) / 3.f, 0.f, 1.f));
-		if (sa > 0) {
-			float up = maxOf(0.f, endT - 15.f) * 16.f;
-			sam.setTextureRect(sf::IntRect({ ((int)(endT * 4) % 4) * 24, 0 }, { 24, 48 }));
-			sam.setScale({ 3.f, 3.f });
-			sam.setPosition({ 760.f, 560.f - up + 3 * std::sin(endT * 1.7f) });
-			sam.setColor(sf::Color(255, 236, 200, (std::uint8_t)(200 * sa)));
-			w->draw(sam);
-			sam.setColor(sf::Color(255, 220, 170, (std::uint8_t)(70 * sa)));
-			w->draw(sam, sf::BlendAdd);
-		}
-	}
 	// Ten freed souls rise on the true ending.
 	if (e == END_TRUE && endT > 3.5f) {
-		for (Soul& s : souls) {
-			s.y -= s.speed * dt;
+		for (int si = 0; si < 10; ++si) {
+			Soul& s = souls[si];
+			bool samara = si == 4;                     // the brightest light: Samara, her locket at her throat
+			s.y -= s.speed * dt * (samara ? 0.8f : 1.f);
 			float x = s.x + 14 * std::sin(endT * 1.3f + s.phase);
 			for (int k = 3; k >= 0; --k) {
-				sf::CircleShape g(4.f + k * 4);
+				sf::CircleShape g((samara ? 6.f : 4.f) + k * (samara ? 6.f : 4.f));
 				g.setOrigin({ (float)(g.getRadius()), (float)(g.getRadius()) });
 				g.setPosition({ (float)(x), (float)(s.y) });
-				g.setFillColor(sf::Color(255, 240, 230, (std::uint8_t)(k == 0 ? 230 : 40 / k)));
+				g.setFillColor(samara ? sf::Color(255, 225, 190, (std::uint8_t)(k == 0 ? 250 : 60 / k)) : sf::Color(255, 240, 230, (std::uint8_t)(k == 0 ? 230 : 40 / k)));
 				w->draw(g, sf::BlendAdd);
+			}
+			if (samara) {                              // a tiny crimson glint: the locket
+				sf::CircleShape l(2.2f); l.setOrigin({ 2.2f, 2.2f }); l.setPosition({ x, s.y + 9 });
+				l.setFillColor(sf::Color(255, 60, 70, 230)); w->draw(l);
 			}
 		}
 	}
-	sf::RectangleShape dim(sf::Vector2f(1024, 768)); dim.setFillColor(sf::Color(0, 0, 0, 90)); w->draw(dim);
+	sf::RectangleShape dim(sf::Vector2f(1024, 768)); dim.setFillColor(sf::Color(0, 0, 0, e == END_TRUE && hasDawn ? 0 : 90)); w->draw(dim);
+	if (e == END_TRUE && hasDawn) {                     // a soft shade only behind the lines, so the sun stays golden
+		quad(w, 0, 140, 1024, 200, sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(10, 0, 0, 110), sf::Color(10, 0, 0, 110));
+		quad(w, 0, 200, 1024, 480, sf::Color(10, 0, 0, 110), sf::Color(10, 0, 0, 110), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0));
+	}
+
 	if ((e == END_TRUE || e == END_ESCAPE) && endT < 2.f) {   // out of the white of the Devil's death
 		sf::RectangleShape veil(sf::Vector2f(1024, 768)); veil.setFillColor(sf::Color(255, 248, 240, (std::uint8_t)(255 * (1 - endT / 2.f)))); w->draw(veil);
 	}
@@ -404,7 +410,9 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		if (lt <= 0) continue;
 		float a = minOf(1.f, lt / 1.2f);
 		if (endT > 1.f + n * per + 2) a *= maxOf(0.f, 1 - (endT - (3.f + n * per)) / 1.5f);
-		centered(w, fontItalic, sc.lines[i], 30, sf::Color(240, 228, 214, (std::uint8_t)(255 * a)), 170 + i * 52.f);
+		for (int k = 0; k < 4; ++k)                       // a soft dark shadow keeps the words readable over a bright sky
+			centered(w, fontItalic, sc.lines[i], 30, sf::Color(20, 0, 6, (std::uint8_t)(110 * a)), 172 + i * 52.f + (k / 2) * 2 - 1, 512.f + (k % 2) * 3 - 1.5f);
+		centered(w, fontItalic, sc.lines[i], 30, sf::Color(250, 238, 224, (std::uint8_t)(255 * a)), 170 + i * 52.f);
 	}
 	// ...then the verdict, run statistics and credits.
 	float tail = endT - (4.5f + n * per);
@@ -478,7 +486,7 @@ int Screens::credits(sf::RenderWindow* w, float dt) {
 	w->draw(noise);
 
 	static const char* const LINES[] = {
-		"#THE CRIMSON SLEEP", "", "A 2D survival horror game", "", "",
+		"#THE CRIMSON SLEEP", "", "", "", "", "", "", "A 2D survival horror game", "", "",   // '#' = the butterfly logo (it is about 7 lines tall)
 		"@CREATED BY", "Nishita", "Yashieta", "Anwita", "Aryan", "", "",
 		"Design, code, art and sound - built for this project",
 		"Every system and every data structure written by hand in C++17,", "on SFML 3 - with no STL.", "", "",
@@ -500,6 +508,12 @@ int Screens::credits(sf::RenderWindow* w, float dt) {
 	float top = 790.f - crT * speed;
 	for (int i = 0; i < N; ++i) {
 		float y = top + i * lineH;
+		if (LINES[i][0] == '#' && hasLogo) {                                     // the butterfly logo, rolling up with the text
+			const float LH = 240.f;
+			float ly = y - 10, lfade = minOf(1.f, minOf((ly + LH * 0.6f) / 140.f, (790 - ly) / 140.f));
+			if (lfade > 0 && ly < 800) drawLogo(w, 512 - logoWidth(LH) / 2, ly, LH, lfade);
+			continue;
+		}
 		if (y < -40 || y > 800) continue;
 		const char* L = LINES[i];
 		bool head = L[0] == '#', sub = L[0] == '@';

@@ -117,6 +117,30 @@ void Enemy_boss::movement(Character* player, sf::RenderWindow* window){
 		}
 	}
 		
+		finishFrame(player, window);
+	}
+
+	// Walk one frame toward `target` (a tile spot on the path he planned),
+	// first along x then along y, then animate / draw / beep as usual.
+	void Enemy_boss::stepTo(sf::Vector2f target, Character* player, sf::RenderWindow* window){
+		net_x = player->characterImage.getPosition().x - characterImage.getPosition().x;
+		net_y = player->characterImage.getPosition().y - characterImage.getPosition().y;
+		sf::Vector2f p = characterImage.getPosition(), d = target - p;
+		float sp = characterSpeed;
+		if (std::fabs(d.x) > 0.01f) {
+			float mv = std::fabs(d.x) < sp ? d.x : (d.x > 0 ? sp : -sp);
+			characterImage.move({ mv, 0.f });
+			source.y = d.x > 0 ? Right : Left;
+		}
+		else if (std::fabs(d.y) > 0.01f) {
+			float mv = std::fabs(d.y) < sp ? d.y : (d.y > 0 ? sp : -sp);
+			characterImage.move({ 0.f, mv });
+			source.y = d.y > 0 ? Down : Up;
+		}
+		finishFrame(player, window);
+	}
+
+	void Enemy_boss::finishFrame(Character* player, sf::RenderWindow* window){
 		frameCounter += frameSpeed * clock.restart().asSeconds();
 		if (frameCounter > switchFrame){
 			frameCounter = 0;

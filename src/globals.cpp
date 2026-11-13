@@ -28,6 +28,8 @@ const char* asset(const Str& rel) {
 }
 
 float g_consoleScroll = 0, g_consoleContentH = 0;
+bool g_consoleClick = false;
+sf::Vector2i g_consoleClickPx;
 int g_lastLookup = -1;
 bool g_diag = false;
 

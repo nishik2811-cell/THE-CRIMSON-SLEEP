@@ -110,6 +110,8 @@ int main() {
 		if (env("CS_FLARECD")) game->devFlareCooldown((float)std::atof(env("CS_FLARECD")));
 		if (env("CS_WRITE")) game->devWrite(env("CS_WRITE"));
 		if (env("CS_HOLD")) game->devHold(std::atoi(env("CS_HOLD")));
+		if (env("CS_CARDS")) game->devOpenCards();
+		if (env("CS_BLOCK")) game->devBlockDir = std::atoi(env("CS_BLOCK"));                                  // every console card expanded
 		if (env("CS_LOCKET")) game->devGiveLocket(std::atoi(env("CS_LOCKET")) == 2);   // 1 = carrying it, 2 = already given back
 
 		if (env("CS_TALK")) game->devAlfredTalk((float)std::atof(env("CS_TALK")));
@@ -117,6 +119,7 @@ int main() {
 	}
 	if (const char* st = env("CS_STATE")) {
 		if (!std::strcmp(st, "title")) game_state = ST_TITLE;
+		if (!std::strcmp(st, "watch")) { game_state = ST_TITLE; screens.watchMenu = true; }
 		if (!std::strcmp(st, "controls")) game_state = ST_CONTROLS;
 		if (!std::strcmp(st, "credits")) { screens.startCredits(); game_state = ST_CREDITS; }
 		if (!std::strcmp(st, "continue")) game_state = ST_CONTINUE;
@@ -157,8 +160,9 @@ int main() {
 		}
 	};
 	if (env("CS_CONSOLE")) toggleConsole();
-	if (env("CS_DEMO")) { game_state = ST_DEMO; }
+	if (env("CS_DEMO")) { game_state = ST_DEMO; screens.demoChoice = std::atoi(env("CS_DEMO")) - 1 > 0 ? std::atoi(env("CS_DEMO")) - 1 : 0; }   // CS_DEMO=1..4: true / escape / secret / trapped
 	if (game && env("CS_DEMO_GOAL")) { game->devDemoFrom(std::atoi(env("CS_DEMO_GOAL"))); if (!consoleOpen) toggleConsole(); }
+	if (game && env("CS_ROUTE")) game->setDemoRoute(std::atoi(env("CS_ROUTE")));   // with CS_DEMO_GOAL: which ending's walkthrough
 	if (env("CS_DIAG")) g_diag = true;
 	if (env("CS_SCROLL")) g_consoleScroll = (float)std::atof(env("CS_SCROLL"));
 
@@ -190,6 +194,7 @@ int main() {
 				if (mb.button == sf::Mouse::Button::Left && muteButton().contains(p)) audio.toggleMute();
 				bool inGame = game_state == ST_PLAYING || game_state == ST_PAUSED;
 				if (mb.button == sf::Mouse::Button::Left && inGame && consoleButton().contains(p)) toggleConsole();
+				else if (mb.button == sf::Mouse::Button::Left && consoleOpen && mb.position.x > (int)g_gameAreaPx) { g_consoleClick = true; g_consoleClickPx = mb.position; }   // a card was clicked
 			},
 			[&](const sf::Event::FocusLost&) {
 				key_release_all();   // no KeyReleased arrives while unfocused - don't leave keys stuck down
@@ -243,6 +248,7 @@ int main() {
 			delete game;
 			game = new Game(audio);
 			game->startDemo();
+			game->setDemoRoute(screens.demoChoice);
 			if (!consoleOpen) toggleConsole();   // the demo shows the live data structures alongside
 			game_state = ST_PLAYING;
 			break;

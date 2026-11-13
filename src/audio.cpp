@@ -25,6 +25,8 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 	"step_stone_1.ogg step_stone_2.ogg step_stone_3.ogg",
 	"step_water_1.ogg step_water_2.ogg step_water_3.ogg step_water_4.ogg",
 	"ui_move.ogg", "ui_click.ogg",
+	"clang_1.ogg clang_2.ogg", "sword_swing_1.ogg sword_swing_2.ogg", "sword_hit_1.ogg sword_hit_2.ogg",
+	"scythe_swing.ogg", "scythe_cut.ogg", "spider_squish_1.ogg spider_squish_2.ogg",
 };
 
 Audio::Audio() {
@@ -46,6 +48,7 @@ Audio::Audio() {
 		{ TRACK_END_TRUE,    "ending_true.ogg",    85, true },
 		{ TRACK_END_OTHER,   "rank_music.ogg",     85, true },
 		{ TRACK_END_TRAPPED, "music_wrong.ogg",    85, true },
+		{ TRACK_DEVIL_DEATH, "devil_death.ogg",    95, false },   // his death: the swell, the burst, the dawn chord
 	};
 	const char* themeFiles[3] = { "theme_calm.ogg", "theme_dread.ogg", "theme_nursery.ogg" };
 	for (int i = 0; i < 3; ++i)

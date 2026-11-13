@@ -37,6 +37,13 @@ public:
 	sf::Clock swingClock;
 	void startSwing() { swinging = true; swingClock.restart(); }
 	static constexpr float SWING_FRAME = 0.075f;
+	// Block (C held): the Blessed Sword raised across the body, from
+	// player_block.png - raise, guard, and a CLASH frame with sparks.
+	sf::Texture blockTex;
+	sf::Sprite blockSprite{ blockTex };
+	bool blocking = false;
+	float blockT = 0, clashT = 0;
+	float cutT = 0;                              // just cut by the scythe: flash red instead of blinking out                // time in the guard / clash spark left
 
 	Stack<int> history;                 // rooms visited, top = current room
 	LinkedList<InventoryItem> inventory; // items carried

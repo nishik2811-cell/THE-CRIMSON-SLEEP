@@ -235,7 +235,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	}
 
 	// Controls strip.
-	w->draw(label(fontSerif, player.has(SWORD) ? "E interact   SHIFT sword   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB   M   ESC" : "E interact   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB console   M mute   ESC pause", 15, ASH, 22, H - 26));
+	w->draw(label(fontSerif, player.has(SWORD) ? "E interact   SHIFT sword   C block   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB   M   ESC" : "E interact   F flare   Q stomp   L lantern   B back   H hint   I items   J tips   TAB console   M mute   ESC pause", 15, ASH, 22, H - 26));
 
 	// Story text box.
 	if (!dialogue.empty()) {
@@ -631,13 +631,42 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		return wd;
 	};
 	float y = 10;
-	auto card = [&](float h, const Str& title, const Str& tag) {
-		rect(10, y, W - 20, h, CARD, EDGE);
+	// A click on the console (from main) in card coordinates: clicking a card
+	// that can grow opens it to show EVERY element; clicking again folds it.
+	bool clicked = g_consoleClick;
+	sf::Vector2f clickAt = clicked ? w->mapPixelToCoords(g_consoleClickPx, scrollV) : sf::Vector2f();
+	g_consoleClick = false;
+	// id >= 0: an expandable card; `more` = there is something hidden right now.
+	auto card = [&](float h, const Str& title, const Str& tag, int id = -1, bool more = false) {
+		rect(10, y, W - 20, h, id >= 0 && cardOpen[id] ? sf::Color(32, 10, 16) : CARD, EDGE);
 		txt(title, fontSerif, 16, TITLE, 20, y + 4);
 		float tw = width(tag, fontMono, 10);
 		rect(W - 24 - tw - 8, y + 8, tw + 8, 15, sf::Color(40, 16, 22));
 		txt(tag, fontMono, 10, TAG, W - 24 - tw - 4, y + 9);
+		if (id >= 0 && (more || cardOpen[id])) {
+			const char* hint = cardOpen[id] ? "click to fold" : "click to show all";
+			txt(hint, fontItalic, 11, sf::Color(200, 140, 150), W - 24 - tw - 16 - width(hint, fontItalic, 11), y + 9);
+		}
+		if (id >= 0 && clicked && clickAt.x >= 10 && clickAt.x <= W - 10 && clickAt.y >= y && clickAt.y <= y + h) cardOpen[id] = !cardOpen[id];
 		float top = y + 28; y += h + 12; return top;
+	};
+	// Lay chips left to right with arrows between them, wrapping onto new
+	// rows; with draw = false it only measures.  Returns the rows used.
+	auto flow = [&](const Str* names, int n, float top, bool draw, int hi, bool nullEnd) {
+		float x = 22; int rows = 1;
+		for (int i = 0; i < n; ++i) {
+			float cw = width(names[i], fontSerif, 14) + 14;
+			if (x + cw > W - 30 && x > 22) { x = 22; ++rows; }
+			float ry = top + (rows - 1) * 28;
+			if (draw) chip(x, ry, names[i], i == hi ? HI : CHIP, BONE, i == hi ? TITLE : sf::Color::Transparent);
+			x += cw;
+			if (i + 1 < n || nullEnd) { if (draw) arrow(x + 4, ry + 11, TAG); x += 18; }
+		}
+		if (nullEnd) {
+			if (x + 30 > W - 20) { x = 22; ++rows; }
+			if (draw) txt("null", fontMono, 12, TAG, x, top + (rows - 1) * 28 + 4);
+		}
+		return rows;
 	};
 	char b[160];
 
@@ -681,73 +710,83 @@ void Game::drawConsole(sf::RenderWindow* w) {
 		}
 	}
 
-	// ---- STACK: rooms visited, top = where you are
+	// ---- STACK: rooms visited, top = where you are (click: the whole stack)
 	{
-		float t = card(76, "Where you've been", "STACK");
 		int hist[32]; int hn = player.history.toArray(hist, 32);
-		for (int i = 0; i < hn && i < 2; ++i) {
+		bool open = cardOpen[0];
+		int show = open ? hn : minOf(hn, 2);
+		float t = card(open ? 34.f + 22.f * maxOf(2, show) : 76.f, "Where you've been", "STACK", 0, hn > 2);
+		for (int i = 0; i < show; ++i) {
 			float bx = 22, by = t + i * 22, bw = 160;
 			rect(bx, by, bw, 20, i == 0 ? HI : CHIP, i == 0 ? TITLE : EDGE);
 			txt(ROOMS[hist[i]].name, fontSerif, 13, i == 0 ? sf::Color::White : BONE, bx + 8, by + 2);
+			if (open && i > 0 && i == hn - 1) txt("BOTTOM  -  where the dream began", fontItalic, 12, TAG, 192, by + 3);
 		}
 		txt("TOP  -  you are here", fontItalic, 12, TAG, 192, t + 3);
-		if (hn > 1) txt(Str("B goes back one room"), fontItalic, 12, TAG, 192, t + 25);
-		if (hn > 2) { std::snprintf(b, sizeof b, "+%d more below", hn - 2); txt(b, fontItalic, 11, TAG, W - 22 - width(b, fontItalic, 11), t + 25); }
+		if (hn > 1 && !(open && hn == 2)) txt(Str("B goes back one room"), fontItalic, 12, TAG, 192, t + 25);
+		if (!open && hn > 2) { std::snprintf(b, sizeof b, "+%d more below", hn - 2); txt(b, fontItalic, 11, TAG, W - 22 - width(b, fontItalic, 11), t + 25); }
 	}
 
-	// ---- QUEUE: scares in the order they will fire
+	// ---- QUEUE: scares in the order they will fire (click: every one)
 	{
-		float t = card(54, "Next scares in this room", "QUEUE");
 		const char* what[] = { "flicker", "whisper", "door slam", "breath", "blood writing", "moan", "floor crack", "glass" };   // EventKind order
 		HauntEvent ev[16]; int en = events.toArray(ev, 16);
-		float x = 22;
+		Str names[16];
+		for (int i = 0; i < en; ++i) { std::snprintf(b, sizeof b, "%s  %.0fs", what[ev[i].kind], maxOf(0.f, ev[i].at - roomTime)); names[i] = b; }
+		int fit = 0; { float x = 22; for (int i = 0; i < en; ++i) { float cw = width(names[i], fontSerif, 14) + 14; if (x + cw > W - 30) break; x += cw + 18; ++fit; } }
+		bool open = cardOpen[1];
+		int rows = open && en ? flow(names, en, 0, false, 0, false) : 1;
+		float t = card(26.f + 28.f * rows, "Next scares in this room", "QUEUE", 1, fit < en);
 		if (en == 0) txt("none left - the room is quiet", fontItalic, 13, TAG, 22, t + 2);
-		for (int i = 0; i < en && i < 4; ++i) {
-			float in = maxOf(0.f, ev[i].at - roomTime);
-			std::snprintf(b, sizeof b, "%s  %.0fs", what[ev[i].kind], in);
-			float cw = width(b, fontSerif, 14) + 14;
-			if (x + cw > W - 30) break;
-			chip(x, t, b, i == 0 ? HI : CHIP, BONE, i == 0 ? TITLE : sf::Color::Transparent);
-			x += cw;
-			if (i + 1 < en && i < 3) { arrow(x + 4, t + 11, TAG); x += 18; }
-		}
+		else if (open) flow(names, en, t, true, 0, false);
+		else flow(names, fit, t, true, 0, false);
+		if (!open && fit < en) { std::snprintf(b, sizeof b, "+%d more", en - fit); txt(b, fontItalic, 11, TAG, W - 22 - width(b, fontItalic, 11), t + 5); }
 	}
 
-	// ---- PRIORITY QUEUE: current dangers, worst first
+	// ---- PRIORITY QUEUE: current dangers, worst first (click: every one)
 	{
-		float t = card(70, "Dangers right now", "PRIORITY QUEUE");
 		// The heap array is only partly ordered (slot 1 is not always the
 		// runner-up), so pop a copy: extractMax hands them back worst first.
 		PriorityQueue<Threat> order = threats;
+		Threat list[16]; int tn = 0;
 		Threat th;
-		int shown = 0;
-		while (shown < 2 && order.extractMax(&th)) {
-			if (th.kind == TH_CALM || !th.label[0]) continue;
-			float by = t + shown * 20, maxw = W - 90;
+		while (tn < 16 && order.extractMax(&th)) if (th.kind != TH_CALM && th.label[0]) list[tn++] = th;
+		bool open = cardOpen[2];
+		int show = open ? tn : minOf(tn, 2);
+		float t = card(open ? 30.f + 20.f * maxOf(2, show) : 70.f, "Dangers right now", "PRIORITY QUEUE", 2, tn > 2);
+		for (int i = 0; i < show; ++i) {
+			const Threat& q = list[i];
+			float by = t + i * 20, maxw = W - 90;
 			rect(24, by + 4, maxw, 12, CHIP);
-			rect(24, by + 4, maxw * th.priority / 100.f, 12, shown == 0 ? sf::Color(200, 40, 60) : sf::Color(130, 50, 60));
-			Str lbl = th.label; if (lbl.size() > 44) lbl = lbl.substr(0, 42) + "...";
-			std::snprintf(b, sizeof b, "%d", th.priority);
+			rect(24, by + 4, maxw * q.priority / 100.f, 12, i == 0 ? sf::Color(200, 40, 60) : sf::Color(130, 50, 60));
+			Str lbl = q.label; if (lbl.size() > 44) lbl = lbl.substr(0, 42) + "...";
+			std::snprintf(b, sizeof b, "%d", q.priority);
 			txt(b, fontMono, 11, BONE, W - 56, by + 3);
-			txt(lbl, fontSerif, 12, shown == 0 ? sf::Color::White : BONE, 30, by + 1);
-			++shown;
+			txt(lbl, fontSerif, 12, i == 0 ? sf::Color::White : BONE, 30, by + 1);
 		}
-		if (!shown) chip(22, t, "calm - nothing is hunting you", CHIP, OPEN);
+		if (!tn) chip(22, t, "calm - nothing is hunting you", CHIP, OPEN);
+		if (!open && tn > 2) { std::snprintf(b, sizeof b, "+%d more", tn - 2); txt(b, fontItalic, 11, TAG, 24, t + 42); }
 	}
 
-	// ---- LINKED LIST: inventory
+	// ---- LINKED LIST: inventory, head first (click: the whole list)
 	{
-		float t = card(54, "Carrying", "LINKED LIST");
-		float x = 22; int k = 0;
-		bool overflow = false;
-		player.inventory.forEach([&](const InventoryItem& it) {
-			if (overflow) return;
-			float cw = width(ITEMS[it.id].name, fontSerif, 14) + 14;
-			if (x + cw + 60 > W - 20) { overflow = true; return; }
-			x += chip(x, t, ITEMS[it.id].name, k == 0 ? HI : CHIP, BONE);
-			arrow(x + 4, t + 11, TAG); x += 18; ++k;
-		});
-		txt(overflow ? "..." : "null", fontMono, 12, TAG, x, t + 4);
+		Str names[16]; int n = 0;
+		player.inventory.forEach([&](const InventoryItem& it) { if (n < 16) names[n++] = ITEMS[it.id].name; });
+		int rows = flow(names, n, 0, false, 0, true);
+		bool open = cardOpen[3];
+		float t = card(26.f + 28.f * (open ? rows : 1), "Carrying", "LINKED LIST", 3, rows > 1);
+		if (open || rows == 1) flow(names, n, t, true, 0, true);
+		else {                                   // folded: as many as fit on one row, then "..."
+			float x = 22; int k = 0;
+			for (int i = 0; i < n; ++i) {
+				float cw = width(names[i], fontSerif, 14) + 14;
+				if (x + cw + 60 > W - 20) break;
+				x += chip(x, t, names[i], i == 0 ? HI : CHIP, BONE);
+				arrow(x + 4, t + 11, TAG); x += 18; ++k;
+			}
+			std::snprintf(b, sizeof b, "... +%d", n - k);
+			txt(b, fontMono, 12, TAG, x, t + 4);
+		}
 	}
 
 	// ---- ENEMY AI: the spiders' state machines, senses and pathfinding
@@ -841,19 +880,26 @@ void Game::drawConsole(sf::RenderWindow* w) {
 
 	// ---- BFS + DFS: searching the house
 	{
-		float t = card(70, "Finding the way", "BFS  /  DFS");
+		Str route[MAX_ROOMS]; int rn = 0;
+		bool hasRoute = !hintText.empty() && lastRouteLen > 1;
+		if (hasRoute) for (int i = 0; i < lastRouteLen && rn < MAX_ROOMS; ++i) route[rn++] = ROOMS[lastRoute[i]].name;
+		int rows = hasRoute ? flow(route, rn, 0, false, rn - 1, false) : 1;
+		bool open = cardOpen[4];
+		float extra = 28.f * ((open ? rows : 1) - 1);
+		float t = card(70 + extra, "Finding the way", "BFS  /  DFS", 4, rows > 1);
 		if (hintText.empty()) txt("route appears with the hint  (press H)", fontItalic, 13, TAG, 22, t);
 		else if (lastRouteLen <= 1) { std::snprintf(b, sizeof b, "goal is in this room  -  %d steps of blood", trailLen); txt(b, fontSerif, 13, BONE, 22, t); }
+		else if (open || rows == 1) flow(route, rn, t - 2, true, rn - 1, false);
 		else {
 			float x = 22;
-			for (int i = 0; i < lastRouteLen; ++i) {
-				Str nm = ROOMS[lastRoute[i]].name;
-				float cw = width(nm, fontSerif, 14) + 14;
+			for (int i = 0; i < rn; ++i) {
+				float cw = width(route[i], fontSerif, 14) + 14;
 				if (x + cw > W - 30) { txt("...", fontMono, 12, TAG, x, t + 4); break; }
-				x += chip(x, t - 2, nm, i == lastRouteLen - 1 ? HI : CHIP, BONE);
-				if (i + 1 < lastRouteLen) { arrow(x + 4, t + 9, TAG); x += 18; }
+				x += chip(x, t - 2, route[i], i == rn - 1 ? HI : CHIP, BONE);
+				if (i + 1 < rn) { arrow(x + 4, t + 9, TAG); x += 18; }
 			}
 		}
+		t += extra;
 		if (lastDfsLen == 0) txt("DFS: hidden rooms not searched yet (read the Hymn Page)", fontItalic, 12, TAG, 22, t + 24);
 		else { std::snprintf(b, sizeof b, "DFS: searched %d rooms through secret doors", lastDfsLen); txt(b, fontItalic, 12, TAG, 22, t + 24); }
 	}

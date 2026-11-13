@@ -51,7 +51,7 @@ public:
 	void update(sf::RenderWindow* window, float dt);
 	void retryRoom();             // after death: wake up at the room's entrance
 	const RunStats& stats() const { return runStats; }
-	Track musicTrack() const { return chaseHold > 0 ? TRACK_CHASE : TRACK_GAME; }
+	Track musicTrack() const { return bossDeathT >= 0 ? TRACK_DEVIL_DEATH : chaseHold > 0 ? TRACK_CHASE : TRACK_GAME; }
 	Str deathReason;
 	int deathTip = TIP_FEAR;
 
@@ -82,6 +82,7 @@ public:
 	static bool saveExists(const char* path);
 	void startDemo();
 	void devDemoFrom(int g) { startDemo(); demoGoal = g; }
+	void setDemoRoute(int r) { demoRoute = r; }
 	bool demo = false;   // live data structures, in the separate console window
 	void devOpen(int what) { if (what == 1) showDebug = true; if (what == 2) showInventory = true; if (what == 3) openTip(TIP_BRIDE, true); }
 
@@ -137,7 +138,11 @@ private:
 	bool demoEncounter(float dt);
 	bool demoDodge(sf::Vector2f from);
 	int demoFindKit();
-	int demoEnc = 0;          // 0 none, 1 Carrie, 2 Samara
+	int demoEnc = 0;
+	float demoCarrieCD = 0;
+	bool demoWillBlock = true;
+	float demoSamaraHold = 0;   // seconds spent frozen for Samara this encounter
+	int demoRoute = 0;        // which ending the demo plays: 0 true, 1 escape, 2 secret, 3 trapped   // after a look at Carrie, carry on for a while          // 0 none, 1 Carrie, 2 Samara
 	float demoEncT = 0;
 	bool demoGoalDone(int g);
 
@@ -155,8 +160,11 @@ private:
 	int bossAtkDir = 0; bool bossAtkLanded = false;
 	static constexpr float BOSS_RAISE = 0.25f, BOSS_WINDUP = 0.70f, BOSS_SWING = 0.88f, BOSS_ATK_END = 1.15f;
 	static constexpr float BOSS_REACH = 62.f;
+	float hitFxT = -1; sf::Vector2f hitFxDir;      // the scythe's cut across the hero: slash + blood
+	void drawHitFx(sf::RenderWindow* w);
 	sf::Texture bossAtkTex; sf::Sprite bossAtkSprite{ bossAtkTex };
 	// Samara and her locket: she rises beside her bones and waits for it.
+	bool cardOpen[8] = {};               // console cards expanded by a click (show every element)
 	bool locketReturned = false;          // gave it back: she's at peace (needed for the true ending)
 	float samaraT = -1, samaraGoneT = -1; // waiting in the Ossuary / ascending after the gift
 	sf::Vector2f samaraPos;
@@ -165,12 +173,31 @@ private:
 	void returnLocket();
 	void updateSamara(float dt);
 	void drawSamara(sf::RenderWindow* w);
+	void drawItemGlints(sf::RenderWindow* w);
 	bool nearSamara();
 public:
 	bool devLocketReturned() const { return locketReturned; }
+	void devOpenCards() { for (bool& c : cardOpen) c = true; }
+	int devBlockDir = -1;   // test hook: hold the guard facing this way
 	void devGiveLocket(bool returned) { player.give(CRIMSON_LOCKET); bride.pacified = true; if (returned) { player.take(CRIMSON_LOCKET); locketReturned = true; } }
 private:
 	void updateBossAttack(float dt);
+	// He walks a BFS path (Queue) to you, so he goes AROUND braziers and graves
+	// instead of pressing into them - no more standoffs.
+	int bossPath[GRID_W * GRID_H] = {}, bossPathLen = 0, bossPathStep = 0;
+	float bossReplanT = 0;
+	void bossChase(float dt, sf::RenderWindow* w);
+	bool bossPlan(int goal);
+	// The fight is staged in the middle of the crypt: he lies in the grave at
+	// its centre until you step into the arena, then rises - and he keeps to
+	// the arena instead of following you into corners.
+	bool bossDormant = false;
+	float bossRiseT = -1;
+	sf::Vector2f arenaCentre() const;
+	static constexpr float BOSS_RISE = 1.6f, ARENA_WAKE = 170.f, ARENA_LEASH = 200.f;
+public:
+	bool devBossDormant() const { return bossDormant; }
+private:
 	void drawBossAttack(sf::RenderWindow* w, bool overDark);
 	void drawDevilGlow(sf::RenderWindow* w);
 	void drawDevilDeath(sf::RenderWindow* w);

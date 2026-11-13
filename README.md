@@ -23,7 +23,7 @@ spirits, the Weavers and the Devil. Then choose how the nightmare ends.
 - **Enemy AI** with an **eight-state machine**, **line of sight**, **sound detection**, and **A\*** and **BFS** pathfinding.
 - **Stealth**: turn your lantern off, stand still, or hide in a wardrobe. Or **stomp** a spider flat when it rears up at your feet (short reach, 12 s cooldown).
 - **Doors you walk through**: a door swings open on its hinge, the hero walks through, and it shuts behind you with a thud. Locked doors rattle.
-- **A boss fight**: the hero draws the Blessed Sword (animated swing in four directions) and needs six blows to end the Devil, who answers with his **scythe**: a telegraphed swing you must step out of, or break with a flare. When he falls, he bursts into ash and ten freed souls rise.
+- **A boss fight**: the hero draws the Blessed Sword (animated swing in four directions) and needs six blows to end the Devil, who answers with his **scythe**: a telegraphed swing you **block (C)**, step out of, or break with a flare. A scythe hit cuts you (health down, fear up). When he falls, he bursts into ash and ten freed souls rise.
 - **Samara's locket**: take it from her bones and she rises beside them. Give it back (E) and she turns to light; only then can you reach the true ending.
 - **Save & continue**, health kits hidden in drawers, and rolling **credits** over TV static.
 - **Live data-structure console**: press **TAB** and the window widens with a panel that draws every structure as the game changes it.
@@ -73,7 +73,7 @@ unit-tested by `make test`. Each one does a real job in the game: take it away a
 
 <img align="right" src="docs/images/console.png" alt="Live data-structure console" width="330">
 
-**Live console (TAB).** Press TAB in-game and the window widens: the game keeps its full view on the
+**Live console (TAB).** Click a card to open it and see *every* element (the whole stack, every queued scare, every threat, the whole inventory list, the full route); click again to fold it. Press TAB in-game and the window widens: the game keeps its full view on the
 left and a console strip opens on the right. Each card *draws* its structure from the live game
 state, so you can watch keys move through the linked list, rooms stack up as you walk, and the
 threat heap reorder as something closes in. The *Dangers* card lists the two worst threats in true
@@ -186,6 +186,9 @@ The sprites are generated from single drawings:
 - [`tools/make_spider.py`](tools/make_spider.py) cuts out each of the 8 legs (a multi-source BFS from the joints decides which pixel belongs to which leg) and swings it around its joint: 6 frames, rotated into 4 directions.
 - [`tools/make_spider_dead.py`](tools/make_spider_dead.py) draws the squashed body.
 - [`tools/make_stomp.py`](tools/make_stomp.py) adds the hero's stomp frames.
+- [`tools/make_block.py`](tools/make_block.py) builds the hero's guard: 3 frames (raise, guard, clash with sparks) in 4 directions.
+- [`tools/make_empty_table.py`](tools/make_empty_table.py) draws the empty Library table left behind when you take the diary.
+- [`tools/make_combat_sfx.py`](tools/make_combat_sfx.py) synthesises the fight's sounds with numpy: the clang of a block, the sword's swing and bite, the scythe's whoosh and cut, a faint crunch-and-squish for stomped spiders, and the Devil's death music (a dissonant swell, a crash as he bursts, then a warm chord as the souls rise).
 - [`tools/make_devil_attack.py`](tools/make_devil_attack.py) builds the Devil's scythe swing. It cuts the scythe out of his walk sprite, patches the robe behind it, and redraws the scythe rotated around his hands in 4 poses (raise, wind-up, swing with a crimson slash, follow-through) for 4 directions.
 - [`tools/make_sword_attack.py`](tools/make_sword_attack.py) builds the hero's sword attack: 4 frames (wind-up, swing, strike, recover) in 4 directions. The Blessed Sword is redrawn pixel by pixel at each angle, with a crimson slash arc.
 
@@ -193,8 +196,9 @@ The sprites are generated from single drawings:
 
 ## Watch the dream (demo mode)
 
-Pick **Watch the dream** on the title screen and the game plays itself from the first room to the
-**true ending** in about ten minutes, at normal walking speed, by the same rules as you: its health
+Pick **Watch the dream** on the title screen and choose which ending to watch: **the true ending**,
+**Escape**, **the secret way out** or **Trapped**. The game then plays itself from the first room to that
+ending (the true one takes about ten minutes), at normal walking speed, by the same rules as you: its health
 really drops when something hits it, it searches drawers for health kits when it's hurt, and if it
 does die it wakes again in that room ("Dream again") and carries on. The live console is open the whole
 time. **TAB** hides or shows it, **M** mutes, and **Esc** pauses it (you can leave to the title from the pause menu).
@@ -207,8 +211,9 @@ pressing **E** would. It finds its way with the project's own structures:
 - **Inside a room:** BFS over the tiles with the Queue. Tiles next to ghosts or the Devil are treated as blocked, and it waits for a ghost to pass if one is in the way. A spirit frozen by a flare is harmless, so it walks straight past.
 - **Spirits:** one about to walk into it gets a flare; if the flare is recharging, it steps across the spirit's line.
 - **Samara's locket:** it takes the locket, waits for Samara to rise, walks up to her and gives it back.
-- **The Devil:** it closes in and strikes with the sword. When he winds up the scythe it flares him or steps out of the red arc, then steps back in.
+- **The Devil:** it walks into the middle of the crypt so he rises from his grave, then closes in and strikes. When he winds up the scythe it usually raises its guard and blocks (sometimes it's too slow and gets cut, like a player), then strikes while he staggers.
 - **Meeting the horrors:** it uses each one's survival rule. It turns to **face Carrie** so she freezes, **stands still** while Samara hunts, **flares** spirits when they get close, and **stomps** a spider the moment it rears up at its feet.
+- **The other endings:** for *Escape* it never gives the locket back; for *the secret way out* it takes the locket, keeps it and walks out of the front door; for *Trapped* it chooses the petrol in the Antechamber.
 - **Doors:** it walks through every door with the same swing-open, walk-through, swing-shut animation as a player.
 
 The demo is also the game's end-to-end test: if any room couldn't be solved, the demo would get stuck.
@@ -231,6 +236,8 @@ graph LR
     Ante -- Blessed Sword --> Crypt[The Crimson Crypt]
 ```
 
+Picked-up things leave the map: take the diary and only the empty table is left; read the Hymn Page and it is gone from the floor. Everything you can take glints in the dark until you take it, and the Crimson Locket hangs from the skeleton's hand on a gold chain.
+
 This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** at the top of the screen draws it:
 - unvisited rooms show as `?`;
 - locked doors are dark red;
@@ -247,7 +254,7 @@ This is the exact graph built in [`world.cpp`](src/world.cpp). The **mini-map** 
 | 🩸 | **Samara** | Drifts *through walls*, hunting by the sound of your steps | **Stand still** and she loses your trail. **Flare** to banish her. Take her **Crimson Locket** from her bones in the Ossuary and she rises beside them. Walk up to her and press **E** to give it back: she turns to light and never hunts you again. |
 | 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking | **Face her** and she freezes. A **flare** drives her away for a while. |
 | 🕷️ | **The Weavers** | Patrol, hear your steps, see you, chase with A\*, rear up and bite | **Stand still**, turn the **lantern off (L)** or **hide in a wardrobe (E)**. When one rears up at your feet, **stomp (Q)**. A flare stuns them. |
-| 😈 | **The Devil** | The final boss. He hunts you through the crypt and swings his **scythe** when you're in reach: he raises it, the floor in front of him glows red, then he cuts. Every wound makes him swing back. The EMF meter beeps when he's near, and his health bar sits at the bottom of the screen | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. Step out of the red arc when he winds up, then strike. A **flare** during the wind-up breaks the swing and dazes him; your next blow wakes him. Once he's committed to a swing he doesn't flinch. |
+| 😈 | **The Devil** | The final boss. He hunts you through the crypt and swings his **scythe** when you're in reach: he raises it, the floor in front of him glows red, then he cuts. Every wound makes him swing back. The EMF meter beeps when he's near, and his health bar sits at the bottom of the screen | Fight him with the **Blessed Sword (SHIFT)**: six blows and he falls. When he winds up, **hold C facing him to block**: the blades clash, sparks fly and he staggers, which is your opening. Or step out of the red arc. A hit costs 22 health and adds fear. A **flare** during the wind-up breaks the swing and dazes him; your next blow wakes him. Once he's committed to a swing he doesn't flinch. |
 | 🔥 | **The house** | Spikes, fire, open graves | Time your steps. **Levers** lower the spikes. |
 | 😱 | **Fear** | Rises in the dark, near the dead and with every scare | At 100 your mind breaks. Keep the lantern lit and flare to steady your nerves. |
 
@@ -266,7 +273,7 @@ and a trail of blood leads you there.
 ## Menus, saving and credits
 
 - **Boot:** a content warning, then the logo rises out of the dark over the blood moon and glides to the left as the menu fades in (any key skips).
-- **Title:** Continue the dream (when there's a save), Begin the dream, Watch the dream, Credits, Controls, Wake up.
+- **Title:** Continue the dream (when there's a save), Begin the dream, Watch the dream (pick one of the four endings), Credits, Controls, Wake up.
 - **Save & quit to menu** (pause menu) writes `savegame.txt` straight from the data structures: the inventory **linked list**, the room **stack**, the item **BST**, every door in the **graph**, and every room's tile **array**. **Continue** restores the run exactly where you left it.
 - **Credits:** pitch-black screen, quiet live TV static, and the credits rolling up like a film. A horror sting plays under the static first; then the song builds in slowly as the static thins to a faint hiss.
 
@@ -295,6 +302,7 @@ Each ending closes with your run stats (time, rooms, items, spirits banished, de
 | E / Enter | Interact: pick up, open, read, use doors, hide in / leave a wardrobe |
 | **F** | Flare the lantern (10 s cooldown, shown on the HUD) |
 | **Shift** | Swing the Blessed Sword (once you have it): the final fight, and it cuts spiders down too |
+| **C** (hold) | Block with the Blessed Sword: face the Devil and raise the guard when his scythe comes. A clean block staggers him |
 | **Q** | Stomp: squash a spider at your feet (about one tile of reach, 12 s cooldown) |
 | **L** | Lantern on / off (stealth) |
 | **B** | Go back one room (Stack) |
@@ -370,7 +378,7 @@ CS_ROOM=3 CS_CONSOLE=1 CS_SPIDER=1 CS_FRAMES=24 CS_SHOT=ai.png ./crimson_sleep
 ```
 - `CS_ROOM=n` starts the game in room *n*.
 - `CS_CONSOLE=1` opens the console.
-- `CS_DEMO=1` starts the demo.
+- `CS_DEMO=1` .. `CS_DEMO=4` starts the demo of the true / escape / secret / trapped ending.
 - `CS_BRIDE=1` / `CS_SPIDER=1` spawn a horror next to you.
 - `CS_STATE=ending_4` shows an ending.
 - `CS_SEED=n` makes a run repeatable (same random choices).

@@ -13,6 +13,7 @@
 // ---------------------------------------------------------------------
 #include "game.h"
 #include "ds/Queue.h"
+#include "ai.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -26,7 +27,8 @@ enum DemoDone { D_LANTERN, D_NEWSPAPER, D_RUSTY, D_DIARY, D_BRASS, D_LEVER, D_CH
 // One step of the walkthrough: use `tile` (an interaction tile id) in `room`.
 struct DemoGoal { int room; int tile; int done; const char* what; };
 
-const DemoGoal GOALS[] = {
+// One walkthrough per ending ("Watch the dream" offers all four).
+const DemoGoal GOALS_TRUE[] = {
 	{ ENTRANCE_HALL,     11, D_LANTERN,   "take the lantern" },
 	{ GRAND_CORRIDOR,     0, D_NEWSPAPER, "read the newspaper in the drawer" },
 	{ LIBRARY,            0, D_RUSTY,     "find the rusty key" },
@@ -46,7 +48,53 @@ const DemoGoal GOALS[] = {
 	{ CRIMSON_CRYPT,     17, D_LEVER,     "pull the crypt lever" },
 	{ CRIMSON_CRYPT,     -1, D_END,       "slay the Devil with the Blessed Sword" },   // tile -1: hunt the boss
 };
-const int GOAL_COUNT = (int)(sizeof GOALS / sizeof GOALS[0]);
+// Escape: the Devil dies, but Samara never gets her locket back.
+const DemoGoal GOALS_ESCAPE[] = {
+	{ ENTRANCE_HALL,     11, D_LANTERN,   "take the lantern" },
+	{ GRAND_CORRIDOR,     0, D_NEWSPAPER, "read the newspaper in the drawer" },
+	{ LIBRARY,            0, D_RUSTY,     "find the rusty key" },
+	{ COLLAPSED_BEDROOM,  1, D_BRASS,     "open the chest" },
+	{ COLLAPSED_BEDROOM, 17, D_LEVER,     "pull the bedroom lever (a shorter way out)" },
+	{ NURSERY,           17, D_LEVER,     "pull the nursery lever" },
+	{ NURSERY,            1, D_CHAPELKEY, "take the Chapel Key" },
+	{ CHAPEL,            17, D_LEVER,     "pull the chapel lever" },
+	{ CHAPEL,            18, D_IRON,      "take the Iron Key" },
+	{ ANTECHAMBER,       16, D_SWORD,     "take the Blessed Sword" },
+	{ ANTECHAMBER,       17, D_LEVER,     "pull the antechamber lever" },
+	{ CRIMSON_CRYPT,     19, D_NOTE,      "read the note (it opens the way)" },
+	{ CRIMSON_CRYPT,     17, D_LEVER,     "pull the crypt lever" },
+	{ CRIMSON_CRYPT,     -1, D_END,       "slay the Devil (the locket never returned)" },
+};
+// Secret: find the locket, keep it, and walk out of the front door.
+const DemoGoal GOALS_SECRET[] = {
+	{ ENTRANCE_HALL,     11, D_LANTERN,   "take the lantern" },
+	{ GRAND_CORRIDOR,     0, D_NEWSPAPER, "read the newspaper in the drawer" },
+	{ LIBRARY,            0, D_RUSTY,     "find the rusty key" },
+	{ COLLAPSED_BEDROOM,  1, D_BRASS,     "open the chest" },
+	{ COLLAPSED_BEDROOM, 17, D_LEVER,     "pull the bedroom lever (a shorter way out)" },
+	{ NURSERY,           17, D_LEVER,     "pull the nursery lever" },
+	{ NURSERY,            1, D_CHAPELKEY, "take the Chapel Key" },
+	{ CHAPEL,            17, D_LEVER,     "pull the chapel lever" },
+	{ CHAPEL,             3, D_HYMN,      "read the hymn page" },
+	{ OSSUARY,           12, D_LOCKET,    "take the bride's locket - and keep it" },
+	{ OUTSIDE,            0, D_END,       "walk out of the front door with the locket" },   // the route ends at the front door
+};
+// Trapped: take the petrol in the Antechamber instead of the sword.
+const DemoGoal GOALS_TRAPPED[] = {
+	{ ENTRANCE_HALL,     11, D_LANTERN,   "take the lantern" },
+	{ GRAND_CORRIDOR,     0, D_NEWSPAPER, "read the newspaper in the drawer" },
+	{ LIBRARY,            0, D_RUSTY,     "find the rusty key" },
+	{ COLLAPSED_BEDROOM,  1, D_BRASS,     "open the chest" },
+	{ COLLAPSED_BEDROOM, 17, D_LEVER,     "pull the bedroom lever (a shorter way out)" },
+	{ NURSERY,           17, D_LEVER,     "pull the nursery lever" },
+	{ NURSERY,            1, D_CHAPELKEY, "take the Chapel Key" },
+	{ CHAPEL,            17, D_LEVER,     "pull the chapel lever" },
+	{ CHAPEL,            18, D_IRON,      "take the Iron Key" },
+	{ ANTECHAMBER,       20, D_END,       "pour the petrol and strike a match" },
+};
+const DemoGoal* const ALL_GOALS[] = { GOALS_TRUE, GOALS_ESCAPE, GOALS_SECRET, GOALS_TRAPPED };
+const int ALL_COUNTS[] = { (int)(sizeof GOALS_TRUE / sizeof GOALS_TRUE[0]), (int)(sizeof GOALS_ESCAPE / sizeof GOALS_ESCAPE[0]),
+                           (int)(sizeof GOALS_SECRET / sizeof GOALS_SECRET[0]), (int)(sizeof GOALS_TRAPPED / sizeof GOALS_TRAPPED[0]) };
 const float READ_PAUSE = 2.5f;   // seconds to stand and let the story text be read
 }
 
@@ -61,14 +109,14 @@ void Game::startDemo() {
 
 bool Game::demoGoalDone(int g) {
 	int c, r;
-	switch (GOALS[g].done) {
+	switch (ALL_GOALS[demoRoute][g].done) {
 	case D_LANTERN: return player.has(LANTERN);
 	case D_NEWSPAPER: return collected(NEWSPAPER);
 	case D_RUSTY: return collected(RUSTY_KEY);
 	case D_DIARY: return collected(DIARY);
 	case D_BRASS: return collected(BRASS_KEY);
-	case D_LEVER: return !maps[GOALS[g].room].map.find(17, &c, &r);   // a pulled lever is a different tile
-	case D_NOTE: return !maps[GOALS[g].room].map.find(19, &c, &r);            // a read note crumbles away
+	case D_LEVER: return !maps[ALL_GOALS[demoRoute][g].room].map.find(17, &c, &r);   // a pulled lever is a different tile
+	case D_NOTE: return !maps[ALL_GOALS[demoRoute][g].room].map.find(19, &c, &r);            // a read note crumbles away
 	case D_CHAPELKEY: return collected(CHAPEL_KEY);
 	case D_HYMN: { const Edge* e = house.edgeTo(CHAPEL, HIDDEN_TUNNEL); return collected(HYMN_PAGE) && e && !e->hidden; }
 	case D_IRON: return collected(IRON_KEY);
@@ -120,7 +168,7 @@ bool Game::demoEncounter(float dt) {
 				flareLantern(); canFlare = false; break;
 			}
 	// Fear kills too: when its nerve is going, a flare steadies it (fear -20).
-	if (canFlare && player.fear > 80) { flareLantern(); showToast("A flare to steady the nerves."); canFlare = false; }
+	if (canFlare && player.fear > 70) { flareLantern(); showToast("A flare to steady the nerves."); canFlare = false; }
 
 	// A wandering spirit about to walk into you: flare it (it freezes and you
 	// walk on past), or if the flare is still recharging, step out of its way.
@@ -134,28 +182,36 @@ bool Game::demoEncounter(float dt) {
 		}
 	}
 
-	// Carrie: turn and LOOK at her - she freezes while watched - then flare her away.
-	if (child.active && childBanishT <= 0 && child.stun <= 0 && child.distanceTo(pp()) < 180) {
+	// Carrie: turn and LOOK at her - she freezes while watched - then flare her
+	// away.  Only when she can actually be seen (no staring at a wall), and
+	// only briefly: if she's out of flare reach it walks on, glancing back.
+	if (demoCarrieCD > 0) demoCarrieCD -= dt;
+	float cd = child.distanceTo(pp());
+	bool seeCarrie = child.active && childBanishT <= 0 && child.stun <= 0 && cd < 170 &&
+	                 ai::lineOfSight(maps[room].map, me, child.pos);
+	if (seeCarrie && demoCarrieCD <= 0) {
 		demoEnc = 1;
 		sf::Vector2f d = child.pos - me;
 		player.source.y = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left)
 		                                                  : (d.y > 0 ? Character::Down : Character::Up);
 		if (was != 1) { demoEncT = 0; showToast("Carrie! Face her - she can't move while you watch her."); }
 		demoEncT += dt;
-		float d2 = child.distanceTo(pp());
-		if (demoEncT > 1.5f && d2 < 120 && canFlare) flareLantern();
-		else if (demoEncT > 1.5f && d2 >= 110 && !player.col.isCollisionMap(pp(), player.source.y))
-			player.forcedDir = player.source.y;      // step toward her, eyes locked - she stays frozen
-		if (demoEncT > 12.f) { childBanishT = 0.01f; child.active = false; }   // never stall the show
+		if (demoEncT > 1.0f && cd < 125 && canFlare) { flareLantern(); demoCarrieCD = 4.f; return false; }
+		if (demoEncT > 2.0f) { demoCarrieCD = 5.f; return false; }   // no flare to spare: carry on (never a staring match)
 		return true;
 	}
-	// Samara: she hunts by sound - stand perfectly still until she loses the trail.
-	if (bride.active && bride.state == Bride::HUNT && !bride.pacified && bride.distanceTo(pp()) < 210 && player.fear < 88) {   // too scared to stand still: keep moving
+	// Samara: she hunts by sound.  The flare drives her off the moment she's
+	// in reach; otherwise the dreamer keeps walking, and only freezes (so she
+	// loses the trail) if she gets right on top of it - one smooth stop, not
+	// a stop-start crawl.  Standing in the dark too long also feeds the fear.
+	float sd = bride.distanceTo(pp());
+	if (bride.active && bride.state == Bride::HUNT && !bride.pacified && sd < 210) {
+		if (was != 2) { demoEncT = 0; demoSamaraHold = 0; showToast("Samara... she hunts by sound."); }
 		demoEnc = 2;
-		if (was != 2) { demoEncT = 0; showToast("Samara... stand still. She hunts by sound."); }
 		demoEncT += dt;
-		if ((demoEncT > 6.f || player.fear > 65) && canFlare && bride.distanceTo(pp()) < 125) flareLantern();   // she won't leave (or it's terrified): drive her off
-		return true;
+		if (canFlare && sd < 125) { flareLantern(); return false; }       // drive her off
+		if (sd < 80 && demoSamaraHold < 2.2f) { demoSamaraHold += dt; return true; }   // freeze: she loses the trail
+		return false;                                                    // keep going
 	}
 	return false;
 }
@@ -180,6 +236,10 @@ bool Game::demoDodge(sf::Vector2f from) {
 		float dd = dist(sf::Vector2f(nc * 32.f + 16, nr * 32.f + 16), from);
 		bool across = acrossVertical ? (d == 0 || d == 3) : (d == 1 || d == 2);
 		float score = dd + (across ? 40.f : 0.f);
+		if (bossActive) {                               // in the crypt, dodge round the grave, not off into a corner
+			sf::Vector2f ac = arenaCentre();
+			score += (dist(me, ac) - dist(sf::Vector2f(nc * 32.f + 16, nr * 32.f + 16), ac)) * 1.5f;
+		}
 		if (dd > dist(me, from) - 2 && score > bestD) { bestD = score; best = d; }
 	}
 	if (best < 0) return false;
@@ -253,6 +313,7 @@ bool Game::demoPlan(int tile, bool avoid) {
 // Called every frame in demo mode, before the player moves.
 void Game::demoUpdate(float dt) {
 	player.forcedDir = -1;
+	player.blocking = false;                  // the guard only stays up while the dreamer holds it (below)
 	{ static int tk = 0; if (getenv("CS_TRACE") && ++tk % 10 == 0) std::fprintf(stderr, "D enc=%d gstun=%.1f wait=%.1f goal=%d path=%d/%d hp=%.0f pos=%.0f,%.0f\n", demoEnc, ghostStun, demoWait, demoGoal, demoStep, demoPathLen, player.health, pp().x, pp().y); }
 	if (hidden) { hidden = false; player.hiddenAway = false; }   // the dreamer never hides (it could never step out)
 	if (tipOpen >= 0) tipOpen = -1;
@@ -262,14 +323,14 @@ void Game::demoUpdate(float dt) {
 	if (demoEncounter(dt)) return;            // a horror is close: deal with it first
 
 	if (demoWait > 0) { demoWait -= dt; return; }
-	if (demoGoal >= GOAL_COUNT) return;
+	if (demoGoal >= ALL_COUNTS[demoRoute]) return;
 	if (demoGoalDone(demoGoal)) {
-		if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "DEMO done %d: %s\n", demoGoal, GOALS[demoGoal].what);
+		if (getenv("CS_DEMO_LOG")) std::fprintf(stderr, "DEMO done %d: %s\n", demoGoal, ALL_GOALS[demoRoute][demoGoal].what);
 		++demoGoal; demoPathLen = 0; demoTries = 0;
 		demoWait = READ_PAUSE;
 		return;
 	}
-	const DemoGoal& g = GOALS[demoGoal];
+	const DemoGoal& g = ALL_GOALS[demoRoute][demoGoal];
 
 	// Hurt: search an unopened drawer in this room for a health kit first.
 	int tile = g.tile;
@@ -296,14 +357,29 @@ void Game::demoUpdate(float dt) {
 	}
 	// The Devil: close in and strike with the Blessed Sword (SHIFT) until he falls.
 	if (g.tile == -1) {
-		if (!bossActive) return;                    // he's collapsing - the ending follows
+		if (!bossActive && bossDormant && room == g.room) {   // step into the middle of the crypt: he rises
+			sf::Vector2f ac = arenaCentre() + sf::Vector2f(0, 64);
+			int at = (int)(ac.y / 32) * GRID_W + (int)(ac.x / 32);
+			if (at != demoTargetIdx) { demoTargetIdx = at; demoPathLen = 0; }
+		}
+		else if (!bossActive) return;               // he's collapsing - the ending follows
+		else {
+		if (bossRiseT >= 0) return;                 // let him rise
 		sf::Vector2f bc = bossCentre();
 		sf::Vector2f me = pp() + sf::Vector2f(12, 12), dv = bc - me;
 		float bd = std::sqrt(dv.x * dv.x + dv.y * dv.y);
 		// He's winding up the scythe: flare him if the lantern is ready,
 		// otherwise get out of the red arc - then step back in and strike.
 		if (bossAtkT >= 0 && bossAtkT < BOSS_SWING + 0.05f) {
-			if (bossAtkT < BOSS_WINDUP - 0.2f && flareCooldown <= 0 && bd < 105) { flareLantern(); return; }
+			// He winds up: turn to face him and raise the guard (C) - the clash
+			// staggers him, and that's the opening for the sword.
+			if (bossAtkT < 0.05f) demoWillBlock = std::rand() % 4 != 0;   // like a player, it doesn't always get the guard up
+			if (bd < BOSS_REACH + 14 && demoWillBlock) {
+				player.source.y = std::fabs(dv.x) > std::fabs(dv.y) ? (dv.x > 0 ? Character::Right : Character::Left)
+				                                                     : (dv.y > 0 ? Character::Down : Character::Up);
+				player.blocking = true;
+				return;
+			}
 			if (bd < BOSS_REACH + 14) { if (!demoDodge(bc)) player.forcedDir = dv.x > 0 ? Character::Left : Character::Right; return; }
 			player.source.y = std::fabs(dv.x) > std::fabs(dv.y) ? (dv.x > 0 ? Character::Right : Character::Left)
 			                                                     : (dv.y > 0 ? Character::Down : Character::Up);
@@ -318,6 +394,7 @@ void Game::demoUpdate(float dt) {
 		}
 		int bt = (int)(bc.y / 32) * GRID_W + (int)(bc.x / 32);
 		if (bt != demoTargetIdx) { demoTargetIdx = bt; demoPathLen = 0; }   // he moved: chase his new tile
+		}
 	}
 
 	// Re-plan around moving horrors - but only while standing exactly on a tile,
@@ -347,9 +424,10 @@ void Game::demoUpdate(float dt) {
 		// Something deadly on the next tile: hold still and let it pass; if it
 		// lingers, flare the lantern at it; after a while just go.
 		bool startTile = demoStep == 0;
-		if (!startTile && (g.tile >= 0 || healing) && demoDanger(t % GRID_W, t / GRID_W) && demoBlockedT < 5.f) {
+		if (!startTile && (g.tile >= 0 || healing) && demoDanger(t % GRID_W, t / GRID_W) && demoBlockedT < 2.5f) {
 			demoBlockedT += dt;
-			if (demoBlockedT > 2.f && flareCooldown <= 0 && player.has(LANTERN)) flareLantern();
+			if (demoBlockedT > 0.6f && flareCooldown <= 0 && player.has(LANTERN)) flareLantern();
+			if (demoBlockedT > 1.2f && onTile) { demoPathLen = 0; demoBlockedT = 0; return; }   // try a way around
 			return;
 		}
 		demoBlockedT = 0;

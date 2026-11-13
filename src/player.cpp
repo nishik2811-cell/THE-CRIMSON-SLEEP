@@ -7,6 +7,7 @@ static bool down(sf::Keyboard::Key k) { return key_held(k); }
 Player::Player() : object_sound(soundbuffer_object), door_sound(soundbuffer_door), end_sound(soundbuffer_end) {
 	loadSprite(asset("graphics/player.png"));
 	if (swordTex.loadFromFile(asset("graphics/player_sword.png"))) swordSprite.setTexture(swordTex, true);
+	if (blockTex.loadFromFile(asset("graphics/player_block.png"))) blockSprite.setTexture(blockTex, true);
 	characterSpeed = 1.0f;
 	source = sf::Vector2i(0, Up);
 	view.zoom(0.5f);
@@ -68,7 +69,7 @@ void Player::movement(sf::RenderWindow* window) {
 	if (stomping && st > 3 * STOMP_FRAME) { stomping = false; source.x = 0; }
 	float sw = swingClock.getElapsedTime().asSeconds();
 	if (swinging && sw > 4 * SWING_FRAME) swinging = false;
-	if (stomping || swinging) {}                     // planted mid-stomp / mid-swing: no walking
+	if (stomping || swinging || blocking) {}         // planted mid-stomp / mid-swing / behind the guard: no walking
 	else if (!frozen && forcedDir >= 0) tryMove(forcedDir);
 	else if (!frozen && lockInput) { if (autoDir >= 0) tryMove(autoDir); }
 	else if (!frozen) {
@@ -86,8 +87,18 @@ void Player::movement(sf::RenderWindow* window) {
 	window->setView(view);
 	setFrame();
 	// Blink while invulnerable after being hurt.
-	bool blink = invulnerable > 0 && ((int)(invulnerable * 12) % 2 == 0);
-	if (swinging && !hiddenAway) {                  // the sword swing replaces the normal sprite
+	bool blink = cutT <= 0 && invulnerable > 0 && ((int)(invulnerable * 12) % 2 == 0);
+	if (cutT > 0) characterImage.setColor((int)(cutT * 20) % 2 ? sf::Color(255, 70, 70) : sf::Color(255, 200, 200));
+	else characterImage.setColor(sf::Color::White);
+	if (blocking && !swinging && !hiddenAway) {     // the guard replaces the normal sprite
+		int f = clashT > 0 ? 2 : blockT < 0.08f ? 0 : 1;
+		blockSprite.setTextureRect(sf::IntRect({ f * 72, source.y * 72 }, { 72, 72 }));
+		sf::Vector2f top = characterImage.getPosition() - characterImage.getOrigin();
+		blockSprite.setPosition(top - sf::Vector2f(24.f, 12.f));
+		blockSprite.setColor(blink ? sf::Color(255, 255, 255, 120) : sf::Color::White);
+		window->draw(blockSprite);
+	}
+	else if (swinging && !hiddenAway) {             // the sword swing replaces the normal sprite
 		int f = minOf(3, (int)(sw / SWING_FRAME));
 		swordSprite.setTextureRect(sf::IntRect({ f * 72, source.y * 72 }, { 72, 72 }));
 		sf::Vector2f top = characterImage.getPosition() - characterImage.getOrigin();   // hero cell's top-left

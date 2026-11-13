@@ -48,6 +48,8 @@ const char* asset(const Str& rel);
 
 // Live data-structure console state, kept outside Game so its layout is unchanged.
 extern float g_consoleScroll, g_consoleContentH;   // console window scrolling
+extern bool g_consoleClick;            // a left click landed on the console this frame
+extern sf::Vector2i g_consoleClickPx;  // ...at this window pixel
 extern int g_lastLookup;        // last item searched in the BST (lit as a path)
 extern bool g_diag;             // F9: on-screen movement diagnostics
 

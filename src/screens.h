@@ -22,6 +22,8 @@ public:
 	void startDeath() { deathT = 0; }
 	float deathTime() const { return deathT; }
 	int menuIndex = 0;
+	int demoChoice = 0;                                  // which ending "Watch the dream" plays
+	bool watchMenu = false;                              // the Watch-the-dream sub-menu is open
 
 private:
 	struct Slide { const char* line1; const char* line2; float seconds; bool logo; };
@@ -38,6 +40,7 @@ private:
 	float deathT = 10.f;   // time since you died (the jump scare plays first)
 	sf::Texture bgTex, logoTex, floorTex;
 	sf::Texture samTex; sf::Sprite sam{ samTex };          // Samara, at peace, on the true ending
+	sf::Texture dawnTex; sf::Sprite dawnSprite{ dawnTex }; bool hasDawn = false;   // the true ending's sunrise
 	sf::Sprite bg{ bgTex }, logo{ logoTex };
 	bool hasLogo = false;
 	// credits: a horror sting, then a song that builds as the static fades
