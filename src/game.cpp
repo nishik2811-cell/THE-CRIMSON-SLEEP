@@ -26,8 +26,8 @@ const TipInfo TIPS[TIP_COUNT] = {
 	  "- A FLARE (F) disrupts her psychic grip and drives her back." },
 	{ "The Devil",
 	  "He waits in the crypt. Only the Blessed Sword can end him.\n"
-	  "- SHIFT swings the sword. Six true blows and he falls.\n"
-	  "- When the floor glows red he is winding up the scythe: hold C,\n    facing him, to BLOCK it - the clash staggers him. Then strike.\n"
+	  "- SHIFT strikes: six true blows. When his blade GLINTS white,\n    hold C facing him to BLOCK - he staggers. Then strike.\n"
+	  "- At half health he roars: faster, and his scythe spins all round.\n"
 	  "- His claws tear at you - strike, then step back.\n"
 	  "- A FLARE (F) stuns him: that's your moment to strike." },
 	{ "Spikes, Fire and Graves",
@@ -49,10 +49,10 @@ const TipInfo TIPS[TIP_COUNT] = {
 
 // Per-room audio: ambience loop, optional extra loop, and footstep surface.
 static const char* const ROOM_AMB[ROOM_COUNT] = { "", "amb_house.ogg", "amb_gallery.ogg", "amb_library.ogg", "drone_tension.ogg",
-	"amb_crawl.ogg", "amb_crimson.ogg", "drone_dread.ogg", "amb_crimson.ogg", "amb_drowned.ogg", "drone_dread.ogg" };
-static const char* const ROOM_LAYER[ROOM_COUNT] = { "", "", "wind_loop.ogg", "", "", "", "", "", "rumble_loop.ogg", "drip_loop.ogg", "water_loop.ogg" };
+	"amb_crawl.ogg", "amb_crimson.ogg", "drone_dread.ogg", "amb_crimson.ogg", "drone_tension.ogg", "drone_dread.ogg" };   // Hidden Tunnel: a low drone, no water
+static const char* const ROOM_LAYER[ROOM_COUNT] = { "", "", "wind_loop.ogg", "", "", "", "", "", "rumble_loop.ogg", "wind_loop.ogg", "water_loop.ogg" };
 static const Sfx ROOM_STEP[ROOM_COUNT] = { SFX_STEP_CARPET, SFX_STEP_CARPET, SFX_STEP_WOOD, SFX_STEP_WOOD, SFX_STEP_WOOD,
-	SFX_STEP_CARPET, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_WATER, SFX_STEP_STONE };
+	SFX_STEP_CARPET, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_STONE, SFX_STEP_STONE };
 
 // ------------------------------------------------------------------ setup
 Game::Game(Audio& a) : audio(a) {
@@ -255,9 +255,12 @@ void Game::update(sf::RenderWindow* window, float dt) {
 	lastDt = dt;
 	updateDoor(dt);
 	if (demo && doorT < 0) demoUpdate(dt);
-	bool overlay = tipOpen >= 0 || journalPage >= 0;
+	bool overlay = tipOpen >= 0 || journalPage >= 0 || hitStopT > 0;   // (a freeze-frame holds the picture like an overlay)
+	if (hitStopT > 0) hitStopT -= dt;
 	if (!overlay) {
 		runStats.time += dt;
+		if (bossRoarT >= 0) { bossRoarT += dt; if (bossRoarT > 1.1f) bossRoarT = -1; }
+		if (burstT >= 0) { burstT += dt; if (burstT > 0.5f) burstT = -1; }
 		roomTime += dt;
 		if (player.invulnerable > 0) player.invulnerable -= dt;
 		if (flareCooldown > 0) flareCooldown -= dt;
@@ -611,7 +614,7 @@ void Game::interact() {
 	case 15:
 		say("A rusted mattock, its handle snapped.\nWhoever dug here never finished. Only the Blessed Sword will do.");
 		break;
-	case 16: pickUp(SWORD, "The Blessed Sword.\nThe crypt door will open for you now.", true); break;
+	case 16: pickUp(SWORD, "The Blessed Sword.\nThe crypt door will open for you now.\n\nSHIFT to strike  -  hold C to block.", true); break;
 	case 17:
 		audio.play(SFX_LEVER, 90);
 		say("Lever pulled! The spikes sink into the floor.");
@@ -1292,11 +1295,18 @@ void Game::swordLand() {
 		return l < 22 || (l < reach && (v.x * f.x + v.y * f.y) / l > 0.2f);
 	};
 	bool hit = false;
-	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58) && bossStun <= 0 && (bossGuardT > 0 || (bossAtkT < 0 && std::rand() % 100 < 25))) {   // guard up after a wound (even mid-attack): you need an opening - block his swing
+	if (bossActive && bossRoarT >= 0 && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58)) {
+		// Mid-roar the blade just glances off him.
+		hit = true; hitStopT = 0.05f;
+		clashFxT = 0; clashPos = (bossCentre() + me) * 0.5f + sf::Vector2f(0, -14);
+		audio.play(SFX_CLANG, 90, 0.7f);
+	}
+	else if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58) && bossStun <= 0 && (bossGuardT > 0 || (bossAtkT < 0 && std::rand() % 100 < 25))) {   // guard up after a wound (even mid-attack): you need an opening - block his swing
 		// He parries: the scythe catches the Blessed Sword - sparks - and he cuts back at once.
 		hit = true;
 		if (bossAtkT < 0) { bossParryT = 0.4f; bossAtkCD = 0.3f; }   // (mid-attack he just shrugs it off and carries on)
 		clashFxT = 0; clashPos = (bossCentre() + me) * 0.5f + sf::Vector2f(0, -14);
+		hitStopT = 0.06f;
 		audio.play(SFX_CLANG, 100, 0.85f);
 		showToast("He parries!");
 		if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS parry\n");
@@ -1306,13 +1316,15 @@ void Game::swordLand() {
 		--bossHP; bossHitT = 0.25f; lastSwordHitT = runStats.time;
 		bossGuardT = 1.2f;                             // he won't take two cheap blows in a row
 		bossCutFxT = 0; bossCutDir = f;                // the blade's cut shows on him
+		burstT = 0; burstPos = bossCentre() + sf::Vector2f(0, -14) - f * 6.f;   // embers off the wound
+		hitStopT = 0.09f;                             // the blow lands: hold the frame
 		bool committed = bossAtkT >= 0;               // once he starts an attack he finishes it - your blow doesn't stop it
 		if (!committed) { bossStun = 0.35f; bossAtkT = -1; }   // the blow staggers him - and wakes him from a flare's daze
 		bossAtkCD = minOf(bossAtkCD, 0.45f);          // and he answers every wound with the scythe
-		shake = 0.7f;
+		shake = 0.9f;
 		audio.play(SFX_SWORD_HIT, 100);
 		audio.play(SFX_SLAM, 50, 0.7f);
-		for (int i = 0; i < (committed ? 0 : 8); ++i) {    // staggered back a step along the blow
+		for (int i = 0; i < (committed ? 0 : 14); ++i) {   // knocked back a step along the blow
 			sf::Vector2f step = f * 1.f;
 			int dir = d;
 			if (boss.col.isCollisionMap(boss.characterImage.getPosition(), dir)) break;
@@ -1324,6 +1336,17 @@ void Game::swordLand() {
 			bossAtkT = -1;
 			deathPos = bossCentre();
 			runStats.banished++;
+		}
+		else if (!bossPhase2 && bossHP <= BOSS_MAX_HP / 2) {
+			// Phase two: he throws back his head and ROARS - then comes on faster.
+			bossPhase2 = true; bossRoarT = 0;
+			bossAtkT = -1; bossStun = 1.1f; bossAtkCD = 1.4f; bossGuardT = 0;
+			boss.characterSpeed *= 1.3f;
+			hitStopT = 0.22f; shake = 1.7f;
+			audio.play(SFX_SCREAM, 100, 0.45f);
+			audio.play(SFX_MOAN, 90, 0.5f);
+			showToast("The Devil ROARS - he comes faster now!");
+			if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS roar (phase two)\n");
 		}
 		else {
 			char b[64]; std::snprintf(b, sizeof b, "The blade bites!  (%d more)", bossHP);
@@ -1459,7 +1482,10 @@ void Game::updateBossAttack(float dt) {
 		if (bossAtkCD <= 0 && bossStun <= 0 && bossParryT < 0) {
 			// Pick an attack, a little differently every time.
 			int roll = std::rand() % 100;
-			if (l < BOSS_REACH - 8) startBossAttack(roll < 45 ? 0 : roll < 75 ? 1 : 2, d);
+			if (l < BOSS_REACH - 8) {
+				if (bossPhase2) startBossAttack(roll < 22 ? 0 : roll < 38 ? 1 : roll < 55 ? 2 : 4, d);   // phase two: the spinning sweep is his favourite
+				else startBossAttack(roll < 45 ? 0 : roll < 75 ? 1 : 2, d);
+			}
 			else if (l < 120 && roll < 35) startBossAttack(3, d);          // a lunge from further out
 		}
 		return;
@@ -1471,12 +1497,15 @@ void Game::updateBossAttack(float dt) {
 	}
 	float before = bossAtkT;
 	bossAtkT += dt;
+	if (before < BOSS_WINDUP - 0.14f && bossAtkT >= BOSS_WINDUP - 0.14f) audio.play(SFX_CLANG, 28, 2.4f);   // the blade glints - a faint "tink": block NOW
 	if (before < BOSS_WINDUP && bossAtkT >= BOSS_WINDUP) audio.play(SFX_SCYTHE_SWING, 95);   // the scythe comes round
+	if (bossAtkKind == 4 && before < BOSS_WINDUP + 0.15f && bossAtkT >= BOSS_WINDUP + 0.15f) audio.play(SFX_SCYTHE_SWING, 85, 0.9f);   // ...and round again
 	if (!bossAtkLanded && bossAtkT >= BOSS_WINDUP + 0.06f) {
 		bossAtkLanded = true;
 		sf::Vector2f f = bossAtkDir == Character::Down ? sf::Vector2f(0, 1) : bossAtkDir == Character::Left ? sf::Vector2f(-1, 0) :
 		                 bossAtkDir == Character::Right ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
-		bool inArc = l < 24 || (l < BOSS_REACH && (d.x * f.x + d.y * f.y) / l > -0.15f);
+		bool inArc = bossAtkKind == 4 ? l < BOSS_REACH + 12   // the spin cuts all the way round him
+		                              : l < 24 || (l < BOSS_REACH && (d.x * f.x + d.y * f.y) / l > -0.15f);
 		shake = maxOf(shake, 0.5f);
 		// Blocked: the guard is up AND you face him (the blade must meet the blade).
 		sf::Vector2f pf = player.source.y == Character::Down ? sf::Vector2f(0, 1) : player.source.y == Character::Left ? sf::Vector2f(-1, 0) :
@@ -1486,6 +1515,7 @@ void Game::updateBossAttack(float dt) {
 		if (blocked) {
 			player.clashT = 0.35f;
 			clashFxT = 0; clashPos = (bc + me) * 0.5f + sf::Vector2f(0, -14);   // where the blades meet
+			hitStopT = 0.08f;
 			audio.play(SFX_CLANG, 100);                          // steel on steel
 			player.fear += 3;
 			bossStun = 0.9f; bossAtkCD = 1.8f; bossGuardT = 0;   // the clash staggers him and drops his guard: strike now
@@ -1497,33 +1527,29 @@ void Game::updateBossAttack(float dt) {
 			hurt(bossAtkDamage, 14, "The Devil's scythe opens you to the bone!", TIP_DEVIL, false);   // health down, fear up
 			hitFxT = 0; hitFxDir = l > 1 ? d / l : sf::Vector2f(0, 1); player.cutT = 0.45f;
 			knockBack(bc);
-			shake = 1.f;
+			shake = 1.2f; hitStopT = 0.12f;
 		}
 	}
 	if (bossAtkT >= BOSS_ATK_END) {
 		bossAtkT = -1;
 		if (bossAtkKind == 2 && bossCombo == 0) { bossCombo = 1; startBossAttack(1, d); bossCombo = 1; }   // the double: a second, faster cut
-		else { bossCombo = 0; bossAtkCD = frand(0.8f, 2.0f); }                        // and a random breath before the next
+		else { bossCombo = 0; bossAtkCD = bossPhase2 ? frand(0.5f, 1.3f) : frand(0.8f, 2.0f); }   // and a random breath before the next
 	}
 }
 
 void Game::drawBossAttack(sf::RenderWindow* w, bool overDark) {
 	int f = bossAtkT < BOSS_RAISE ? 0 : bossAtkT < BOSS_WINDUP ? 1 : bossAtkT < BOSS_SWING ? 2 : 3;
 	sf::Vector2f bp = boss.characterImage.getPosition();
-	// Telegraph: during the wind-up the floor he is about to cut glows crimson.
-	if (overDark && bossAtkT < BOSS_WINDUP + 0.05f) {
-		float k = minOf(1.f, bossAtkT / BOSS_WINDUP);
-		float base = bossAtkDir == Character::Down ? 90.f : bossAtkDir == Character::Left ? 180.f : bossAtkDir == Character::Right ? 0.f : 270.f;
-		sf::Vector2f c = bossCentre();
-		sf::VertexArray fan(sf::PrimitiveType::TriangleFan, 18);
-		fan[0] = sf::Vertex{ c, sf::Color(200, 10, 30, (std::uint8_t)(40 + 70 * k)) };
-		for (int i = 1; i < 18; ++i) {
-			float a = (base - 100.f + 200.f * (i - 1) / 16.f) * 3.14159f / 180.f;
-			fan[i] = sf::Vertex{ c + sf::Vector2f(std::cos(a), std::sin(a)) * BOSS_REACH, sf::Color(255, 30, 50, (std::uint8_t)(10 + 40 * k)) };
-		}
-		w->draw(fan, sf::BlendAdd);
+	// The tell is the scythe itself: his body flickers through the wind-up,
+	// and a white glint runs along the blade just before it comes round.
+	int drawDir = bossAtkDir;
+	if (bossAtkKind == 4 && bossAtkT >= BOSS_WINDUP) {      // the spin: he turns right round with the blade
+		static const int ROUND[4] = { Character::Down, Character::Left, Character::Up, Character::Right };
+		int start = 0; for (int i = 0; i < 4; ++i) if (ROUND[i] == bossAtkDir) start = i;
+		drawDir = ROUND[(start + (int)((bossAtkT - BOSS_WINDUP) / 0.085f)) % 4];
+		f = 2;
 	}
-	bossAtkSprite.setTextureRect(sf::IntRect({ f * 72, bossAtkDir * 72 }, { 72, 72 }));
+	bossAtkSprite.setTextureRect(sf::IntRect({ f * 72, drawDir * 72 }, { 72, 72 }));
 	bossAtkSprite.setPosition({ bp.x - 24, bp.y - 40 });   // walk sprites hang 24 px above their position; the body sits at (24,16) in the cell
 	bool tell = bossAtkT >= BOSS_RAISE && bossAtkT < BOSS_WINDUP;
 	std::uint8_t g = (std::uint8_t)(tell ? 150 + 60 * std::sin(bossAtkT * 40) : 255);
@@ -1531,6 +1557,24 @@ void Game::drawBossAttack(sf::RenderWindow* w, bool overDark) {
 	if (overDark) c.a = 215;                            // seen through the dark, a little ghostly
 	bossAtkSprite.setColor(c);
 	w->draw(bossAtkSprite);
+	// The glint: a four-point star of white light on the raised blade, in the
+	// last 0.14 s before the cut - the moment to raise the guard.
+	float g0 = BOSS_WINDUP - 0.14f;
+	if (overDark && bossAtkT >= g0 && bossAtkT < BOSS_WINDUP + 0.04f) {
+		float k = (bossAtkT - g0) / 0.18f, pulse = std::sin(minOf(1.f, k) * 3.14159f);
+		sf::Vector2f fv = bossAtkDir == Character::Down ? sf::Vector2f(0, 1) : bossAtkDir == Character::Left ? sf::Vector2f(-1, 0) :
+		                  bossAtkDir == Character::Right ? sf::Vector2f(1, 0) : sf::Vector2f(0, -1);
+		sf::Vector2f tip = bossCentre() + fv * 14.f + sf::Vector2f(fv.x == 0 ? 16.f : 0.f, -34.f);   // up on the raised scythe
+		float L = 4 + 14 * pulse;
+		sf::Color hot(255, 255, 245, (std::uint8_t)(255 * pulse)), clear(255, 255, 255, 0);
+		for (int i = 0; i < 4; ++i) {
+			sf::Vector2f dv(i == 0 ? 1.f : i == 1 ? -1.f : 0.f, i == 2 ? 1.f : i == 3 ? -1.f : 0.f);
+			sf::Vertex ray[2] = { { tip, hot }, { tip + dv * L, clear } };
+			w->draw(ray, 2, sf::PrimitiveType::Lines, sf::BlendAdd);
+		}
+		sf::CircleShape core(1.5f + 2.f * pulse); core.setOrigin({ core.getRadius(), core.getRadius() }); core.setPosition(tip);
+		core.setFillColor(hot); w->draw(core, sf::BlendAdd);
+	}
 }
 
 // The Devil is never just a shape in the dark: his figure (and his scythe)
@@ -1541,6 +1585,11 @@ void Game::drawDevilGlow(sf::RenderWindow* w) {
 	if (bossParryT >= 0) { drawBossParry(w); return; }
 	sf::Sprite ghost = boss.characterImage;
 	ghost.setColor(bossHitT > 0 ? sf::Color(255, 90, 90, 220) : bossStun > 0 ? sf::Color(200, 200, 255, 150) : sf::Color(255, 220, 220, 170));
+	if (bossRoarT >= 0) {                                 // the roar: he shudders, flaring pale
+		float k = std::fabs(std::sin(bossRoarT * 18.f));
+		ghost.setColor(sf::Color(255, (std::uint8_t)(200 + 55 * k), (std::uint8_t)(200 + 55 * k), 235));
+		ghost.move({ (float)(std::rand() % 3 - 1), 0.f });
+	}
 	w->draw(ghost);
 }
 
@@ -1878,6 +1927,16 @@ void Game::drawHitFx(sf::RenderWindow* w) {
 			w->draw(cut, 2, sf::PrimitiveType::Lines, sf::BlendAdd);
 		}
 	}
+	if (burstT >= 0) {
+		float k = burstT / 0.5f;
+		for (int i = 0; i < 16; ++i) {
+			float a = i * 0.3927f + 0.3f, sp = 60.f + (i * 53 % 7) * 12.f;
+			sf::Vector2f p = burstPos + sf::Vector2f(std::cos(a), std::sin(a)) * (sp * burstT) + sf::Vector2f(0, 120.f * burstT * burstT);
+			sf::RectangleShape e({ i % 4 == 0 ? 2.f : 1.5f, i % 4 == 0 ? 2.f : 1.5f }); e.setPosition(p);
+			e.setFillColor(sf::Color(255, (std::uint8_t)(230 - 90 * k), (std::uint8_t)(170 - 130 * k), (std::uint8_t)(255 * (1 - k))));
+			w->draw(e, sf::BlendAdd);
+		}
+	}
 	if (hitFxT < 0) return;
 	sf::Vector2f c = pp() + sf::Vector2f(12, 0);
 	float base = std::atan2(hitFxDir.y, hitFxDir.x);
@@ -1908,15 +1967,17 @@ void Game::drawHitFx(sf::RenderWindow* w) {
 }
 
 // Start one of his attacks: 0 normal swing, 1 quick jab, 2 double swing
-// (two cuts), 3 lunge (he glides in from further away during the wind-up).
+// (two cuts), 3 lunge (he glides in from further away during the wind-up),
+// 4 spinning sweep (phase two only: the scythe goes all the way round him).
 void Game::startBossAttack(int kind, sf::Vector2f d) {
 	bossAtkKind = kind;
-	float wind = kind == 0 ? frand(0.38f, 0.55f) : kind == 1 ? frand(0.22f, 0.3f) : kind == 2 ? frand(0.32f, 0.42f) : 0.5f;
+	float wind = kind == 0 ? frand(0.38f, 0.55f) : kind == 1 ? frand(0.22f, 0.3f) : kind == 2 ? frand(0.32f, 0.42f) : kind == 4 ? 0.55f : 0.5f;
+	if (bossPhase2) wind *= 0.8f;                          // phase two: quicker to the blow
 	BOSS_RAISE = kind == 1 ? 0.12f : 0.22f;
 	BOSS_WINDUP = BOSS_RAISE + wind;
-	BOSS_SWING = BOSS_WINDUP + 0.16f;
+	BOSS_SWING = BOSS_WINDUP + (kind == 4 ? 0.34f : 0.16f);   // the spin goes all the way round
 	BOSS_ATK_END = BOSS_SWING + (kind == 1 ? 0.16f : 0.26f);
-	bossAtkDamage = kind == 1 ? 14.f : kind == 3 ? 20.f : 22.f;
+	bossAtkDamage = kind == 1 ? 14.f : kind == 3 ? 20.f : kind == 4 ? 24.f : 22.f;
 	bossAtkT = 0; bossAtkLanded = false;
 	bossAtkDir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
 	boss.source.y = bossAtkDir;

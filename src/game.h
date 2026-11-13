@@ -166,6 +166,10 @@ private:
 	float lastSwordHitT = -10.f;              // when your blade last bit him
 	float bossGuardT = 0;                     // just wounded: his guard is up - hacking at him now gets parried
 	float bossParryT = -1;                    // he caught your blade on the scythe
+	float hitStopT = 0;                       // freeze-frame: every hit, block and parry holds the picture for a split second
+	bool bossPhase2 = false;                  // below half health: he roars, gets faster, and adds the spinning sweep
+	float bossRoarT = -1;                     // >= 0 while he roars (the start of phase two)
+	float burstT = -1; sf::Vector2f burstPos; // embers thrown off where the Blessed Sword bites him
 	void startBossAttack(int kind, sf::Vector2f d);
 	void drawBossParry(sf::RenderWindow* w);
 	static constexpr float BOSS_REACH = 62.f;

@@ -41,11 +41,15 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 			if (d < best) { best = d; here = i; }
 		}
 		int shown = 0;
+		// The drops are drawn over the darkness - and so over the hero too.  A drop
+		// the hero is standing on is under his feet: skip it (his body hides it).
+		sf::FloatRect body = player.characterImage.getGlobalBounds();
 		for (int i = here - 1; i >= 1 && shown < 4; --i) {
 			if (i % 3 != 0) continue;
 			int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
 			int h = (c * 73856093) ^ (r * 19349663);
 			float jx = (float)(((h >> 6) & 7) - 3), jy = (float)(((h >> 9) & 7) - 3);
+			if (body.findIntersection(sf::FloatRect({ c * 32 + 8.f + jx, r * 32 + 8.f + jy }, { 16.f, 16.f }))) { ++shown; continue; }
 			decalSprite.setTextureRect(sf::IntRect({ 16, 0 }, { 16, 16 }));   // the drip
 			decalSprite.setPosition({ c * 32 + 8.f + jx, r * 32 + 8.f + jy });
 			decalSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(255 * (1.f - 0.15f * shown))));
