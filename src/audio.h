@@ -35,6 +35,8 @@ class Audio {
 	Str ambName, layerName;
 	Track current = TRACK_NONE;
 	float tension = 0;
+	float deviceCheckT = 2.f;                // seconds until we next look at the default output
+	char lastDefault[256] = {};              // the system's default output when we last looked
 	void startRoom();
 	void stopRoom();
 public:
@@ -51,6 +53,7 @@ public:
 	bool isMuted() const { return muted; }
 	void pauseAll(bool paused);
 	void setTension(float fear01);   // room ambience drops back as fear (heartbeat) rises
+	void followDefaultDevice(float dt);   // earphones unplugged / plugged in: move to the new output
 };
 
 // So menus can click without owning the audio object.

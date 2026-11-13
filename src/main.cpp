@@ -137,25 +137,29 @@ int main() {
 	sf::Font consoleFont;
 	(void)consoleFont.openFromFile(asset("fonts/DejaVuSans.ttf"));
 	unsigned widenedBy = 0;   // how much WE widened the window (0 if it was maximised / no room)
+	sf::Vector2i posBefore;   // where the window was before we widened (and maybe moved) it
 	auto toggleConsole = [&]() {
-		// Widen the window by the console strip when there is room on the screen;
-		// shrink it back by exactly that much on close.  A maximised or fullscreen
-		// window is never resized - layoutScreen() just splits the space it has.
+		// Widen the window for the console strip - as far as the screen allows,
+		// sliding it left if it would run off the right edge - and put it back
+		// exactly (size and position) on close.  Whatever space is left over,
+		// layoutScreen() splits so the game keeps at least 58% of the width.
 		sf::Vector2u sz = window.getSize();
 		consoleOpen = !consoleOpen;
 		if (consoleOpen) {
-			unsigned strip = (unsigned)std::lround(CONSOLE_PANEL_W * sz.y / 768.f);
+			int strip = (int)std::lround(CONSOLE_PANEL_W * sz.y / 768.f);
 			int desk = (int)sf::VideoMode::getDesktopMode().size.x;
-			if ((int)(sz.x + strip) <= desk - 40) {          // fits on screen with a margin: grow
-				window.setSize({ sz.x + strip, sz.y });
-				widenedBy = strip;
-				sf::Vector2i p = window.getPosition();
-				if (p.x + (int)(sz.x + strip) > desk) window.setPosition({ maxOf(0, desk - (int)(sz.x + strip)), p.y });
+			int grow = minOf(strip, desk - 40 - (int)sz.x);   // the room left on the screen
+			widenedBy = 0;
+			if (grow >= 160) {                                // worth resizing (a maximised window has no room)
+				posBefore = window.getPosition();
+				int newW = (int)sz.x + grow;
+				window.setSize({ (unsigned)newW, sz.y });
+				if (posBefore.x + newW > desk) window.setPosition({ maxOf(0, desk - newW - 20), posBefore.y });
+				widenedBy = (unsigned)grow;
 			}
-			else widenedBy = 0;
 		}
-		else if (widenedBy > 0 && sz.x > widenedBy + 320) {
-			window.setSize({ sz.x - widenedBy, sz.y });
+		else if (widenedBy > 0) {
+			if (sz.x > widenedBy + 320) { window.setSize({ sz.x - widenedBy, sz.y }); window.setPosition(posBefore); }
 			widenedBy = 0;
 		}
 	};
@@ -203,6 +207,7 @@ int main() {
 			});
 		if (!window.isOpen()) break;
 		float dt = frameClock.restart().asSeconds();
+		audio.followDefaultDevice(dt);                  // real time, even in the sped-up demo
 		if (dt > 0.1f) dt = 0.1f;
 		if (simDt > 0) dt = simDt;
 		{   // the console belongs to a game: close it on the title, credits and ending screens
@@ -302,10 +307,11 @@ int main() {
 			bool live = game && (game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY || game_state == ST_CONTROLS);
 			if (live) game->drawConsole(&window);
 			else {
-				sf::View cv(sf::FloatRect({ 0.f, 0.f }, { CONSOLE_PANEL_W, 768.f }));
+				float stripPx = maxOf(1.f, g_panelVP.size.x * (float)window.getSize().x);
+				sf::View cv(sf::FloatRect({ 0.f, 0.f }, { CONSOLE_PANEL_W, CONSOLE_PANEL_W * (float)window.getSize().y / stripPx }));
 				cv.setViewport(g_panelVP);
 				window.setView(cv);
-				sf::RectangleShape bg({ CONSOLE_PANEL_W, 768.f }); bg.setFillColor(sf::Color(12, 4, 6)); window.draw(bg);
+				sf::RectangleShape bg(cv.getSize()); bg.setFillColor(sf::Color(12, 4, 6)); window.draw(bg);
 				sf::Text msg(consoleFont, "Start a game to see the live\ndata structures here.\n\nTAB closes this panel.", 16);
 				msg.setFillColor(sf::Color(200, 180, 172));
 				msg.setPosition({ 24.f, 24.f });

@@ -591,7 +591,12 @@ void Game::drawMinimap(sf::RenderWindow* w) {
 // (24 px margin, 8/16/24 spacing).  Each section DRAWS its structure with
 // the live game data, and sections that hold more than fits open on a click.
 void Game::drawConsole(sf::RenderWindow* w) {
-	const float pw = CONSOLE_PANEL_W, PH = 768.f;   // the strip beside the game
+	// The strip beside the game.  Its view is always CONSOLE_PANEL_W wide and as
+	// tall as the strip's real shape allows, so text is never stretched; a
+	// taller window simply shows more of the console at once.
+	const float pw = CONSOLE_PANEL_W;
+	const float stripPx = maxOf(1.f, g_panelVP.size.x * (float)w->getSize().x);
+	const float PH = pw * (float)w->getSize().y / stripPx;
 	sf::View fixedV(sf::FloatRect({ 0.f, 0.f }, { pw, PH }));
 	fixedV.setViewport(g_panelVP);
 	sf::View scrollV = fixedV;

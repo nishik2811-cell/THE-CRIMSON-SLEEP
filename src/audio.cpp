@@ -1,5 +1,7 @@
 #include "audio.h"
 #include "globals.h"
+#include <cstdio>
+#include <cstring>
 
 Audio* g_audio = nullptr;
 
@@ -138,4 +140,24 @@ void Audio::setPaused(bool paused) {
 void Audio::toggleMute() {
 	muted = !muted;
 	sf::Listener::setGlobalVolume(muted ? 0.f : 100.f);
+}
+
+// SFML opens the output that was the default when the game started and stays
+// on it.  Unplug the earphones and that output is gone: the game would go
+// silent.  Every 2 seconds, ask which output is the system default now; when
+// that CHANGES, move to it (SFML reloads every playing sound and track onto the
+// new output).  Only a change triggers a switch, so audio is never re-opened
+// needlessly.  (SFML's device API hands back std::string / std::optional; we
+// only read them here and keep our own copy of the name in a char array.)
+void Audio::followDefaultDevice(float dt) {
+	deviceCheckT -= dt;
+	if (deviceCheckT > 0) return;
+	deviceCheckT = 2.f;
+	const auto def = sf::PlaybackDevice::getDefaultDevice();
+	if (!def) return;                                   // no output at all right now (or no audio engine)
+	const char* name = def->c_str();
+	if (!lastDefault[0]) { std::snprintf(lastDefault, sizeof lastDefault, "%s", name); return; }   // first look: just remember it
+	if (!std::strcmp(lastDefault, name)) return;        // unchanged
+	if (sf::PlaybackDevice::setDevice(*def)) std::snprintf(lastDefault, sizeof lastDefault, "%s", name);
+	else deviceCheckT = 5.f;                            // couldn't open it yet: try again a little later
 }

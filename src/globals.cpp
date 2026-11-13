@@ -37,7 +37,7 @@ sf::FloatRect g_gameVP({ 0.f, 0.f }, { 1.f, 1.f }), g_panelVP({ 1.f, 0.f }, { 0.
 float g_gameAreaPx = 1024.f;
 void layoutScreen(sf::Vector2u win, bool consoleOpen) {
 	float W = (float)maxOf(1u, win.x), H = (float)maxOf(1u, win.y);
-	float panel = consoleOpen ? minOf(CONSOLE_PANEL_W * H / 768.f, W * 0.5f) : 0.f;   // undistorted strip
+	float panel = consoleOpen ? minOf(CONSOLE_PANEL_W * H / 768.f, W * 0.42f) : 0.f;   // the game always keeps 58%+ of the width
 	float gameW = W - panel;
 	float vw = minOf(gameW, H * 4.f / 3.f), vh = vw * 3.f / 4.f;                      // 4:3, letterboxed
 	g_gameVP = sf::FloatRect({ (gameW - vw) / 2 / W, (H - vh) / 2 / H }, { vw / W, vh / H });
