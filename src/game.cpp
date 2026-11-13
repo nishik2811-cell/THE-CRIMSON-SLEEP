@@ -342,7 +342,9 @@ void Game::update(sf::RenderWindow* window, float dt) {
 			// and you have to walk out of the house yourself (the Escape ending).
 			house.reveal(CRIMSON_CRYPT, ANTECHAMBER);
 			audio.play(SFX_DOOR_OPEN, 70, 0.6f);
-			say("The Devil is dust.\nFar above, a lock gives way with a crack.\n\nGet out of this house - through the front door.");
+			if (player.has(CRIMSON_LOCKET))
+				say("The Devil is dust.\nFar above, a lock gives way with a crack.\n\nSamara is still waiting for her locket in the Ossuary.\nGive it back - then leave through the front door.");
+			else say("The Devil is dust.\nFar above, a lock gives way with a crack.\n\nGet out of this house - through the front door.");
 		}
 	}
 	if (!overlay) child.update(dt, pp(), player.source.y);
@@ -657,8 +659,10 @@ void Game::tryDoor(int doorNo) {
 		return;
 	}
 	if (e->to == OUTSIDE) {
-		if (player.has(CRIMSON_LOCKET)) { audio.play(SFX_DOOR_OPEN, 80); finish(END_SECRET); }
+		// The Devil dead AND the locket back with Samara (in either order) is the true ending.
+		if (bossHP <= 0 && locketReturned) { audio.play(SFX_DOOR_OPEN, 80); player.end_sound.play(); finish(END_TRUE); }
 		else if (bossHP <= 0) { audio.play(SFX_DOOR_OPEN, 80); finish(END_ESCAPE); }   // the Devil is dead: the house lets you go
+		else if (player.has(CRIMSON_LOCKET)) { audio.play(SFX_DOOR_OPEN, 80); finish(END_SECRET); }
 		else say("The front door won't open.\nThe house is not done with you.");
 		return;
 	}
@@ -1566,7 +1570,9 @@ void Game::returnLocket() {
 	player.fear = maxOf(0.f, player.fear - 30.f);
 	audio.play(SFX_CHIME, 95, 0.8f);
 	showToast("Locket returned - Samara is at peace");
-	say("Samara:\n\t\"...Thank you.\"\n\nShe closes her hand around the locket - and for the first\ntime in seventy years, she smiles.");
+	if (bossHP <= 0)   // the Devil is already dust: nothing holds you here now
+		say("Samara:\n\t\"...Thank you.\"\n\nShe closes her hand around the locket - and for the first\ntime in seventy years, she smiles.\n\nThe house is quiet. Go home - through the front door.");
+	else say("Samara:\n\t\"...Thank you.\"\n\nShe closes her hand around the locket - and for the first\ntime in seventy years, she smiles.");
 }
 void Game::updateSamara(float dt) {
 	if (samaraT >= 0) {

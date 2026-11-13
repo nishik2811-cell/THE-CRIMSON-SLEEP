@@ -160,6 +160,7 @@ bool Game::loadGame(const char* path) {
 	}
 	std::fclose(f);
 	if (savedRoom < 1 || savedRoom >= ROOM_COUNT) savedRoom = ENTRANCE_HALL;
+	if (bossHP <= 0) house.reveal(CRIMSON_CRYPT, ANTECHAMBER);   // the Devil is dust: the crypt's way out stays open
 	enterRoom(savedRoom, -1, false);
 	player.setPosition({ px, py });
 	dialogue = "";

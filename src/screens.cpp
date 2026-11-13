@@ -426,7 +426,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		const char* rank = e == END_TRUE ? (st.deaths == 0 ? "Rank: Dreamwalker - flawless" : st.deaths < 3 ? "Rank: Lightbringer" : "Rank: Survivor")
 			: e == END_SECRET ? "Rank: The One Who Ran" : e == END_ESCAPE ? "Rank: Half-Awake" : "Rank: Ash";
 		centered(w, fontItalic, rank, 26, sf::Color(255, 200, 170, (std::uint8_t)(255 * a)), 400);
-		if (e != END_TRUE) centered(w, fontItalic, "Hint: return Samara's locket before facing the Devil...", 20, sf::Color(200, 150, 150, (std::uint8_t)(200 * a)), 440);
+		if (e != END_TRUE) centered(w, fontItalic, "Hint: slay the Devil AND return Samara's locket...", 20, sf::Color(200, 150, 150, (std::uint8_t)(200 * a)), 440);
 
 		// Credits roll.
 		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Retro Horror Adventure",
