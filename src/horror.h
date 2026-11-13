@@ -97,8 +97,8 @@ public:
 	// playerVisible: false while the player hides; sightRange shrinks with the lantern off.
 	void update(float dt, sf::Vector2f player, bool playerVisible, float sightRange, const TileGrid& map);
 	void flareHit() { enter(STUNNED); stun = 1.2f; }    // the light scares it off: brief stun, then RETURN
-	void bitten() { bite = 4.5f; regroup = true; enter(RETURN); }   // it bit you: backs off a few tiles, then comes again
-	bool regroup = false;        // RETURN means "back off, then come again" rather than "go home"
+	void bitten() { bite = 3.0f; regroup = true; enter(RETURN); clung = false; algo = ""; }   // a quick bite, then it darts away - and comes again   // it bit you: backs off a few tiles, then comes again
+	bool regroup = false, clung = false;        // RETURN means "back off, then come again" rather than "go home"
 	void startChase(sf::Vector2f target) { lastKnown = target; enter(CHASE); }
 	bool dangerous() const { return active && state != STUNNED && state != RETURN; }
 	void draw(sf::RenderWindow* w);

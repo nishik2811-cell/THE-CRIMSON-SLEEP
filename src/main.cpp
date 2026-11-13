@@ -178,7 +178,8 @@ int main() {
 			[&](const sf::Event::KeyPressed& key) {
 				key_record(key.code);
 				key_set_held(key.code, true);
-				if (key.code == sf::Keyboard::Key::Tab) toggleConsole();
+				bool gameScreen = game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY;
+				if (key.code == sf::Keyboard::Key::Tab && gameScreen) toggleConsole();   // the console is for gameplay only
 				if (key.code == sf::Keyboard::Key::M) audio.toggleMute();
 				if (key.code == sf::Keyboard::Key::F9) g_diag = !g_diag;
 				if (consoleOpen && key.code == sf::Keyboard::Key::PageDown) g_consoleScroll += 300.f;   // clamped when drawn
@@ -204,6 +205,11 @@ int main() {
 		float dt = frameClock.restart().asSeconds();
 		if (dt > 0.1f) dt = 0.1f;
 		if (simDt > 0) dt = simDt;
+		{   // the console belongs to a game: close it on the title, credits and ending screens
+			bool inGame = game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY || game_state == ST_CONTROLS ||
+			              game_state == ST_DEMO || game_state == ST_NEW_GAME || game_state == ST_CONTINUE || game_state == ST_SAVE_QUIT;
+			if (consoleOpen && !inGame) toggleConsole();
+		}
 		layoutScreen(window.getSize(), consoleOpen);   // follow the real window size every frame
 		window.clear(sf::Color::Black);
 

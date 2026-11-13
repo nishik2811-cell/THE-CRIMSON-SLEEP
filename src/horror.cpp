@@ -231,22 +231,31 @@ void Spider::update(float dt, sf::Vector2f player, bool visible, float sightRang
 	case CHASE:
 		if (!sees) { lostT += dt; if (lostT > 1.2f) { enter(SEARCH); searches = 0; break; } }
 		if (dist < 27 && bite <= 0) { enter(ATTACK); break; }   // right at your feet: inside the stomp ring
+		if (dist < 34 && bite > 0) { regroup = true; enter(RETURN); algo = ""; break; }   // can't bite yet: never sits on your feet - it backs off
 		repathT -= dt;
 		if (repathT <= 0 || pathStep >= pathLen) { planTo(map, lastKnown); repathT = 0.35f; }
 		if (!followPath(dt, 115.f, map)) stepTowards(lastKnown, 115.f, dt, map);
 		break;
 	case ATTACK:                                        // rears up (your chance to STOMP), then lunges
 		if (stateT > 0.55f) stepTowards(player, 200.f, dt, map);
-		if (stateT > 1.0f) { regroup = true; enter(RETURN); }   // missed or not: back off, then come again
+		if (stateT > 1.0f) { regroup = true; enter(RETURN); algo = ""; }   // missed or not: back off, then come again
 		break;
 	case STUNNED:                                       // curled up and twitching - it can be squashed now
 		if ((stun -= dt) <= 0) { regroup = false; enter(RETURN); }   // scared off by the light: all the way home
 		break;
 	case RETURN:
-		if (regroup) {                                  // after a bite: scuttle back a few tiles (BFS away from you)...
-			if (pathLen == 0 && stateT < 0.1f) { pathLen = ai::bfsEscape(map, ai::tileOf(pos), player, 4, path); pathStep = 0; algo = "BFS"; }
-			bool moving = followPath(dt, 120.f, map);
-			if (!moving && stateT > 2.8f) {           // ...crouch a moment, then come at you again
+		if (regroup) {
+			// After a bite it clings for a moment, then backs off a few tiles
+			// (BFS away from you) - slowly, keeping its eyes on you - crouches,
+			// and comes at you again.
+			float cling = clung ? 0.7f : 0.f;
+			if (stateT < cling) { pos += sf::Vector2f(frand(-0.6f, 0.6f), frand(-0.6f, 0.6f)); break; }   // still on you, twitching
+			if (pathLen == 0 && algo[0] == 0) { pathLen = ai::bfsEscape(map, ai::tileOf(pos), player, 4, path); pathStep = 0; algo = "BFS"; }
+			sf::Vector2f look = player - pos;               // keep facing you while it backs away
+			bool moving = followPath(dt, 135.f, map);           // darts away
+			if (std::fabs(look.x) > std::fabs(look.y)) dir = look.x > 0 ? 2 : 1; else dir = look.y > 0 ? 0 : 3;
+			if (!moving && stateT > cling + 3.2f) {   // ...crouch a moment, then come at you again
+				clung = false;
 				regroup = false; lastKnown = player; lostT = 0;
 				enter(sees ? CHASE : INVESTIGATE);
 			}

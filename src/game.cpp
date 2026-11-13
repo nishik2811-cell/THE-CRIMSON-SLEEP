@@ -149,7 +149,9 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	// A spider that was rushing you doesn't stop at the door.
 	bool chased = false;
 	for (int i = 0; i < spiderCount; ++i)
-		if (spiders[i].active && (spiders[i].state == Spider::CHASE || spiders[i].state == Spider::ATTACK)) chased = true;
+		if (spiders[i].active && to != OUTSIDE && (spiders[i].state == Spider::CHASE || spiders[i].state == Spider::ATTACK ||
+		    (spiders[i].state == Spider::RETURN && spiders[i].regroup)))
+			chased = true;                         // a spider hunting you follows you from room to room until it's killed
 	room = to;
 	current_map = &maps[room].map;
 	entryTile = from < 0 ? sf::Vector2i(ROOMS[room].spawnX, ROOMS[room].spawnY) : spawnNearDoor(room, from);
@@ -158,7 +160,7 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	if (!roomVisited[room]) { roomVisited[room] = true; runStats.roomsSeen++; }
 	roomTime = 0; digT = 0; trailLen = 0;
 	spawnEnemies();
-	spiderFollowT = chased ? 1.2f : -1.f;    // it scuttles in behind you a moment later
+	spiderFollowT = chased ? frand(1.5f, 2.3f) : -1.f;    // it scuttles in behind you a moment later
 	audio.setRoom(ROOM_AMB[room], ROOM_LAYER[room], room == NURSERY ? Audio::THEME_NURSERY : ROOMS[room].danger >= 7 ? Audio::THEME_DREAD : Audio::THEME_CALM);
 
 	// Schedule this visit's haunted events (FIFO, in chronological order).
