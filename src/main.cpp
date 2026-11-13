@@ -291,6 +291,7 @@ int main() {
 		if (game && env("CS_SWINGAT") && frame == std::atoi(env("CS_SWINGAT"))) game->devSwing();
 		if (game && env("CS_BACKAT") && frame == std::atoi(env("CS_BACKAT"))) game->devBack();
 		if (game && env("CS_HIDE") && frame == 5) game->devHide();
+		if (game && env("CS_SPAM") && frame % 20 == 0) game->devSwing();   // test: hack at him over and over
 		if (game && env("CS_FLAREAT") && frame == std::atoi(env("CS_FLAREAT"))) game->devFlare();
 		if (game && env("CS_TRACE") && frame % 10 == 0) std::fprintf(stderr, "T %d %.1f %.1f\n", frame, game->devPos().x, game->devPos().y);
 		if (game_state == ST_ENDING && env("CS_DEMO_LOG")) { std::fprintf(stderr, "DEMO ENDING %d after %d frames\n", ending_type, frame); window.close(); }

@@ -274,6 +274,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (getItemT >= 0) { getItemT += dt; if (getItemT > 1.7f) getItemT = -1; }
 		if (clashFxT >= 0) { clashFxT += dt; if (clashFxT > 0.4f) clashFxT = -1; }
 		if (bossParryT >= 0) { bossParryT -= dt; if (bossParryT < 0) bossParryT = -1; }
+		if (bossGuardT > 0) bossGuardT -= dt;
 		if (bossCutFxT >= 0) { bossCutFxT += dt; if (bossCutFxT > 0.35f) bossCutFxT = -1; }
 		if (player.cutT > 0) player.cutT -= dt;
 		if (flare > 0) flare -= dt * 2.f;
@@ -364,7 +365,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (!overlay) {
 			if (player.isMoving() && !hidden) s.hear(me, 140.f);        // footsteps carry; standing still is silent
 			s.update(dt, me, !hidden, lanternOn ? 260.f : 90.f, maps[room].map);   // lantern off: it only sees you up close
-			if (getenv("CS_TRACE_SPIDER") && i == 0) { static int k = 0; if (++k % 15 == 0) std::fprintf(stderr, "SPIDER %d d=%.0f\n", (int)s.state, dist(s.pos, me)); }
+			if (getenv("CS_TRACE_SPIDER")) { static int k = 0; if (++k % 10 == 0) std::fprintf(stderr, "SPIDER%d %d d=%.0f pos=%.0f,%.0f path=%d/%d\n", i, (int)s.state, dist(s.pos, me), s.pos.x, s.pos.y, s.pathStep, s.pathLen); }
 			if (s.active && !hidden && dist(s.pos, me) < 22) {
 				if (s.bite <= 0 && s.dangerous()) {
 					audio.play(SFX_STING, 70, 1.4f);
@@ -1287,10 +1288,10 @@ void Game::swordLand() {
 		return l < 22 || (l < reach && (v.x * f.x + v.y * f.y) / l > 0.2f);
 	};
 	bool hit = false;
-	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58) && bossAtkT < 0 && bossStun <= 0 && std::rand() % 100 < 35) {
+	if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58) && bossStun <= 0 && (bossGuardT > 0 || (bossAtkT < 0 && std::rand() % 100 < 25))) {   // guard up after a wound (even mid-attack): you need an opening - block his swing
 		// He parries: the scythe catches the Blessed Sword - sparks - and he cuts back at once.
 		hit = true;
-		bossParryT = 0.4f; bossAtkCD = 0.3f;
+		if (bossAtkT < 0) { bossParryT = 0.4f; bossAtkCD = 0.3f; }   // (mid-attack he just shrugs it off and carries on)
 		clashFxT = 0; clashPos = (bossCentre() + me) * 0.5f + sf::Vector2f(0, -14);
 		audio.play(SFX_CLANG, 100, 0.85f);
 		showToast("He parries!");
@@ -1298,9 +1299,10 @@ void Game::swordLand() {
 	}
 	else if (bossActive && inReach(boss.characterImage.getPosition() + sf::Vector2f(12, 0), 58)) {
 		hit = true;
-		--bossHP; bossHitT = 0.25f;
+		--bossHP; bossHitT = 0.25f; lastSwordHitT = runStats.time;
+		bossGuardT = 1.2f;                             // he won't take two cheap blows in a row
 		bossCutFxT = 0; bossCutDir = f;                // the blade's cut shows on him
-		bool committed = bossAtkT >= BOSS_RAISE;      // mid-swing he doesn't flinch - he cuts back
+		bool committed = bossAtkT >= 0;               // once he starts an attack he finishes it - your blow doesn't stop it
 		if (!committed) { bossStun = 0.35f; bossAtkT = -1; }   // the blow staggers him - and wakes him from a flare's daze
 		bossAtkCD = minOf(bossAtkCD, 0.45f);          // and he answers every wound with the scythe
 		shake = 0.7f;
@@ -1447,6 +1449,7 @@ void Game::updateBossAttack(float dt) {
 	if (!bossActive || hidden) { if (!bossActive) bossAtkT = -1; return; }
 	sf::Vector2f bc = bossCentre(), me = pp() + sf::Vector2f(12, 12), d = me - bc;
 	float l = std::sqrt(d.x * d.x + d.y * d.y);
+	if (getenv("CS_TRACE_BOSS")) { static int k = 0; if (++k % 30 == 0) std::fprintf(stderr, "BOSSST l=%.0f cd=%.2f stun=%.2f atk=%.2f parry=%.2f rise=%.2f\n", l, bossAtkCD, bossStun, bossAtkT, bossParryT, bossRiseT); }
 	if (bossAtkT < 0) {
 		if (bossAtkCD > 0) bossAtkCD -= dt;
 		if (bossAtkCD <= 0 && bossStun <= 0 && bossParryT < 0) {
@@ -1481,7 +1484,7 @@ void Game::updateBossAttack(float dt) {
 			clashFxT = 0; clashPos = (bc + me) * 0.5f + sf::Vector2f(0, -14);   // where the blades meet
 			audio.play(SFX_CLANG, 100);                          // steel on steel
 			player.fear += 3;
-			bossStun = 0.9f; bossAtkCD = 1.8f;               // the clash staggers him: strike now
+			bossStun = 0.9f; bossAtkCD = 1.8f; bossGuardT = 0;   // the clash staggers him and drops his guard: strike now
 			shake = 0.6f;
 			showToast("BLOCKED!  He staggers - strike now (SHIFT)");
 		}
@@ -1546,6 +1549,7 @@ void Game::samaraRise(bool instant) {
 	sf::Vector2f bones = maps[room].map.find(12, &c, &r) ? sf::Vector2f(c * 32.f + 16, r * 32.f + 16) : pp();
 	samaraPos = bones + sf::Vector2f(0, 40);       // she stands up out of her grave
 	samaraT = instant ? SAMARA_RISEN + 0.5f : 0.f;   // taken just now: she comes a little later
+	bride.active = false;                         // only one Samara: the hunting one is gone while she waits for her locket
 	samaraGoneT = -1; samaraSpoke = false; locketFlyT = -1;
 	if (!instant) audio.play(SFX_BRIDE_APPEAR, 75);
 }

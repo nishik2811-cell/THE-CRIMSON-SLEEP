@@ -163,6 +163,8 @@ private:
 	// quick jab, a double swing, or a lunge from further out.
 	float BOSS_RAISE = 0.25f, BOSS_WINDUP = 0.70f, BOSS_SWING = 0.88f, BOSS_ATK_END = 1.15f;
 	int bossAtkKind = 0, bossCombo = 0; float bossAtkDamage = 22.f;
+	float lastSwordHitT = -10.f;              // when your blade last bit him
+	float bossGuardT = 0;                     // just wounded: his guard is up - hacking at him now gets parried
 	float bossParryT = -1;                    // he caught your blade on the scythe
 	void startBossAttack(int kind, sf::Vector2f d);
 	void drawBossParry(sf::RenderWindow* w);

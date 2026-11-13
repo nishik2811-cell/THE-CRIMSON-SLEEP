@@ -144,7 +144,7 @@ const char* Spider::stateName(int s) {
 }
 void Spider::reset(bool on, sf::Vector2f at) {
 	active = on; pos = home = at; bite = 0; stun = 0; dir = std::rand() % 4;
-	sawYou = heardYou = false; algo = ""; expanded = 0; searches = patrols = 0; lostT = 0; wait = frand(0.5f, 2.f);
+	sawYou = heardYou = false; algo = ""; expanded = 0; searches = patrols = 0; lostT = 0; wait = frand(0.3f, 1.0f);
 	enter(IDLE);
 }
 static bool spiderBlocked(const TileGrid& m, sf::Vector2f p) {
@@ -202,13 +202,15 @@ void Spider::update(float dt, sf::Vector2f player, bool visible, float sightRang
 	if (sees && state != ATTACK && state != RETURN) { lastKnown = player; lostT = 0; if (state != CHASE) enter(CHASE); }
 
 	switch (state) {
-	case IDLE:                                          // frozen, listening
+	case IDLE:                                          // pausing, listening - legs still twitching
 		heardYou = false;
+		frameT += dt * 0.6f;                            // a slow shuffle of the legs, never a dead stop
+		if (std::fmod(stateT, 0.9f) < dt) dir = std::rand() % 4;   // it turns, feeling the air
 		if ((wait -= dt) <= 0) { enter(PATROL); patrols = 0; }
 		break;
 	case PATROL:                                        // BFS picks a spot near the nest, A* walks there
 		if (pathLen == 0) {
-			if (patrols >= 3) { enter(IDLE); wait = frand(1.f, 3.f); break; }
+			if (patrols >= 3) { enter(IDLE); wait = frand(0.5f, 1.2f); break; }
 			int spot = ai::bfsSearchSpot(map, ai::tileOf(home), 5);
 			pathLen = ai::aStar(map, ai::tileOf(pos), spot, path, &expanded); pathStep = 0;
 			algo = "BFS+A*"; ++patrols;
@@ -262,7 +264,7 @@ void Spider::update(float dt, sf::Vector2f player, bool visible, float sightRang
 			break;
 		}
 		if (pathLen == 0) planTo(map, home);            // A* back to the nest, then rest
-		if (!followPath(dt, 130.f, map) && stateT > 0.3f) { enter(IDLE); wait = frand(1.5f, 3.f); }
+		if (!followPath(dt, 130.f, map) && stateT > 0.3f) { enter(IDLE); wait = frand(0.6f, 1.2f); }
 		break;
 	default: break;
 	}
@@ -276,6 +278,7 @@ void Spider::draw(sf::RenderWindow* w) {
 		sprite.setScale({ 0.72f, 0.72f });
 		sprite.setPosition(pos + sf::Vector2f(frand(-1.f, 1.f), frand(-1.f, 1.f)));
 	}
+	if (state == IDLE) sprite.setScale({ 0.6f + 0.015f * std::sin(stateT * 6.f), 0.6f - 0.015f * std::sin(stateT * 6.f) });   // breathing
 	if (state == STUNNED) {                             // curled up: smaller, greyed, shaking
 		sprite.setPosition(pos + sf::Vector2f(frand(-1.5f, 1.5f), frand(-1.5f, 1.5f)));
 		sprite.setScale({ 0.48f, 0.48f });
