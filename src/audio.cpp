@@ -9,7 +9,7 @@ static const char* const SFX_FILES[SFX_COUNT] = {
 	"jumpscare.ogg",                                         // SFX_JUMPSCARE
 	"scream.ogg",                                            // SFX_SCREAM
 	"sting_1.ogg sting_2.ogg",                               // SFX_STING
-	"whisper_1.ogg whisper_2.ogg whisper_3.ogg",             // SFX_WHISPER
+	"moan_1.ogg moan_2.ogg moan_3.ogg",                      // SFX_WHISPER: a quiet moan (the whisper recordings sounded wrong)
 	"slam_1.ogg slam_2.ogg slam_3.ogg slam_4.ogg slam_metal.ogg",
 	"whisper_1.ogg",                                         // SFX_BREATH (a soft whisper - no breathing)
 	"slam_1.ogg slam_2.ogg slam_3.ogg",                      // SFX_CRACK (played low)

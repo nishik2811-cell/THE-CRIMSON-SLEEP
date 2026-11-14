@@ -839,7 +839,7 @@ void Game::updateEvents(float dt) {
 		float danger = ROOMS[room].danger / 10.f;
 		switch (ev.kind) {
 		case EV_FLICKER: player.light.flicker = 1.f; eventCaption = "The lantern gutters..."; player.fear += 2; break;
-		case EV_WHISPER: audio.play(SFX_WHISPER, 85); eventCaption = "...stay... sleep with us..."; player.fear += 3; break;
+		case EV_WHISPER: audio.play(SFX_WHISPER, 40, 1.f); eventCaption = "...stay... sleep with us..."; player.fear += 3; break;
 		case EV_SLAM: audio.play(SFX_SLAM, 90); shake = 1.f; eventCaption = "A door slams somewhere above."; player.fear += 3; break;
 		case EV_BREATH: audio.play(SFX_BREATH, 60); eventCaption = "Someone whispers your name, right behind you."; player.fear += 3; break;
 		case EV_BLOODWRITE: {
@@ -1149,7 +1149,7 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 	alfredDeadT += dt;
 	if (alfredDead == 1) {                                   // waiting, back turned
 		alfredDir = Character::Up;
-		if ((alfredWhisperT -= dt) <= 0) { audio.play(SFX_WHISPER, 40, 0.8f); alfredWhisperT = frand(5, 8); }
+		if ((alfredWhisperT -= dt) <= 0) { audio.play(SFX_WHISPER, 30, 1.f); alfredWhisperT = frand(5, 8); }
 		if (dl < 128) {
 			alfredDead = 2; alfredDeadT = 0;
 			player.light.flicker = 1.f;                          // the lantern dies down
@@ -1730,7 +1730,7 @@ void Game::updateSamara(float dt) {
 		float before = samaraT;
 		samaraT += dt;
 		// The build-up: silence... a whisper... someone behind you... she rises.
-		if (before < SAMARA_APPEAR - 1.6f && samaraT >= SAMARA_APPEAR - 1.6f) { audio.play(SFX_WHISPER, 70, 0.9f); }
+		if (before < SAMARA_APPEAR - 1.6f && samaraT >= SAMARA_APPEAR - 1.6f) { audio.play(SFX_WHISPER, 40, 1.f); }
 		if (before < SAMARA_APPEAR && samaraT >= SAMARA_APPEAR) { audio.play(SFX_BRIDE_APPEAR, 75); showToast("Someone is standing behind you..."); }
 		// Once risen she glides to stand just in front of you, then waits.
 		sf::Vector2f me = pp() + sf::Vector2f(12, 12), d = me - samaraPos;
