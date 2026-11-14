@@ -253,6 +253,7 @@ private:
 	float alfredWhisperT = 3.f, alfredScareT = 0;   // his whispers while he waits / his face filling the screen
 	void drawDeadAlfredGlow(sf::RenderWindow* w);
 	void drawAlfredScare(sf::RenderWindow* w);
+	sf::Texture skullTex; sf::Sprite skullSprite{ skullTex }; bool hasSkull = false;   // the screaming skull: Alfred's jumpscare
 	sf::Texture alfredDeadTex; sf::Sprite alfredDeadSprite{ alfredDeadTex };
 	bool updateAlfred(float dt, sf::RenderWindow* window, bool overlay);
 	void drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay);

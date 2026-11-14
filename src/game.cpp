@@ -89,6 +89,11 @@ Game::Game(Audio& a) : audio(a) {
 	(void)fontMono.openFromFile(asset("fonts/DejaVuSans.ttf"));
 	(void)fontBlood.openFromFile(asset("fonts/Nosifer.ttf"));   // dripping letters for the blood writing
 	if (jumpTex.loadFromFile(asset("graphics/jumpscare.png"))) jumpSprite.setTexture(jumpTex, true);
+	if ((hasSkull = skullTex.loadFromFile(asset("graphics/jumpscare_skull.png")))) {
+		skullTex.setSmooth(true);
+		skullSprite.setTexture(skullTex, true);
+		skullSprite.setOrigin({ skullTex.getSize().x / 2.f, skullTex.getSize().y / 2.f });
+	}
 	if (decalTex.loadFromFile(asset("graphics/blood_decals.png"))) decalSprite.setTexture(decalTex, true);
 	if (alfredDeadTex.loadFromFile(asset("graphics/servent_dead.png"))) alfredDeadSprite.setTexture(alfredDeadTex, true);
 	alfredDeadSprite.setOrigin({ 0.f, 24.f });
@@ -158,6 +163,19 @@ void Game::enterRoom(int to, int from, bool pushHistory) {
 	placePlayer(entryTile);
 	if (pushHistory) player.history.push(room);
 	if (!roomVisited[room]) { roomVisited[room] = true; runStats.roomsSeen++; }
+	// Alfred only walks while you are in the Hall: if he had already set off
+	// when you left, he is gone - he must not stay frozen half-way out forever.
+	if (room != ENTRANCE_HALL && npc.state == Npc::moving && !alfredLeft) {
+		alfredLeft = true;
+		npc.setPosition({ npc.characterImage.getPosition().x, 700.f });   // (out of the hall, not drawn again)
+	}
+	// Deeper in the house, a few seconds in, you hear Alfred scream.  The way
+	// back from here runs through the Library - and he is waiting there.
+	// (Whether or not you stopped to talk to him: he is gone from the Hall now.)
+	if ((room == COLLAPSED_BEDROOM || room == NURSERY) && alfredDead == 0 && alfredScreamT <= 0) {
+		alfredScreamT = 6.f;
+		if (!alfredLeft) { alfredLeft = true; npc.state = Npc::moving; npc.setPosition({ npc.characterImage.getPosition().x, 700.f }); }
+	}
 	roomTime = 0; digT = 0; trailLen = 0;
 	spawnEnemies();
 	spiderFollowT = chased ? frand(1.5f, 2.3f) : -1.f;    // it scuttles in behind you a moment later
@@ -435,7 +453,6 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		cs.setColor(child.stun > 0 ? sf::Color(255, 120, 120, a) : sf::Color(200 + (std::uint8_t)(40 * k), g, g, a));
 		window->draw(cs);
 	}
-	drawDeadAlfredGlow(window);
 	drawDevilGlow(window);
 	drawDevilDeath(window);
 	drawWorldOverlays(window);
@@ -455,6 +472,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 			}
 		}
 	}
+	drawDeadAlfredGlow(window);                    // over the spiders, so none ever crawls across him
    // hint trail, target marker, blood writing - drawn over the darkness so they can be followed
 
 	if (!overlay) {
@@ -1097,10 +1115,8 @@ bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
 			}
 		}
 		// Once he has walked out of the hall, the house takes him.
-		if (!alfredLeft && npc.state == Npc::moving && npc.characterImage.getPosition().y >= 644) {
-			alfredLeft = true;
-			alfredScreamT = 25.f;
-		}
+		if (!alfredLeft && npc.state == Npc::moving && npc.characterImage.getPosition().y >= 644)
+			alfredLeft = true;            // (his scream comes later - see enterRoom)
 		if (alfredScreamT > 0) {
 			alfredScreamT -= dt;
 			if (alfredScreamT <= 0) {
@@ -1125,7 +1141,7 @@ bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
 void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 	(void)window;
 	if (room != LIBRARY || alfredDead == 0 || alfredDead == 3) return;
-	if (alfredPos.x == 0 && alfredPos.y == 0) alfredPos = sf::Vector2f(19 * 32 + 4.f, 7 * 32 + 4.f);   // in plain sight, a few steps in from the door
+	if (alfredPos.x == 0 && alfredPos.y == 0) alfredPos = sf::Vector2f(17 * 32 + 4.f, 9 * 32 + 4.f);   // in plain sight, beside the way between the Library doors
 	if (overlay) return;
 	sf::Vector2f me = pp() + sf::Vector2f(12, 12), body = alfredPos + sf::Vector2f(12, 12), d = me - body;
 	float dl = std::sqrt(d.x * d.x + d.y * d.y);
@@ -1145,6 +1161,7 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 		player.light.flicker = maxOf(player.light.flicker, 0.85f);
 		if (alfredDeadT > 0.9f) {
 			alfredDead = 4; alfredDeadT = 0; face();
+			if (getenv("CS_TRACE")) std::fprintf(stderr, "ALFRED turns\n");
 			audio.play(SFX_STING, 100, 0.7f);
 			shake = 1.2f; hurtFlash = 0.6f; player.fear += 8;
 			eventCaption = "Alfred turns around. His eyes are gone."; eventCaptionT = 4.f;
@@ -1159,7 +1176,7 @@ void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
 		if (dl > 1) alfredPos += d / dl * minOf(dl, 240.f * dt);
 		if (dl < 24 || alfredDeadT > 0.8f) {
 			alfredDead = 3;
-			alfredScareT = 1.1f;
+			alfredScareT = 1.3f;
 			audio.play(SFX_JUMPSCARE, 100);
 			shake = 1.6f; player.fear += 12;
 			eventCaption = "...and he is gone. Only the smell of blood remains."; eventCaptionT = 5.f;
@@ -1193,23 +1210,39 @@ void Game::drawDeadAlfredGlow(sf::RenderWindow* w) {
 	w->draw(alfredDeadSprite);
 }
 
-// His face, filling the screen for a second: a white flash, then the
-// eyeless, bleeding face blown up and shaking, pulsing red, fading out.
+// When he gets you: the screaming skull slams in full-screen - a punch
+// zoom, violent shake, red/cyan ghosting, static and a blood-red flash -
+// then fades.  (Without the picture, his own eyeless face is used.)
 void Game::drawAlfredScare(sf::RenderWindow* w) {
 	if (alfredScareT <= 0) return;
-	float age = 1.1f - alfredScareT;
-	float a = alfredScareT < 0.3f ? alfredScareT / 0.3f : 1.f;
-	sf::RectangleShape black({ 1024.f, 768.f }); black.setFillColor(sf::Color(0, 0, 0, (std::uint8_t)(235 * a))); w->draw(black);
-	sf::Sprite f = alfredDeadSprite;
-	f.setOrigin({ 0.f, 0.f });
-	f.setTextureRect(sf::IntRect({ 24, 16 }, { 24, 26 }));       // his face (rows 16-41 of the sprite: hair, empty eyes, blood)
-	float sc = 25.f + 4.f * age;                                  // it keeps coming closer
-	f.setScale({ sc, sc });
-	f.setPosition({ 512.f - 12 * sc + (float)(std::rand() % 17 - 8), 384.f - 14 * sc + (float)(std::rand() % 17 - 8) });   // eyes near the centre of the screen
-	std::uint8_t red = (std::uint8_t)(170 + 85 * std::fabs(std::sin(age * 30)));
-	f.setColor(sf::Color(255, red, red, (std::uint8_t)(255 * a)));
-	w->draw(f);
-	if (age < 0.08f) { sf::RectangleShape flash({ 1024.f, 768.f }); flash.setFillColor(sf::Color(255, 255, 255, 200)); w->draw(flash); }
+	const float W = 1024.f, H = 768.f, T = 1.3f;
+	float age = T - alfredScareT;
+	std::uint8_t a = (std::uint8_t)(255 * (alfredScareT > 0.35f ? 1 : alfredScareT / 0.35f));
+	sf::RectangleShape black({ W, H }); black.setFillColor(sf::Color(0, 0, 0, a)); w->draw(black);
+	float punch = age < 0.12f ? 0.55f + age / 0.12f * 0.6f : 1.15f + 0.05f * std::sin(age * 40) + 0.08f * (age - 0.12f);   // lunges in, keeps coming
+	float jit = age < 0.6f ? 18.f : 8.f;
+	sf::Vector2f c(W / 2 + (std::rand() % 21 - 10) * jit / 10, H / 2 + (std::rand() % 21 - 10) * jit / 10);
+	if (hasSkull) {
+		float sc = H / skullTex.getSize().y * punch;      // the skull's own shape, as tall as the screen
+		skullSprite.setScale({ sc, sc });
+		skullSprite.setPosition(c + sf::Vector2f(-7, 0)); skullSprite.setColor(sf::Color(255, 0, 0, (std::uint8_t)(a * 0.3f))); w->draw(skullSprite, sf::BlendAdd);
+		skullSprite.setPosition(c + sf::Vector2f(7, 2));  skullSprite.setColor(sf::Color(0, 120, 120, (std::uint8_t)(a * 0.2f))); w->draw(skullSprite, sf::BlendAdd);
+		skullSprite.setPosition(c); skullSprite.setColor(sf::Color(255, 255, 255, a)); w->draw(skullSprite);
+	}
+	else {
+		sf::Sprite f = alfredDeadSprite;
+		f.setOrigin({ 12.f, 13.f });
+		f.setTextureRect(sf::IntRect({ 24, 16 }, { 24, 26 }));
+		float sc = 25.f * punch; f.setScale({ sc, sc }); f.setPosition(c);
+		f.setColor(sf::Color(255, 210, 210, a)); w->draw(f);
+	}
+	for (int i = 0; i < 40; ++i) {                         // static
+		sf::RectangleShape ln({ W, (float)(1 + std::rand() % 3) });
+		ln.setPosition({ 0.f, (float)(std::rand() % 768) });
+		ln.setFillColor(sf::Color(255, 200, 200, (std::uint8_t)((std::rand() % 50) * a / 255)));
+		w->draw(ln);
+	}
+	if (age < 0.09f || (age > 0.2f && age < 0.25f)) { sf::RectangleShape red({ W, H }); red.setFillColor(sf::Color(200, 0, 20, 110)); w->draw(red); }
 }
 
 // --------------------------------------------------- footsteps & voices
