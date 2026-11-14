@@ -78,6 +78,7 @@ spirits, the Weavers and the Devil), then choose how the nightmare ends.
 | **I** / **J** | Inventory / survival notes |
 | **TAB** | Open / close the live data-structure console (wheel or PgUp/PgDn scrolls it) |
 | **M** | Mute (or click the speaker, bottom-right) |
+| **F11** / Alt+Enter | Fullscreen on / off (the game starts in fullscreen) |
 | Space | Next line / dismiss text |
 | Esc | Pause: Save & quit to menu is here |
 
@@ -337,6 +338,9 @@ make test       # unit tests for every data structure
 - **macOS:** `brew install sfml`, then `make SFML_DIR=$(brew --prefix sfml)`.
 - **Windows (MSYS2):** `pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-sfml make`, then `make` in the MinGW shell.
 - **Windows (Visual Studio):** `cmake -B build -DSFML_DIR="C:/SFML/lib/cmake/SFML"`, then `cmake --build build --config Release`.
+
+The game opens in **fullscreen**; **F11** (or Alt+Enter) switches to a window and back.
+Set `CRIMSON_WINDOWED=1` to start in a window.
 
 If the sound output changes while you play (say you unplug your earphones), the game moves its
 sound to the new output within a couple of seconds.

@@ -44,6 +44,10 @@ void layoutScreen(sf::Vector2u win, bool consoleOpen) {
 	g_panelVP = sf::FloatRect({ gameW / W, 0.f }, { panel / W, 1.f });
 	g_gameAreaPx = gameW;
 }
+sf::View fullView(const sf::RenderTarget&) {
+	float fw = 1024.f / maxOf(0.0001f, g_gameVP.size.x), fh = 768.f / maxOf(0.0001f, g_gameVP.size.y);
+	return sf::View(sf::FloatRect({ -g_gameVP.position.x * fw, -g_gameVP.position.y * fh }, { fw, fh }));
+}
 sf::View uiView(const sf::RenderTarget&) {
 	sf::View v(sf::FloatRect({ 0.f, 0.f }, { 1024.f, 768.f }));
 	v.setViewport(g_gameVP);

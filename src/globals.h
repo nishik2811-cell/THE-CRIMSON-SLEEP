@@ -63,3 +63,6 @@ extern sf::FloatRect g_gameVP, g_panelVP;
 extern float g_gameAreaPx;      // width in pixels of the part left of the console
 void layoutScreen(sf::Vector2u window, bool consoleOpen);
 sf::View uiView(const sf::RenderTarget& t);
+// The same 1024x768 coordinates, but covering the WHOLE window (past the
+// letterbox bars): for backgrounds that should fill a wide screen.
+sf::View fullView(const sf::RenderTarget& t);

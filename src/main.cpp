@@ -163,6 +163,29 @@ int main() {
 			widenedBy = 0;
 		}
 	};
+	// F11 / Alt+Enter: a real fullscreen window at the desktop's resolution,
+	// and back to a normal window (the size it needs for the console, if open).
+	bool fullscreen = false;
+	auto toggleFullscreen = [&]() {
+		fullscreen = !fullscreen;
+		if (fullscreen) window.create(sf::VideoMode::getDesktopMode(), "The Crimson Sleep", sf::State::Fullscreen);
+		else {
+			unsigned wd = consoleOpen ? GAME_WIDTH + (unsigned)CONSOLE_PANEL_W : GAME_WIDTH;
+			window.create(sf::VideoMode({ wd, GAME_HEIGHT }), "The Crimson Sleep", sf::Style::Default);
+		}
+		widenedBy = (!fullscreen && consoleOpen) ? (unsigned)CONSOLE_PANEL_W : 0;   // closing the console shrinks it back
+		window.setFramerateLimit(120);
+		window.setKeyRepeatEnabled(false);
+		key_release_all();
+	};
+	// The game opens in fullscreen (no title bar, no desktop bars).  Test runs
+	// that use the CS_* hooks - and anyone who sets CRIMSON_WINDOWED - get a window.
+	{
+		const char* devHooks[] = { "CS_SHOT", "CS_FRAMES", "CS_DEMO_LOG", "CS_STATE", "CS_ROOM", "CS_DEMO", "CS_REC", "CS_WIN" };
+		bool devRun = false;
+		for (const char* h : devHooks) if (env(h)) devRun = true;
+		if (!devRun && !env("CRIMSON_WINDOWED")) toggleFullscreen();
+	}
 	if (env("CS_CONSOLE")) toggleConsole();
 	if (env("CS_DEMO")) { game_state = ST_DEMO; screens.demoChoice = std::atoi(env("CS_DEMO")) - 1 > 0 ? std::atoi(env("CS_DEMO")) - 1 : 0; }   // CS_DEMO=1..4: true / escape / secret / trapped
 	if (game && env("CS_DEMO_GOAL")) { game->devDemoFrom(std::atoi(env("CS_DEMO_GOAL"))); if (!consoleOpen) toggleConsole(); }
@@ -180,6 +203,8 @@ int main() {
 		window.handleEvents(
 			[&](const sf::Event::Closed&) { window.close(); },
 			[&](const sf::Event::KeyPressed& key) {
+				// F11 / Alt+Enter: fullscreen - handled first, so Enter never also picks a menu item
+				if (key.code == sf::Keyboard::Key::F11 || (key.code == sf::Keyboard::Key::Enter && key.alt)) { toggleFullscreen(); return; }
 				key_record(key.code);
 				key_set_held(key.code, true);
 				bool gameScreen = game_state == ST_PLAYING || game_state == ST_PAUSED || game_state == ST_RETRY;

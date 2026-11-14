@@ -50,26 +50,32 @@ void Screens::startBoot() {
 }
 
 void Screens::drawBackdrop(sf::RenderWindow* w, sf::Color tint) {
-	w->setView(uiView(*w));
+	// The backdrop fills the whole window (a wide screen too); the screens'
+	// text and menus are then drawn in the 4:3 area in the middle.
+	sf::View fv = fullView(*w);
+	w->setView(fv);
+	sf::FloatRect R({ fv.getCenter() - fv.getSize() / 2.f }, fv.getSize());
 	// Slow "breathing" zoom so the scene never feels still.
 	float s = 1.03f + 0.02f * std::sin(t * 0.25f);
 	sf::Vector2u sz = bgTex.getSize();
-	float base = maxOf(1024.f / sz.x, 768.f / sz.y);
+	float base = maxOf(R.size.x / sz.x, R.size.y / sz.y);
 	bg.setOrigin({ (float)(sz.x / 2.f), (float)(sz.y / 2.f) });
 	bg.setScale({ (float)(base * s), (float)(base * s) });
 	bg.setPosition({ (float)(512 + 6 * std::sin(t * 0.13f)), (float)(384) });
 	bg.setColor(tint);
 	w->draw(bg);
 	// Low crimson fog bands drifting across the water.
+	float fogW = maxOf(1400.f, R.size.x + 200.f);
 	for (int i = 0; i < 3; ++i) {
-		sf::RectangleShape fog(sf::Vector2f(1400, 70));
-		float x = std::fmod(t * (8 + i * 5) + i * 300, 1400.f) - 1400;
+		sf::RectangleShape fog(sf::Vector2f(fogW, 70));
+		float x = R.position.x + std::fmod(t * (8 + i * 5) + i * 300, fogW) - fogW;
 		for (int k = 0; k < 2; ++k) {
-			fog.setPosition({ (float)(x + k * 1400), (float)(540 + i * 55 + 8 * std::sin(t * 0.4f + i)) });
+			fog.setPosition({ (float)(x + k * fogW), (float)(540 + i * 55 + 8 * std::sin(t * 0.4f + i)) });
 			fog.setFillColor(sf::Color(90, 6, 18, 22));
 			w->draw(fog);
 		}
 	}
+	w->setView(uiView(*w));
 }
 
 void Screens::drawMotes(sf::RenderWindow* w, float dt, sf::Color c, bool rising) {
@@ -198,7 +204,14 @@ int Screens::title(sf::RenderWindow* w, float dt) {
 	drawBackdrop(w);
 	// Darken the left third so the logo and menu read clearly (as in the Godot build).
 	std::uint8_t shade = (std::uint8_t)(200 * k);
-	quad(w, 0, 0, 620, 768, sf::Color(0, 0, 0, shade), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, shade));
+	{
+		sf::View fv = fullView(*w); w->setView(fv);
+		float left = fv.getCenter().x - fv.getSize().x / 2, top = fv.getCenter().y - fv.getSize().y / 2;
+		sf::RectangleShape edge({ maxOf(0.f, -left), fv.getSize().y }); edge.setPosition({ left, top });
+		edge.setFillColor(sf::Color(0, 0, 0, shade)); w->draw(edge);
+		quad(w, 0, top, 620, top + fv.getSize().y, sf::Color(0, 0, 0, shade), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, shade));
+		w->setView(uiView(*w));
+	}
 	drawMotes(w, dt, sf::Color(200, 40, 50), true);
 
 	const float cx = 290;
@@ -267,6 +280,7 @@ int Screens::controls(sf::RenderWindow* w, float dt) {
 		{ "J", "notes on the dead" },
 		{ "Tab", "live data-structure console" },
 		{ "M", "mute" },
+		{ "F11", "fullscreen / window" },
 		{ "Space", "dismiss text" },
 		{ "Esc", "pause" },
 	};
@@ -409,24 +423,35 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		// The true ending: the crimson sun rising over the mountains and the
 		// fog - a slow push in, brightening out of the dark.
 		sf::Vector2u sz = dawnTex.getSize();
-		float s = maxOf(1024.f / sz.x, 768.f / sz.y) * (1.02f + 0.03f * minOf(1.f, endT / 30.f));
+		sf::View fv = fullView(*w); w->setView(fv);
+		float s = maxOf(fv.getSize().x / sz.x, fv.getSize().y / sz.y) * (1.02f + 0.03f * minOf(1.f, endT / 30.f));
 		dawnSprite.setOrigin({ sz.x / 2.f, sz.y / 2.f }); dawnSprite.setScale({ s, s });
 		dawnSprite.setPosition({ 512.f - 40.f * minOf(1.f, endT / 30.f), 384.f });
 		std::uint8_t b = (std::uint8_t)(255 * minOf(0.62f, 0.3f + endT / 8.f));   // dulled, so the words stay clear
 		dawnSprite.setColor(sf::Color(b, b, b));
 		w->draw(dawnSprite);
+		w->setView(uiView(*w));
 	}
 	else drawBackdrop(w, tint);
 	if (dawn > 0 && !(e == END_TRUE && hasDawn)) {
 		// Dawn: deep blue overhead, warm gold at the horizon, fading over the water.
 		sf::Color top(40, 60, 110, (std::uint8_t)(120 * dawn)), mid(255, 190, 140, (std::uint8_t)(170 * dawn)), low(120, 70, 50, 0);
-		quad(w, 0, 0, 1024, 560, top, top, mid, mid, sf::BlendAdd);
-		quad(w, 0, 560, 1024, 768, mid, mid, low, low, sf::BlendAdd);
+		sf::View fv = fullView(*w); w->setView(fv);
+		float l = fv.getCenter().x - fv.getSize().x / 2, r = l + fv.getSize().x, tp = fv.getCenter().y - fv.getSize().y / 2, bt = tp + fv.getSize().y;
+		quad(w, l, tp, r, 560, top, top, mid, mid, sf::BlendAdd);
+		quad(w, l, 560, r, bt, mid, mid, low, low, sf::BlendAdd);
+		w->setView(uiView(*w));
 	}
+	// Full-window overlays (they reach past the 4:3 area on a wide screen).
+	sf::View FV = fullView(*w);
+	const float FL = FV.getCenter().x - FV.getSize().x / 2, FT = FV.getCenter().y - FV.getSize().y / 2, FR = FL + FV.getSize().x;
+	auto fullRect = [&](sf::Color c, const sf::RenderStates& st = sf::RenderStates::Default) {
+		w->setView(FV);
+		sf::RectangleShape r(FV.getSize()); r.setPosition({ FL, FT }); r.setFillColor(c); w->draw(r, st);
+		w->setView(uiView(*w));
+	};
 	if (e == END_TRAPPED) {
-		sf::RectangleShape fire(sf::Vector2f(1024, 768));
-		fire.setFillColor(sf::Color(255, 90, 20, (std::uint8_t)(50 + 30 * std::sin(endT * 9) + std::rand() % 20)));
-		w->draw(fire, sf::BlendAdd);
+		fullRect(sf::Color(255, 90, 20, (std::uint8_t)(50 + 30 * std::sin(endT * 9) + std::rand() % 20)), sf::BlendAdd);
 		drawMotes(w, dt, sf::Color(255, 140, 40), true);
 	}
 	else drawMotes(w, dt, e == END_TRUE ? sf::Color(255, 230, 200) : sf::Color(200, 40, 50), true);
@@ -447,14 +472,16 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 			w->draw(wing, 4, sf::PrimitiveType::Lines);
 		}
 	}
-	sf::RectangleShape dim(sf::Vector2f(1024, 768)); dim.setFillColor(sf::Color(0, 0, 0, e == END_TRUE && hasDawn ? 0 : 90)); w->draw(dim);
+	if (!(e == END_TRUE && hasDawn)) fullRect(sf::Color(0, 0, 0, 90));
 	if (e == END_TRUE && hasDawn) {                     // a soft shade only behind the lines, so the sun stays golden
-		quad(w, 0, 140, 1024, 200, sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(10, 0, 0, 110), sf::Color(10, 0, 0, 110));
-		quad(w, 0, 200, 1024, 480, sf::Color(10, 0, 0, 110), sf::Color(10, 0, 0, 110), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0));
+		w->setView(FV);
+		quad(w, FL, 140, FR, 200, sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0), sf::Color(10, 0, 0, 110), sf::Color(10, 0, 0, 110));
+		quad(w, FL, 200, FR, 480, sf::Color(10, 0, 0, 110), sf::Color(10, 0, 0, 110), sf::Color(0, 0, 0, 0), sf::Color(0, 0, 0, 0));
+		w->setView(uiView(*w));
 	}
 
 	if ((e == END_TRUE || e == END_ESCAPE) && endT < 2.f) {   // out of the white of the Devil's death
-		sf::RectangleShape veil(sf::Vector2f(1024, 768)); veil.setFillColor(sf::Color(255, 248, 240, (std::uint8_t)(255 * (1 - endT / 2.f)))); w->draw(veil);
+		fullRect(sf::Color(255, 248, 240, (std::uint8_t)(255 * (1 - endT / 2.f))));
 	}
 
 	// Story lines appear one after another...
@@ -489,7 +516,7 @@ int Screens::ending(sf::RenderWindow* w, float dt, const RunStats& st) {
 		// Credits roll.
 		const char* credits[] = { "THE CRIMSON SLEEP", "", "A Retro Horror Adventure",
 			"", "Created by Nishita, Yashieta, Anwita and Aryan",
-			"Music and sounds: Pixabay artists (see README)", "", "", "Thank you for playing.", "Sleep well." };
+			"Music and sound: the team, Alex Morgan and Pixabay artists", "", "", "Thank you for playing.", "Sleep well." };
 		float cy = 768 - (tail - 3) * 34;
 		if (tail > 3) for (int i = 0; i < 10; ++i) {
 			float y = cy + i * 34;
