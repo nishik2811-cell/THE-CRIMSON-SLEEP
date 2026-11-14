@@ -401,6 +401,9 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		}
 		s.draw(window);
 	}
+	// Alfred, while he is still in the Hall, is drawn over the spiders - never
+	// under one crawling past him.
+	if (room == ENTRANCE_HALL && npc.characterImage.getPosition().y < 644) window->draw(npc.characterImage);
 
 	// --- player + lantern darkness ---
 	if (shake > 0) player.view.move({ (float)(0), (float)(0) });

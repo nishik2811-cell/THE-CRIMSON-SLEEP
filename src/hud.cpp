@@ -43,13 +43,27 @@ void Game::drawWorldOverlays(sf::RenderWindow* w) {
 		int shown = 0;
 		// The drops are drawn over the darkness - and so over the hero too.  A drop
 		// the hero is standing on is under his feet: skip it (his body hides it).
-		sf::FloatRect body = player.characterImage.getGlobalBounds();
+		// Anyone standing on a drop hides it: the hero, the dead, the Devil, the
+		// spiders, Alfred - a drop is never painted on top of a character.
+		sf::FloatRect bodies[32]; int nb = 0;
+		auto add = [&](sf::FloatRect r) { if (nb < 32) bodies[nb++] = r; };
+		add(player.characterImage.getGlobalBounds());
+		for (int i = 0; i < easyCount; ++i) add(ghostEasy[i].characterImage.getGlobalBounds());
+		for (int i = 0; i < mediumCount; ++i) add(ghostMedium[i].characterImage.getGlobalBounds());
+		if (bossActive || bossRiseT >= 0) add(boss.characterImage.getGlobalBounds());
+		if (child.active) add(child.sprite.getGlobalBounds());
+		if (bride.active) add(bride.sprite.getGlobalBounds());
+		if (samaraT >= 0) add(sf::FloatRect(samaraPos - sf::Vector2f(16, 40), { 32.f, 56.f }));
+		for (int i = 0; i < spiderCount; ++i) if (spiders[i].active) add(sf::FloatRect(spiders[i].pos - sf::Vector2f(16, 16), { 32.f, 32.f }));
+		if (room == ENTRANCE_HALL && npc.characterImage.getPosition().y < 644) add(npc.characterImage.getGlobalBounds());
+		if (room == LIBRARY && alfredDead != 0 && alfredDead != 3) add(sf::FloatRect(alfredPos - sf::Vector2f(0, 24), { 24.f, 48.f }));
+		auto covered = [&](sf::FloatRect drop) { for (int k = 0; k < nb; ++k) if (bodies[k].findIntersection(drop)) return true; return false; };
 		for (int i = here - 1; i >= 1 && shown < 4; --i) {
 			if (i % 3 != 0) continue;
 			int c = trail[i] % GRID_W, r = trail[i] / GRID_W;
 			int h = (c * 73856093) ^ (r * 19349663);
 			float jx = (float)(((h >> 6) & 7) - 3), jy = (float)(((h >> 9) & 7) - 3);
-			if (body.findIntersection(sf::FloatRect({ c * 32 + 8.f + jx, r * 32 + 8.f + jy }, { 16.f, 16.f }))) { ++shown; continue; }
+			if (covered(sf::FloatRect({ c * 32 + 8.f + jx, r * 32 + 8.f + jy }, { 16.f, 16.f }))) { ++shown; continue; }
 			decalSprite.setTextureRect(sf::IntRect({ 16, 0 }, { 16, 16 }));   // the drip
 			decalSprite.setPosition({ c * 32 + 8.f + jx, r * 32 + 8.f + jy });
 			decalSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(255 * (1.f - 0.15f * shown))));
