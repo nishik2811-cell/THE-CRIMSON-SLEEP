@@ -15,7 +15,7 @@ A 2D pixel-art horror escape in <b>C++17 + SFML 3</b>. Every mechanic runs on a
 
 On **June 26, 1953**, ten people were murdered in a mansion. The house has slept in crimson ever since.
 You wake on its floor. Find the keys, read the clues and survive the dead (Samara, Carrie, the
-spirits, the Weavers and the Devil), then choose how the nightmare ends.
+spirits, the Weavers, what is left of Alfred, and the Devil), then choose how the nightmare ends.
 
 ### Highlights
 
@@ -59,6 +59,7 @@ spirits, the Weavers and the Devil), then choose how the nightmare ends.
 | <img src="docs/images/locket.png" alt="Samara's locket"><br><sub>Give Samara back her locket and she turns to light.</sub> | <img src="docs/images/door.png" alt="Door swinging open"><br><sub>Doors swing open on their hinge, and the hero walks through.</sub> |
 | <img src="docs/images/hide.png" alt="Hiding in a wardrobe"><br><sub>Inside a wardrobe, nothing can see, hear or touch you.</sub> | <img src="docs/images/stomp.png" alt="Stomping a spider"><br><sub>A spider at your feet. The ring shows the stomp's reach.</sub> |
 | <img src="docs/images/bedroom.png" alt="Collapsed Bedroom"><br><sub>The Collapsed Bedroom: pits, fire, spikes and a lever.</sub> | <img src="docs/images/notecard.png" alt="Survival note"><br><sub>Meet a horror and a survival note slides in at the side.</sub> |
+| <img src="docs/images/alfred.png" alt="Dead Alfred in the Library"><br><sub>After his scream, something stands in the Library with its back to you.</sub> | <img src="docs/images/alfred_scare.png" alt="Alfred's jumpscare"><br><sub>Get too close and it turns, lunges, and the screaming skull fills the screen.</sub> |
 
 ---
 
@@ -115,7 +116,7 @@ graph LR
 |---|---|---|---|
 | **Entrance Hall** | 1 | Where you wake | Alfred and the lantern; the front door |
 | **Grand Corridor** | 3 | The Lantern | A 1953 newspaper clipping in a drawer |
-| **Library** | 4 | Open | The Rusty Key, Alfred's diary |
+| **Library** | 4 | Open | The Rusty Key and a diary; later, what is left of Alfred |
 | **Collapsed Bedroom** | 5 | Rusty Key | A chest with the Brass Key; a lever |
 | **Nursery of Whispers** | 7 | Brass Key | The Chapel Key; a lever; Carrie |
 | **Chapel of Ash** | 7 | Chapel Key | The Hymn Page, the Iron Key, a lever and an old iron-banded door |
@@ -139,6 +140,7 @@ anything you can still take glints faintly in the dark.
 | 🩸 | **Samara** | Drifts through walls, hunting by the sound of your steps | **Stand still**: after about 2.5 silent seconds she loses your trail. A flare banishes her. |
 | 🕯️ | **Carrie** | Crawls fast, but only while you aren't looking. She shows faintly in the dark, clearer as she nears | **Face her** and she freezes. A flare drives her away. |
 | 🕷️ | **The Weavers** | Spiders that patrol, hear you, see you and chase you, then bite and dart away | Stand still, turn the lantern off or hide in a wardrobe. When one rears up at your feet, **stomp (Q)**. |
+| 💀 | **Alfred** | The butler who gave you the lantern. Once you are deep in the house you hear him scream, and on your way back he stands in the Library with his back to you, swaying and moaning softly | Nothing stops him. Come close and the lantern dies, he turns (eyeless, bleeding), lunges, and the screaming skull fills the screen. Then he is gone for good. |
 | 😈 | **The Devil** | The final boss, waiting in the crypt | See [the final fight](#the-final-fight). |
 | 🔥 | **The house** | Spikes, fire and open graves | Time your steps. **Levers** lower the spikes. |
 
@@ -177,7 +179,7 @@ lifts, and morning light breaks into the crypt.
 | **Trapped** | Choose the petrol in the Antechamber. |
 
 Each ending closes with your run stats (time, rooms, items, spirits banished, deaths, peak fear), a
-rank and rolling credits over quiet TV static.
+rank and rolling credits. (The **Credits** screen on the title menu rolls the full credits over quiet TV static.)
 
 ---
 
@@ -188,21 +190,20 @@ unit-tested by `make test`. Each one does a real job: take it away and a mechani
 
 <img align="right" src="docs/images/console.png" alt="The live data-structure console" width="330">
 
-**The live console (TAB).** The window widens and a panel opens beside the game. Each section
+**The live console (TAB).** A panel opens beside the game (in a window, the window widens to make room; in fullscreen it takes the right-hand part of the screen). Each section
 *draws* its structure from the live game state:
 - keys enter and leave the linked list;
 - rooms stack up as you walk;
 - the danger heap reorders as something closes in;
 - the BST lights up the path a `search()` took.
 
-Click a section to see every element, and click again to fold it. If the screen is too narrow to
-widen the window, the game still keeps most of the width.
+Click a section to see every element, and click again to fold it. The game always keeps most of the width.
 
 | Structure | File | What it does in the game |
 |---|---|---|
 | **Graph** (adjacency list) | [`ds/Graph.h`](src/ds/Graph.h), [`world.cpp`](src/world.cpp) | **The house.** Rooms are nodes and doors are edges. Each edge stores its door, whether it's locked, the item that opens it, and whether it's a hidden passage. |
 | **Stack** | [`ds/Stack.h`](src/ds/Stack.h) | **Where you've been.** Entering a room pushes it; **B** pops back to the previous one. |
-| **Queue** | [`ds/Queue.h`](src/ds/Queue.h) | **The haunting timeline.** Each room schedules its scares (whispers, slams, cracking floors, blood writing) first-in, first-out. It's also the frontier of every BFS. |
+| **Queue** | [`ds/Queue.h`](src/ds/Queue.h) | **The haunting timeline.** Each room schedules its scares (moans, slams, cracking floors, glass, blood writing) first-in, first-out. It's also the frontier of every BFS. |
 | **Priority queue** (max-heap) | [`ds/PriorityQueue.h`](src/ds/PriorityQueue.h) | **Danger right now.** Every frame each threat goes in with a priority, from Samara's attack (100) and the Devil (90) down to calm (0). The top one drives the warning text, the fear rate and the chase music. It's also A\*'s open set. |
 | **Linked list** | [`ds/LinkedList.h`](src/ds/LinkedList.h) | **Inventory.** New items go in at the head, and a key leaves the list when it opens its door. |
 | **Binary search tree** | [`ds/BST.h`](src/ds/BST.h) | **Items and clues**, keyed by item id, with *collected* and *read* flags. Puzzle gates query it: the Ossuary opens only once the newspaper has been **read**. |
@@ -398,6 +399,7 @@ CS_ROOM=3 CS_CONSOLE=1 CS_SPIDER=1 CS_FRAMES=24 CS_SHOT=console.png ./crimson_sl
 **Made by Nishita, Yashieta, Anwita and Aryan.**
 
 - **Pixel art & sprites:** retro horror pixel sprites, the team's hero, ghost and spider art, and custom walk and attack animations.
+- **The screaming skull** (Alfred's jumpscare): painted by Nishita.
 - **Music:** *Title Music* (title screen); *Ambient Horror* by Alex Morgan (calm rooms); a music-box lullaby (the Nursery); *Creep* (dangerous rooms); *Chase* (when something hunts you); the fight music and the Devil's death music (made with `tools/`); *Wrong* (death screen and the Trapped ending); *Apartments* (True ending); *Moonlit Lullaby for the Lost* (Escape and Secret endings).
 - **Sound:** room ambiences and effects from the team's sound library (converted by `tools/make_audio.py`), plus Pixabay effects: *scream* and *scary breath* (freesound_community), *scary loud screaming* (judgecruz1 / remusic), *scary bells* (Dragon Studio), *scary sound effect* (hgoliya08).
 - **Fonts:** Grenze Gotisch, Cormorant Garamond and Nosifer (SIL Open Font License, `assets/fonts/OFL.txt`), and DejaVu Sans.
