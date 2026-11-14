@@ -235,30 +235,88 @@ int Screens::title(sf::RenderWindow* w, float dt) {
 int Screens::controls(sf::RenderWindow* w, float dt) {
 	t += dt;
 	drawBackdrop(w, sf::Color(110, 90, 90));
-	sf::RectangleShape p(sf::Vector2f(880, 600)); p.setPosition({ (float)(72), (float)(84) }); p.setFillColor(sf::Color(8, 2, 4, 215));
+	// The panel: two columns on a fixed grid - the keys on the left (each key
+	// in its own little cap, every action starting on the same line), the
+	// survival rules on the right, wrapped to the column so nothing overflows.
+	const float PX = 72, PY = 64, PW = 880, PH = 640;
+	sf::RectangleShape p(sf::Vector2f(PW, PH)); p.setPosition({ PX, PY }); p.setFillColor(sf::Color(8, 2, 4, 222));
 	p.setOutlineColor(sf::Color(120, 6, 18)); p.setOutlineThickness(2); w->draw(p);
-	centered(w, fontTitle, "Controls", 44, CRIMSON, 92);
-	const char* keys =
-		"Arrows / WASD     walk\n"
-		"E / Enter              interact, open doors\n"
-		"F                          flare the lantern\n"
-		"SHIFT / C                swing / block (sword)\n"
-		"B                          go back one room\n"
-		"H                          ask the house for a hint\n"
-		"I / J                    inventory / notes on the dead\n"
-		"TAB                      live data-structure console\n"
-		"Space / Esc           dismiss text / pause";
-	sf::Text k(fontSerif, keys, 23); k.setFillColor(BONE); k.setPosition({ (float)(110), (float)(160) }); w->draw(k);
-	const char* tips =
-		"How to survive\n\n"
-		"- Samara hunts by sound. Stand still till she loses you, or flare.\n"
-		"- Never turn your back on Carrie. Face her to freeze her.\n"
-		"- Spirits walk fixed paths: watch, then cross.\n"
-		"- Fear kills too: keep the lantern lit and rest.\n"
-		"- Stuck for 30 seconds? A trail of blood appears.\n"
-		"- Some doors open only to knowledge, not keys.";
-	sf::Text tp(fontItalic, tips, 21); tp.setFillColor(sf::Color(220, 170, 170)); tp.setPosition({ (float)(560), (float)(160) }); w->draw(tp);
-	centered(w, fontItalic, "Enter or Esc to return", 20, ASH, 640);
+	centered(w, fontTitle, "Controls", 44, CRIMSON, PY + 14);
+	const float TOP = PY + 96;                         // where both columns start
+	const float LX = PX + 44, CAP_W = 132, AX = LX + CAP_W + 18;   // key caps, then the action text
+	const float RX = PX + 500, RW = PX + PW - 40 - RX;  // the right column
+	sf::RectangleShape div({ 1.f, PH - 170 }); div.setPosition({ RX - 28, TOP - 6 }); div.setFillColor(sf::Color(120, 6, 18, 160)); w->draw(div);
+	auto label = [&](const sf::Font& f, const char* s, unsigned size, sf::Color c, float x, float y) {
+		sf::Text tx(f, s, size); tx.setFillColor(c); tx.setPosition({ std::floor(x), std::floor(y) }); w->draw(tx); return tx.getLocalBounds().size.x;
+	};
+	label(fontItalic, "Keys", 20, sf::Color(220, 170, 170), LX, TOP - 34);
+	label(fontItalic, "How to survive", 20, sf::Color(220, 170, 170), RX, TOP - 34);
+
+	struct Row { const char* key; const char* what; };
+	static const Row ROWS[] = {
+		{ "Arrows / WASD", "walk" },
+		{ "E / Enter", "interact, open doors" },
+		{ "F", "flare the lantern" },
+		{ "L", "lantern on / off" },
+		{ "Q", "stomp a spider" },
+		{ "Shift", "strike with the sword" },
+		{ "C  (hold)", "block with the sword" },
+		{ "B", "go back one room" },
+		{ "H", "ask the house for a hint" },
+		{ "I", "inventory" },
+		{ "J", "notes on the dead" },
+		{ "Tab", "live data-structure console" },
+		{ "M", "mute" },
+		{ "Space", "dismiss text" },
+		{ "Esc", "pause" },
+	};
+	const float ROW_H = 30;
+	for (int i = 0; i < (int)(sizeof ROWS / sizeof ROWS[0]); ++i) {
+		float y = TOP + i * ROW_H;
+		sf::Text kt(fontSerif, ROWS[i].key, 17);
+		float tw = kt.getLocalBounds().size.x, kw = tw + 18 > 32 ? tw + 18 : 32;   // single letters get an even, square-ish cap
+		sf::RectangleShape cap({ kw, 23 }); cap.setPosition({ LX, y });
+		cap.setFillColor(sf::Color(40, 10, 16, 200)); cap.setOutlineColor(sf::Color(120, 40, 50)); cap.setOutlineThickness(1); w->draw(cap);
+		label(fontSerif, ROWS[i].key, 17, BONE, LX + (kw - tw) / 2 - kt.getLocalBounds().position.x, y + 1);
+		label(fontSerif, ROWS[i].what, 19, sf::Color(214, 202, 190), AX, y);
+	}
+
+	// The rules, each wrapped to the column width, with a small gap between them.
+	static const char* TIPS[] = {
+		"Samara hunts by sound. Stand still until she loses you, or flare.",
+		"Never turn your back on Carrie. Face her to freeze her.",
+		"Spirits walk fixed paths: watch them, then cross.",
+		"A spider at your feet: stomp it (Q). Lantern off, it can barely see you.",
+		"The Devil's blade glints white just before it falls: hold C, facing him.",
+		"Fear kills too: keep the lantern lit and rest.",
+		"Stuck for 30 seconds? A trail of blood appears.",
+		"Some doors open only to knowledge, not keys.",
+	};
+	float y = TOP;
+	for (const char* tip : TIPS) {
+		// greedy word wrap into the column
+		Str word, line, out;
+		auto fits = [&](const Str& s) { sf::Text m(fontItalic, s, 19); return m.getLocalBounds().size.x <= RW - 16; };
+		const char* c = tip;
+		while (true) {
+			if (*c == ' ' || *c == 0) {
+				Str test = line.empty() ? word : line + " " + word;
+				if (!line.empty() && !fits(test)) { out += line + "\n"; line = word; }
+				else line = test;
+				word.clear();
+				if (*c == 0) break;
+			}
+			else word += *c;
+			++c;
+		}
+		out += line;
+		label(fontItalic, "-", 19, sf::Color(176, 30, 58), RX, y);
+		sf::Text tt(fontItalic, out, 19); tt.setFillColor(sf::Color(220, 190, 186)); tt.setLineSpacing(1.05f);
+		tt.setPosition({ RX + 16, std::floor(y) }); w->draw(tt);
+		y += tt.getLocalBounds().size.y + tt.getLocalBounds().position.y + 12;
+	}
+
+	centered(w, fontItalic, "Enter or Esc to return", 20, ASH, PY + PH - 40);
 	if (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::Escape) || key_hit(sf::Keyboard::Key::Space)) return -100; // caller decides
 	return ST_CONTROLS;
 }
