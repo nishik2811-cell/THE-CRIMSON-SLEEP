@@ -246,8 +246,13 @@ private:
 	void alfredGiveLantern();
 	bool alfredLeft = false;
 	float alfredScreamT = -1; // countdown to his scream after he leaves
-	int alfredDead = 0;       // 0 not yet, 1 waiting in the Library, 2 turning, 3 gone
+	int alfredDead = 0;       // 0 not yet, 1 waiting in the Library, 2 the lantern dies, 4 he turns, 5 he lunges, 3 gone
 	float alfredDeadT = 0;
+	sf::Vector2f alfredPos;   // where dead Alfred stands (he moves when he lunges)
+	int alfredDir = 3;        // which way he faces (sprite row)
+	float alfredWhisperT = 3.f, alfredScareT = 0;   // his whispers while he waits / his face filling the screen
+	void drawDeadAlfredGlow(sf::RenderWindow* w);
+	void drawAlfredScare(sf::RenderWindow* w);
 	sf::Texture alfredDeadTex; sf::Sprite alfredDeadSprite{ alfredDeadTex };
 	bool updateAlfred(float dt, sf::RenderWindow* window, bool overlay);
 	void drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay);

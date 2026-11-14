@@ -104,6 +104,7 @@ bool Game::loadGame(const char* path) {
 			int left = 0; float ax = 0, ay = 0;
 			if (std::fscanf(f, "%d %d %d %f %f", &npc.state, &left, &alfredDead, &ax, &ay) != 5) break;
 			alfredLeft = left; npc.setPosition({ ax, ay });
+			if (alfredDead == 2 || alfredDead == 4 || alfredDead == 5) alfredDead = 1;   // saved mid-scare: he waits again
 		}
 		else if (!std::strcmp(key, "boss")) { if (std::fscanf(f, "%d", &bossHP) != 1) break; }
 		else if (!std::strcmp(key, "samara")) { int v = 0; if (std::fscanf(f, "%d", &v) != 1) break; locketReturned = v != 0; }   // older saves simply lack this line

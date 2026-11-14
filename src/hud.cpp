@@ -258,6 +258,7 @@ void Game::drawHud(sf::RenderWindow* w) {
 	drawMinimap(w);
 	if (showInventory) drawInventory(w);
 
+	drawAlfredScare(w);                                  // dead Alfred's face, if he just got you
 	// Jump scare: the face slams in full-screen - punch zoom, violent shake,
 	// red/cyan channel split, static, and a blood flash at the start.
 	if (jumpscare > 0) {

@@ -291,9 +291,10 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		if (bossStun > 0) bossStun -= dt;
 		if (childBanishT > 0) { childBanishT -= dt; if (childBanishT <= 0 && childRoom) child.reset(true, child.home); }
 		if (jumpscare > 0) { jumpscare -= dt; player.frozen = jumpscare > 0.25f; }
+		if (alfredScareT > 0) alfredScareT -= dt;
 		player.light.flicker *= 0.92f;
 	}
-	player.frozen = overlay || jumpscare > 0.25f || hidden || doorT >= 0 || (arriveT >= 0 && arriveT < WALK_OUT) || bossDeathT >= 0;
+	player.frozen = overlay || jumpscare > 0.25f || alfredScareT > 0.3f || alfredDead == 2 || alfredDead == 4 || hidden || doorT >= 0 || (arriveT >= 0 && arriveT < WALK_OUT) || bossDeathT >= 0;
 
 	window->setView(player.view);   // the room always follows the camera
 	// Camera shake.
@@ -434,6 +435,7 @@ void Game::update(sf::RenderWindow* window, float dt) {
 		cs.setColor(child.stun > 0 ? sf::Color(255, 120, 120, a) : sf::Color(200 + (std::uint8_t)(40 * k), g, g, a));
 		window->draw(cs);
 	}
+	drawDeadAlfredGlow(window);
 	drawDevilGlow(window);
 	drawDevilDeath(window);
 	drawWorldOverlays(window);
@@ -1116,35 +1118,98 @@ bool Game::updateAlfred(float dt, sf::RenderWindow* window, bool overlay) {
 	return talked;
 }
 
-// Dead Alfred waits in the Library, back turned, in the dark.  Get close
-// and he turns around.
+// Dead Alfred waits in the Library after his scream: a faint figure with
+// his back to you, swaying, whispering.  Come within a few tiles and the
+// lantern dies... a moan... he SNAPS round - eyeless, bleeding - and rushes
+// you, and his face fills the screen.  Then he is gone for good.
 void Game::drawDeadAlfred(sf::RenderWindow* window, float dt, bool overlay) {
+	(void)window;
 	if (room != LIBRARY || alfredDead == 0 || alfredDead == 3) return;
-	const sf::Vector2f pos(9 * 32 + 4.f, 11 * 32 + 4.f);
-	alfredDeadSprite.setPosition(pos);
-	if (alfredDead == 1) {
-		alfredDeadSprite.setTextureRect(sf::IntRect({ 0, 3 * 48 }, { 24, 48 }));   // back turned
-		alfredDeadSprite.setColor(sf::Color::White);
-		sf::Vector2f d = pp() - pos;
-		if (!overlay && std::sqrt(d.x * d.x + d.y * d.y) < 60.f) {
+	if (alfredPos.x == 0 && alfredPos.y == 0) alfredPos = sf::Vector2f(19 * 32 + 4.f, 7 * 32 + 4.f);   // in plain sight, a few steps in from the door
+	if (overlay) return;
+	sf::Vector2f me = pp() + sf::Vector2f(12, 12), body = alfredPos + sf::Vector2f(12, 12), d = me - body;
+	float dl = std::sqrt(d.x * d.x + d.y * d.y);
+	auto face = [&]() { alfredDir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up); };
+	alfredDeadT += dt;
+	if (alfredDead == 1) {                                   // waiting, back turned
+		alfredDir = Character::Up;
+		if ((alfredWhisperT -= dt) <= 0) { audio.play(SFX_WHISPER, 40, 0.8f); alfredWhisperT = frand(5, 8); }
+		if (dl < 128) {
 			alfredDead = 2; alfredDeadT = 0;
-			audio.play(SFX_STING, 100, 0.7f);
-			shake = 1.f; hurtFlash = 0.5f;
-			player.fear += 8;
-			eventCaption = "Alfred turns around. His eyes are gone.";
-			eventCaptionT = 5.f;
+			player.light.flicker = 1.f;                          // the lantern dies down
+			audio.play(SFX_MOAN, 75, 0.7f);
+			player.fear += 4;
 		}
 	}
-	else if (alfredDead == 2) {
-		if (!overlay) alfredDeadT += dt;
-		int frame = (int)(alfredDeadT * 8) % 3;
-		alfredDeadSprite.setTextureRect(sf::IntRect({ frame * 24, 0 }, { 24, 48 }));   // facing you
-		float a = alfredDeadT < 1.4f ? 1.f : maxOf(0.f, 1.f - (alfredDeadT - 1.4f) / 0.6f);
-		bool flick = alfredDeadT > 1.0f && std::rand() % 3 == 0;
-		alfredDeadSprite.setColor(sf::Color(255, 255, 255, (std::uint8_t)(flick ? 60 : 255 * a)));
-		if (alfredDeadT > 2.0f) alfredDead = 3;
+	else if (alfredDead == 2) {                              // a beat of dark and silence
+		player.light.flicker = maxOf(player.light.flicker, 0.85f);
+		if (alfredDeadT > 0.9f) {
+			alfredDead = 4; alfredDeadT = 0; face();
+			audio.play(SFX_STING, 100, 0.7f);
+			shake = 1.2f; hurtFlash = 0.6f; player.fear += 8;
+			eventCaption = "Alfred turns around. His eyes are gone."; eventCaptionT = 4.f;
+		}
 	}
-	window->draw(alfredDeadSprite);
+	else if (alfredDead == 4) {                              // he stares
+		face();
+		if (alfredDeadT > 0.45f) { alfredDead = 5; alfredDeadT = 0; audio.play(SFX_SCREAM, 85, 1.15f); }
+	}
+	else if (alfredDead == 5) {                              // ...and rushes you
+		face();
+		if (dl > 1) alfredPos += d / dl * minOf(dl, 240.f * dt);
+		if (dl < 24 || alfredDeadT > 0.8f) {
+			alfredDead = 3;
+			alfredScareT = 1.1f;
+			audio.play(SFX_JUMPSCARE, 100);
+			shake = 1.6f; player.fear += 12;
+			eventCaption = "...and he is gone. Only the smell of blood remains."; eventCaptionT = 5.f;
+		}
+	}
+}
+
+// Drawn over the darkness, like Carrie: you can always see the figure.
+void Game::drawDeadAlfredGlow(sf::RenderWindow* w) {
+	if (room != LIBRARY || alfredDead == 0 || alfredDead == 3) return;
+	sf::Vector2f me = pp() + sf::Vector2f(12, 12), d = me - (alfredPos + sf::Vector2f(12, 12));
+	float dl = std::sqrt(d.x * d.x + d.y * d.y);
+	sf::Vector2f at = alfredPos;
+	int frame = 1;
+	sf::Color c;
+	if (alfredDead == 1 || alfredDead == 2) {
+		float k = clampTo(1.f - (dl - 80.f) / 320.f, 0.f, 1.f);
+		std::uint8_t a = (std::uint8_t)(alfredDead == 2 ? 215 : 55 + 140 * k);
+		c = sf::Color(175, 165, 165, a);
+		at.x += std::sin(roomTime * 1.3f) * 0.8f;                 // a slow, wrong sway
+		if (alfredDead == 2) at += sf::Vector2f((float)(std::rand() % 3 - 1), 0.f);   // trembling
+	}
+	else {
+		frame = (int)(alfredDeadT * 10) % 3;
+		c = sf::Color(255, 215, 215, 245);
+		if (alfredDead == 5) at += sf::Vector2f((float)(std::rand() % 3 - 1), (float)(std::rand() % 3 - 1));
+	}
+	alfredDeadSprite.setTextureRect(sf::IntRect({ frame * 24, alfredDir * 48 }, { 24, 48 }));
+	alfredDeadSprite.setPosition(at);
+	alfredDeadSprite.setColor(c);
+	w->draw(alfredDeadSprite);
+}
+
+// His face, filling the screen for a second: a white flash, then the
+// eyeless, bleeding face blown up and shaking, pulsing red, fading out.
+void Game::drawAlfredScare(sf::RenderWindow* w) {
+	if (alfredScareT <= 0) return;
+	float age = 1.1f - alfredScareT;
+	float a = alfredScareT < 0.3f ? alfredScareT / 0.3f : 1.f;
+	sf::RectangleShape black({ 1024.f, 768.f }); black.setFillColor(sf::Color(0, 0, 0, (std::uint8_t)(235 * a))); w->draw(black);
+	sf::Sprite f = alfredDeadSprite;
+	f.setOrigin({ 0.f, 0.f });
+	f.setTextureRect(sf::IntRect({ 24, 16 }, { 24, 26 }));       // his face (rows 16-41 of the sprite: hair, empty eyes, blood)
+	float sc = 25.f + 4.f * age;                                  // it keeps coming closer
+	f.setScale({ sc, sc });
+	f.setPosition({ 512.f - 12 * sc + (float)(std::rand() % 17 - 8), 384.f - 14 * sc + (float)(std::rand() % 17 - 8) });   // eyes near the centre of the screen
+	std::uint8_t red = (std::uint8_t)(170 + 85 * std::fabs(std::sin(age * 30)));
+	f.setColor(sf::Color(255, red, red, (std::uint8_t)(255 * a)));
+	w->draw(f);
+	if (age < 0.08f) { sf::RectangleShape flash({ 1024.f, 768.f }); flash.setFillColor(sf::Color(255, 255, 255, 200)); w->draw(flash); }
 }
 
 // --------------------------------------------------- footsteps & voices
@@ -1252,7 +1317,6 @@ void Game::squash(Spider& s) {
 	if (corpseCount[room] < 4) corpses[room][corpseCount[room]++] = s.pos;
 	audio.play(SFX_CRACK, 90, 1.6f);
 	audio.play(SFX_SQUISH, 45, 0.9f + 0.2f * (std::rand() % 3) / 2.f);   // a faint crunch and squish under the boot
-	audio.play(SFX_GASP, 50, 1.4f);
 	shake = 0.4f;
 	runStats.banished++;
 	showToast("SQUASHED.  It won't crawl again.");
@@ -1986,7 +2050,6 @@ void Game::startBossAttack(int kind, sf::Vector2f d) {
 	bossAtkT = 0; bossAtkLanded = false;
 	bossAtkDir = std::fabs(d.x) > std::fabs(d.y) ? (d.x > 0 ? Character::Right : Character::Left) : (d.y > 0 ? Character::Down : Character::Up);
 	boss.source.y = bossAtkDir;
-	audio.play(SFX_BREATH, 80, kind == 1 ? 0.8f : 0.55f);   // a low, ragged breath as he raises it
 	if (getenv("CS_TRACE")) std::fprintf(stderr, "BOSS attack kind %d\n", kind);
 }
 
