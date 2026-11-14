@@ -427,7 +427,7 @@ void Game::drawTipCard(sf::RenderWindow* w) {
 	sf::Text tag(fontItalic, "survival note", 14); tag.setFillColor(sf::Color(220, 190, 180, A(235)));
 	tag.setOutlineColor(sf::Color(0, 0, 0, A(200))); tag.setOutlineThickness(1.f);
 	tag.setPosition({ x + 16, y + 9 }); w->draw(tag);
-	sf::Text more(fontItalic, "J - all notes", 13); more.setFillColor(sf::Color(210, 170, 165, A(220)));
+	sf::Text more(fontItalic, "Space - close   J - all notes", 13); more.setFillColor(sf::Color(210, 170, 165, A(220)));
 	more.setOutlineColor(sf::Color(0, 0, 0, A(200))); more.setOutlineThickness(1.f);
 	more.setPosition({ x + wd - 16 - more.getLocalBounds().size.x, y + 10 }); w->draw(more);
 	sf::Text title(fontTitle, TIPS[tipCard].title, 24);

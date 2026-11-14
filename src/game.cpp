@@ -480,7 +480,10 @@ void Game::update(sf::RenderWindow* window, float dt) {
 
 	if (!overlay) {
 		// Story / interaction.
-		if (key_hit(sf::Keyboard::Key::Space) && alfredT < 0) dialogue = "";   // during Alfred's talk Space = next line
+		if (key_hit(sf::Keyboard::Key::Space) && alfredT < 0) {   // during Alfred's talk Space = next line
+			if (!dialogue.empty()) dialogue = "";                  // first the story text...
+			else if (tipCardT > 0.8f) tipCardT = 0.8f;             // ...then the survival note at the side fades away
+		}
 		if (!talkedToAlfred && (key_hit(sf::Keyboard::Key::Enter) || key_hit(sf::Keyboard::Key::E))) interact();
 		if (key_hit(sf::Keyboard::Key::B)) goBack();
 		if (key_hit(sf::Keyboard::Key::F)) flareLantern();
